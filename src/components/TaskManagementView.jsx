@@ -181,11 +181,21 @@ export function TaskManagementView() {
   };
 
   const selectAllParliaments = () => {
-    setSelectedParliaments(AP_CONSTITUENCIES.map(p => p.code));
+    if (parliamentSearchText.trim()) {
+      const filteredCodes = filteredParliamentsList.map(p => p.code);
+      setSelectedParliaments(prev => Array.from(new Set([...prev, ...filteredCodes])));
+    } else {
+      setSelectedParliaments(AP_CONSTITUENCIES.map(p => p.code));
+    }
   };
 
   const deselectAllParliaments = () => {
-    setSelectedParliaments([]);
+    if (parliamentSearchText.trim()) {
+      const filteredCodes = new Set(filteredParliamentsList.map(p => p.code));
+      setSelectedParliaments(prev => prev.filter(code => !filteredCodes.has(code)));
+    } else {
+      setSelectedParliaments([]);
+    }
   };
 
   const toggleAssemblySelection = (code) => {
@@ -197,11 +207,21 @@ export function TaskManagementView() {
   };
 
   const selectAllAssemblies = () => {
-    setSelectedAssemblies(allAssembliesList.map(a => a.code));
+    if (assemblySearchText.trim()) {
+      const filteredCodes = filteredAssembliesList.map(a => a.code);
+      setSelectedAssemblies(prev => Array.from(new Set([...prev, ...filteredCodes])));
+    } else {
+      setSelectedAssemblies(allAssembliesList.map(a => a.code));
+    }
   };
 
   const deselectAllAssemblies = () => {
-    setSelectedAssemblies([]);
+    if (assemblySearchText.trim()) {
+      const filteredCodes = new Set(filteredAssembliesList.map(a => a.code));
+      setSelectedAssemblies(prev => prev.filter(code => !filteredCodes.has(code)));
+    } else {
+      setSelectedAssemblies([]);
+    }
   };
 
   const handleFormSubmit = (e) => {
