@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgres://postgres:postgres_secure_password_123@postgres_db:5432/brksocial
+    depends_on:
+      - postgres_db
+
+  postgres_db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_password_123
+      POSTGRES_DB: brksocial
+    volumes:
+      # Persistent Docker volume on Hostinger VPS host filesystem
+      - brksocial_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  brksocial_postgres_data:
+    name: brksocial_postgres_data
+    driver: local
