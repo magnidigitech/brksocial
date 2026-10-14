@@ -80,19 +80,23 @@ export function AdminMetricsDashboardView() {
   const [copiedStaffToken, setCopiedStaffToken] = useState(null);
 
   const staffClickMap = useMemo(() => {
-    const analytics = dbService.getLinkAnalytics({ taskId: selectedTaskId || null });
+    const analytics = dbService.getLinkAnalytics({ taskId: selectedTaskId || null, date: selectedDate || null });
     const map = {};
     (analytics.staffLeaderboard || []).forEach(item => {
-      map[item.employeeId] = item;
+      const id = item.employeeId || item.employee?.id;
+      if (id) {
+        map[id] = item;
+        map[id.toUpperCase()] = item;
+      }
     });
     return map;
-  }, [selectedTaskId, selectedDate]);
+  }, [selectedTaskId, selectedDate, refreshTrigger]);
 
   const handleCopyStaffTrackingLink = (empId) => {
     const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', empId);
     if (!link) return;
     const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://social.bhashyamramakrishna.in';
-    const slug = link.slug || link.urlSlug || 'instagram';
+    const slug = link.slug || link.urlSlug || 'go';
     const url = `${origin}/${slug}/${link.token}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopiedStaffToken(link.token);
@@ -124,15 +128,21 @@ export function AdminMetricsDashboardView() {
     };
 
     window.addEventListener('brk_submission_event', handleSubmissionEvent);
+    window.addEventListener('brk_link_click_event', handleSubmissionEvent);
     window.addEventListener('storage', handleStorageEvent);
 
-    // Live sync polling every 2 seconds for instant reflection without page reload
+    // Live sync polling every 2.5 seconds: pulls server clicks & refreshes UI
     const interval = setInterval(() => {
-      setRefreshTrigger(prev => prev + 1);
-    }, 2000);
+      dbService.syncClicksWithServer().then(() => {
+        setRefreshTrigger(prev => prev + 1);
+      }).catch(() => {
+        setRefreshTrigger(prev => prev + 1);
+      });
+    }, 2500);
 
     return () => {
       window.removeEventListener('brk_submission_event', handleSubmissionEvent);
+      window.removeEventListener('brk_link_click_event', handleSubmissionEvent);
       window.removeEventListener('storage', handleStorageEvent);
       clearInterval(interval);
     };

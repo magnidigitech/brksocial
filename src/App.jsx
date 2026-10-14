@@ -8,11 +8,16 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 
 // Ultra-fast client-side redirect handler for /go/:token, /instagram/:token, /track/:slug/:token
 function TrackingRedirectHandler({ pathname }) {
+  const [targetUrl, setTargetUrl] = useState('https://www.instagram.com/ramakrishnabhashyam/');
+  const [matchedStaff, setMatchedStaff] = useState(null);
+
   useEffect(() => {
     try {
       dbService.init();
       const parts = pathname.split('/').filter(Boolean);
-      const token = parts[parts.length - 1]; // last segment is the token
+      let token = parts[parts.length - 1] || '';
+      if (token.includes('?')) token = token.split('?')[0];
+      if (token.includes('#')) token = token.split('#')[0];
 
       if (token) {
         // Record click with bot/crawler detection & IP deduplication
@@ -23,10 +28,23 @@ function TrackingRedirectHandler({ pathname }) {
         });
 
         const target = result?.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/';
-        // Instant redirect
-        window.location.replace(target);
+        setTargetUrl(target);
+
+        if (result?.clickRecord?.employeeName && result.clickRecord.employeeName !== 'Unknown Staff') {
+          setMatchedStaff(result.clickRecord);
+        }
+
+        // Smooth 350ms transition so localStorage commits and beacon leaves
+        const timer = setTimeout(() => {
+          window.location.replace(target);
+        }, 350);
+
+        return () => clearTimeout(timer);
       } else {
-        window.location.replace('https://www.instagram.com/ramakrishnabhashyam/');
+        const timer = setTimeout(() => {
+          window.location.replace('https://www.instagram.com/ramakrishnabhashyam/');
+        }, 200);
+        return () => clearTimeout(timer);
       }
     } catch (e) {
       console.error('Tracking redirect failed:', e);
@@ -46,7 +64,7 @@ function TrackingRedirectHandler({ pathname }) {
       padding: '20px'
     }}>
       <div style={{
-        maxWidth: '400px',
+        maxWidth: '420px',
         width: '100%',
         backgroundColor: '#1e293b',
         borderRadius: '24px',
@@ -56,8 +74,8 @@ function TrackingRedirectHandler({ pathname }) {
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
       }}>
         <div style={{
-          width: '52px',
-          height: '52px',
+          width: '54px',
+          height: '54px',
           borderRadius: '50%',
           backgroundColor: 'rgba(255, 77, 0, 0.12)',
           border: '1.5px solid #ff4d00',
@@ -68,34 +86,69 @@ function TrackingRedirectHandler({ pathname }) {
           color: '#ff4d00'
         }}>
           <span style={{
-            width: '22px',
-            height: '22px',
+            width: '24px',
+            height: '24px',
             borderRadius: '50%',
             border: '2.5px solid #ff4d00',
             borderTopColor: 'transparent',
-            animation: 'fastSpin 0.5s linear infinite',
+            animation: 'fastSpin 0.6s linear infinite',
             display: 'inline-block'
           }} />
         </div>
 
-        <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: '#f8fafc' }}>
+        <h2 style={{ fontSize: '19px', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: '#f8fafc' }}>
           Sri Bhashyam Ramakrishna
         </h2>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0' }}>
-          Connecting you to official social media...
+          Official Citizen Outreach — Connecting you to Instagram...
         </p>
 
-        <span style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          padding: '4px 12px',
-          borderRadius: '9999px',
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-          color: '#34d399',
-          border: '1px solid rgba(16, 185, 129, 0.3)'
-        }}>
-          ⚡ Sub-50ms Fast Direct
-        </span>
+        {matchedStaff && (
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '10px 14px',
+            marginBottom: '18px',
+            fontSize: '12px',
+            color: '#cbd5e1'
+          }}>
+            <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+              Staff Outreach Coordinator
+            </div>
+            <strong style={{ color: '#ffedd5', fontSize: '13px' }}>{matchedStaff.employeeName}</strong>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+              {matchedStaff.parliamentName} {matchedStaff.assemblyName ? `• ${matchedStaff.assemblyName}` : ''}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            padding: '4px 12px',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            color: '#34d399',
+            border: '1px solid rgba(16, 185, 129, 0.3)'
+          }}>
+            ⚡ Verified Link • Redirecting
+          </span>
+
+          <a
+            href={targetUrl}
+            style={{
+              fontSize: '12px',
+              color: '#38bdf8',
+              textDecoration: 'underline',
+              marginTop: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Click here if not redirected automatically
+          </a>
+        </div>
       </div>
       <style>{`
         @keyframes fastSpin {

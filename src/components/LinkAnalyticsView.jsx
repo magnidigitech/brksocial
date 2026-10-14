@@ -47,9 +47,25 @@ export function LinkAnalyticsView() {
   useEffect(() => {
     const list = dbService.getTasks();
     setTasks(list);
-    if (list.length > 0 && selectedTaskId === 'ALL') {
-      // Default to first active task or keep ALL
-    }
+  }, []);
+
+  // Real-time live update & server sync
+  useEffect(() => {
+    const handleUpdate = () => setRefreshKey(prev => prev + 1);
+    window.addEventListener('brk_link_click_event', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    const interval = setInterval(() => {
+      dbService.syncClicksWithServer().then(() => {
+        setRefreshKey(prev => prev + 1);
+      }).catch(() => {});
+    }, 2500);
+
+    return () => {
+      window.removeEventListener('brk_link_click_event', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleRefresh = () => {

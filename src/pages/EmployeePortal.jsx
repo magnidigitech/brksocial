@@ -53,6 +53,38 @@ export function EmployeePortal({ session, onLogout }) {
     loadData();
   }, [session]);
 
+  // Real-time live update for clicks and submissions across devices
+  useEffect(() => {
+    const handleLiveRefresh = () => {
+      const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+      const taskId = activeTask?.id || 'TASK-INSTA-001';
+      const today = new Date().toISOString().split('T')[0];
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+      setTaskStats(stats);
+      const link = dbService.getTrackingLinkForEmployee(taskId, empId);
+      setTrackingLink(link);
+      const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
+      setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+    };
+
+    window.addEventListener('brk_link_click_event', handleLiveRefresh);
+    window.addEventListener('storage', handleLiveRefresh);
+    window.addEventListener('brk_submission_event', handleLiveRefresh);
+
+    const interval = setInterval(() => {
+      dbService.syncClicksWithServer().then(() => {
+        handleLiveRefresh();
+      }).catch(() => {});
+    }, 2500);
+
+    return () => {
+      window.removeEventListener('brk_link_click_event', handleLiveRefresh);
+      window.removeEventListener('storage', handleLiveRefresh);
+      window.removeEventListener('brk_submission_event', handleLiveRefresh);
+      clearInterval(interval);
+    };
+  }, [employee, session, activeTask]);
+
   const loadData = () => {
     const empId = session?.employeeId || session?.id || 'APP13';
     const empData = dbService.getEmployeeById(empId);
@@ -98,9 +130,8 @@ export function EmployeePortal({ session, onLogout }) {
   const getFullTrackingUrl = () => {
     const link = effectiveLink;
     if (!link) return '';
-    if (link.fullUrl) return link.fullUrl;
     const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://social.bhashyamramakrishna.in';
-    const slug = link.slug || link.urlSlug || (activeTask?.platform?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'instagram');
+    const slug = link.slug || link.urlSlug || 'go';
     return `${origin}/${slug}/${link.token}`;
   };
 

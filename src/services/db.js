@@ -78,132 +78,7 @@ const DEFAULT_TASKS = [
   }
 ];
 
-// Seed initial sample submissions for testing duplicate detection & stats
-function generateInitialSubmissions(employees, task) {
-  const dateStr = new Date().toISOString().split('T')[0];
-  const submissions = [];
-
-  // Seed sample valid submissions for APP13 (Guntur Parliament staff)
-  const sampleHandlesEmp1 = ['ram123', 'krishna_2026', 'user12345', 'abcde123', 'hyderabad_digital', 'guntur_leads'];
-  sampleHandlesEmp1.forEach((handle, idx) => {
-    submissions.push({
-      id: `SUB-${Date.now()}-${idx}`,
-      taskId: task.id,
-      employeeId: 'APP13',
-      employeeName: employees.find(e => e.id === 'APP13')?.name || 'Ravi Kumar',
-      platform: 'Instagram',
-      username: handle,
-      rawInput: `@${handle}`,
-      status: 'Valid',
-      submittedAt: new Date(Date.now() - (6 - idx) * 300000).toISOString(),
-      date: dateStr
-    });
-  });
-
-  // Seed sample cross-employee submission for APP13A07 (Guntur East staff)
-  submissions.push({
-    id: `SUB-${Date.now()}-10`,
-    taskId: task.id,
-    employeeId: 'APP13A07',
-    employeeName: employees.find(e => e.id === 'APP13A07')?.name || 'Suresh Chowdary',
-    platform: 'Instagram',
-    username: 'sample_lead_002',
-    rawInput: 'https://instagram.com/sample_lead_002/',
-    status: 'Valid',
-    submittedAt: new Date(Date.now() - 100000).toISOString(),
-    date: dateStr
-  });
-
-  return submissions;
-}
-
-// Seed illustrative link clicks matching sample metrics if empty
-function generateInitialLinkClicks(employees, task) {
-  const dateStr = new Date().toISOString().split('T')[0];
-  const clicks = [];
-  const now = Date.now();
-
-  // Illustrative top staff mentioned in requirements:
-  // Betapudi Rojlin (APP01A01) — 56 clicks
-  // Rajaboyina Manjula (APP01A02) — 31 clicks
-  // Uusa Nagalakshmi (APP02A01) — 42 clicks
-  const featuredStaff = [
-    { search: 'Betapudi Rojlin', count: 56, code: 'APP01A01' },
-    { search: 'Rajaboyina Manjula', count: 31, code: 'APP01A02' },
-    { search: 'Uusa Nagalakshmi', count: 42, code: 'APP02A01' }
-  ];
-
-  featuredStaff.forEach(item => {
-    const emp = employees.find(e => (e.name && e.name.toLowerCase().includes(item.search.toLowerCase())) || e.assemblyCode === item.code || e.id === item.code);
-    if (emp) {
-      const token = `token_${emp.id.toLowerCase()}`;
-      for (let i = 0; i < item.count; i++) {
-        const isBot = i % 15 === 0; // occasional preview crawler
-        clicks.push({
-          id: `CLK-${now}-${item.code}-${i}`,
-          token,
-          taskId: task.id,
-          taskName: task.name,
-          employeeId: emp.id,
-          employeeName: emp.name,
-          supportCode: emp.supportCode || emp.id,
-          staffId: emp.staffId || emp.id,
-          parliamentCode: emp.parliamentCode,
-          parliamentName: emp.parliamentName,
-          assemblyCode: emp.assemblyCode,
-          assemblyName: emp.assemblyName,
-          targetUrl: task.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
-          ip: `49.37.${10 + (i % 20)}.${100 + (i % 150)}`,
-          userAgent: isBot ? 'WhatsApp/2.24.18.15 A' : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148',
-          referrer: 'https://api.whatsapp.com/',
-          deviceType: 'Mobile',
-          isBot,
-          botName: isBot ? 'WhatsApp Preview' : null,
-          isDuplicate: false,
-          isValid: !isBot,
-          timestamp: new Date(now - (item.count - i) * 600000).toISOString()
-        });
-      }
-    }
-  });
-
-  // Add 15 other random active staff members with 3 to 15 clicks each
-  const otherStaff = employees.filter(e => e.status === 'Active' && !featuredStaff.some(f => e.assemblyCode === f.code)).slice(0, 20);
-  otherStaff.forEach((emp, sIdx) => {
-    const count = 4 + (sIdx % 12);
-    const token = `token_${emp.id.toLowerCase()}`;
-    for (let j = 0; j < count; j++) {
-      const isBot = j === 0 && sIdx % 3 === 0;
-      clicks.push({
-        id: `CLK-${now}-OTH-${sIdx}-${j}`,
-        token,
-        taskId: task.id,
-        taskName: task.name,
-        employeeId: emp.id,
-        employeeName: emp.name,
-        supportCode: emp.supportCode || emp.id,
-        staffId: emp.staffId || emp.id,
-        parliamentCode: emp.parliamentCode,
-        parliamentName: emp.parliamentName,
-        assemblyCode: emp.assemblyCode,
-        assemblyName: emp.assemblyName,
-        targetUrl: task.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
-        ip: `152.57.${10 + (sIdx % 30)}.${50 + (j % 150)}`,
-        userAgent: isBot ? 'facebookexternalhit/1.1' : 'Mozilla/5.0 (Linux; Android 14; SM-S928B) Chrome/128.0.0.0 Mobile Safari/537.36',
-        referrer: 'Direct',
-        deviceType: 'Mobile',
-        isBot,
-        botName: isBot ? 'Facebook Preview' : null,
-        isDuplicate: false,
-        isValid: !isBot,
-        timestamp: new Date(now - (25 - j) * 900000).toISOString()
-      });
-    }
-  });
-
-  return clicks;
-}
-
+// Clean storage initialization - starts with 0 real data (no dummy submissions or fake clicks)
 export const dbService = {
   init() {
     if (!localStorage.getItem(STORAGE_KEYS.EMPLOYEES)) {
@@ -255,17 +130,20 @@ export const dbService = {
         }
       } catch (err) {}
     }
+
+    // PURGE ALL DUMMY DATA: Start completely clean with real tracking only
+    if (!localStorage.getItem('brk_clean_real_data_v4')) {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
+      localStorage.setItem('brk_clean_real_data_v4', 'true');
+    }
+
     if (!localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
-      const emps = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES));
-      const tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS));
-      const subs = generateInitialSubmissions(emps, tasks[0]);
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
     }
     if (!localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) {
-      const emps = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES)) || [];
-      const tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || DEFAULT_TASKS;
-      const initialClicks = generateInitialLinkClicks(emps, tasks[0]);
-      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(initialClicks));
+      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
     }
     if (!localStorage.getItem(STORAGE_KEYS.TRACKING_LINKS)) {
       localStorage.setItem(STORAGE_KEYS.TRACKING_LINKS, JSON.stringify([]));
@@ -893,19 +771,34 @@ export const dbService = {
   resolveTrackingToken(tokenOrSlug) {
     this.init();
     if (!tokenOrSlug) return null;
-    const clean = tokenOrSlug.trim();
+    let clean = String(tokenOrSlug).trim();
+    if (clean.includes('?')) clean = clean.split('?')[0];
+    if (clean.includes('#')) clean = clean.split('#')[0];
+    if (clean.includes('/')) {
+      const parts = clean.split('/').filter(Boolean);
+      clean = parts[parts.length - 1] || clean;
+    }
+    clean = clean.trim();
+    if (!clean) return null;
+
     const links = this.getTrackingLinks();
     
-    // 1. Direct match on token
-    let match = links.find(l => l.token.toLowerCase() === clean.toLowerCase());
+    // 1. Direct match on token (case-insensitive)
+    let match = links.find(l => l.token && l.token.toLowerCase() === clean.toLowerCase());
     if (match) return match;
 
-    // 2. Match on employee ID, support code, or staffId for fallback readability
+    // 2. Direct match on fullUrl or shortUrl ending
+    let urlMatch = links.find(l => (l.fullUrl && l.fullUrl.endsWith('/' + clean)) || (l.shortUrl && l.shortUrl.endsWith('/' + clean)));
+    if (urlMatch) return urlMatch;
+
+    // 3. Match on employee ID, support code, staffId, or mobile for fallback readability
     const emps = this.getEmployees();
     const emp = emps.find(e => 
-      e.id.toLowerCase() === clean.toLowerCase() ||
+      (e.id && e.id.toLowerCase() === clean.toLowerCase()) ||
       (e.supportCode && e.supportCode.toLowerCase() === clean.toLowerCase()) ||
-      (e.staffId && e.staffId.toLowerCase() === clean.toLowerCase())
+      (e.staffId && e.staffId.toLowerCase() === clean.toLowerCase()) ||
+      (e.mobilePersonal && e.mobilePersonal === clean) ||
+      (e.mobileOffice && e.mobileOffice === clean)
     );
 
     if (emp) {
@@ -915,8 +808,18 @@ export const dbService = {
       }
     }
 
-    // 3. Fallback to active task target
+    // 4. Match deterministic token across all employees
     const activeTask = this.getActiveTask();
+    if (activeTask) {
+      for (const e of emps) {
+        const expectedToken = this.generateLinkToken(activeTask.id, e.id);
+        if (expectedToken.toLowerCase() === clean.toLowerCase()) {
+          return this.getTrackingLinkForEmployee(activeTask.id, e.id);
+        }
+      }
+    }
+
+    // Fallback to active task target
     return {
       targetUrl: activeTask?.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
       token: clean,
@@ -925,6 +828,7 @@ export const dbService = {
       employeeId: 'UNKNOWN',
       employeeName: 'General Visitor',
       supportCode: '',
+      staffId: '',
       parliamentCode: '',
       assemblyCode: ''
     };
@@ -935,15 +839,38 @@ export const dbService = {
     let clicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
     if (filter) {
       if (filter.taskId) clicks = clicks.filter(c => c.taskId === filter.taskId);
-      if (filter.employeeId) clicks = clicks.filter(c => c.employeeId.toUpperCase() === filter.employeeId.toUpperCase());
-      if (filter.date) clicks = clicks.filter(c => c.timestamp.startsWith(filter.date));
+      if (filter.employeeId) clicks = clicks.filter(c => c.employeeId && c.employeeId.toUpperCase() === filter.employeeId.toUpperCase());
+      if (filter.date) clicks = clicks.filter(c => c.timestamp && c.timestamp.startsWith(filter.date));
       if (filter.isValid !== undefined) clicks = clicks.filter(c => c.isValid === filter.isValid);
     }
     return clicks;
   },
 
-  recordLinkClick({ token, ip, userAgent, referrer, host }) {
+  recordLinkClick(arg1, arg2) {
     this.init();
+    let token = '';
+    let ip = '';
+    let userAgent = '';
+    let referrer = '';
+    let host = '';
+
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      token = arg1.token;
+      ip = arg1.ip;
+      userAgent = arg1.userAgent;
+      referrer = arg1.referrer;
+      host = arg1.host;
+    } else {
+      token = arg1;
+      if (arg2 && typeof arg2 === 'object') {
+        ip = arg2.ip;
+        userAgent = arg2.userAgent;
+        referrer = arg2.referrer;
+        host = arg2.host;
+      }
+    }
+
+    token = String(token || '').trim();
     const resolved = this.resolveTrackingToken(token);
     const ua = userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
     const ref = referrer || (typeof document !== 'undefined' ? document.referrer : '');
@@ -962,12 +889,12 @@ export const dbService = {
 
     const clicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
 
-    // Deduplication check: same token and same IP within 5 seconds
+    // Deduplication check: same token and same IP within 1.5 seconds
     const now = Date.now();
     const isDuplicate = clicks.some(c => 
       c.token === (resolved?.token || token) &&
       c.ip === clientIp &&
-      (now - new Date(c.timestamp).getTime()) < 5000
+      (now - new Date(c.timestamp).getTime()) < 1500
     );
 
     const isValid = !isBot && !isDuplicate;
@@ -976,7 +903,7 @@ export const dbService = {
       id: `CLK-${now}-${Math.random().toString(36).substring(2, 7)}`,
       token: resolved?.token || token,
       taskId: resolved?.taskId || 'TASK-INSTA-001',
-      taskName: resolved?.taskName || 'Instagram Outreach',
+      taskName: resolved?.taskName || 'Instagram Follower Outreach',
       employeeId: resolved?.employeeId || 'UNKNOWN',
       employeeName: resolved?.employeeName || 'Unknown Staff',
       supportCode: resolved?.supportCode || '',
@@ -998,14 +925,34 @@ export const dbService = {
     };
 
     clicks.unshift(clickRecord);
-    // Keep last 10,000 clicks in local storage
     if (clicks.length > 10000) clicks.length = 10000;
     localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(clicks));
 
-    // Dispatch custom event for real-time live sync
+    // Dispatch event so all open views immediately refresh
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('brk_link_click_event', { detail: clickRecord }));
-      window.dispatchEvent(new CustomEvent('storage', { key: STORAGE_KEYS.LINK_CLICKS }));
+      try {
+        window.dispatchEvent(new CustomEvent('brk_link_click_event', { detail: clickRecord }));
+        window.dispatchEvent(new Event('storage'));
+      } catch (e) {}
+    }
+
+    // Also dispatch to backend server if reachable (ensures global sync across devices)
+    if (typeof fetch !== 'undefined') {
+      try {
+        fetch('/api/links/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: clickRecord.token,
+            taskId: clickRecord.taskId,
+            employeeId: clickRecord.employeeId,
+            ip: clientIp,
+            userAgent: ua,
+            referrer: ref
+          }),
+          keepalive: true
+        }).catch(() => {});
+      } catch (e) {}
     }
 
     return {
@@ -1015,25 +962,68 @@ export const dbService = {
     };
   },
 
-  getLinkAnalytics({ dateStr, taskId, parliamentCode, assemblyCode } = {}) {
+  async syncClicksWithServer() {
+    if (typeof fetch === 'undefined') return;
+    try {
+      const res = await fetch('/api/links/analytics');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.clicks) && data.clicks.length > 0) {
+          const localClicks = this.getLinkClicks();
+          const localIds = new Set(localClicks.map(c => c.id));
+          let added = 0;
+          data.clicks.forEach(serverClick => {
+            if (!localIds.has(serverClick.id)) {
+              localClicks.unshift(serverClick);
+              added++;
+            }
+          });
+          if (added > 0) {
+            localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(localClicks));
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('brk_link_click_event', { detail: { added } }));
+              window.dispatchEvent(new Event('storage'));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Offline / standalone mode - ignore
+    }
+  },
+
+  getLinkAnalytics(filter = {}) {
     this.init();
-    const effectiveDate = dateStr || new Date().toISOString().split('T')[0];
+    const date = filter.date || filter.dateStr;
+    const startDate = filter.startDate;
+    const taskId = filter.taskId;
+    const parliamentCode = filter.parliamentCode;
+    const assemblyCode = filter.assemblyCode;
+
     const allClicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
     const employees = this.getEmployees();
     const tasks = this.getTasks();
-    const targetTask = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
+    const targetTask = taskId && taskId !== 'ALL' ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
 
-    // Filter clicks
     let filteredClicks = allClicks;
-    if (effectiveDate && effectiveDate !== 'ALL') {
-      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp.startsWith(effectiveDate));
+
+    // Filter by specific date (e.g. TODAY or YESTERDAY)
+    if (date && date !== 'ALL') {
+      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp.startsWith(date));
     }
-    if (targetTask) {
+    // Filter by startDate (e.g. Last 7 Days)
+    if (startDate) {
+      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp >= startDate);
+    }
+    // Filter by task
+    if (targetTask && taskId && taskId !== 'ALL') {
       filteredClicks = filteredClicks.filter(c => c.taskId === targetTask.id);
     }
+    // Filter by parliament
     if (parliamentCode && parliamentCode !== 'ALL') {
       filteredClicks = filteredClicks.filter(c => c.parliamentCode === parliamentCode);
     }
+    // Filter by assembly
     if (assemblyCode && assemblyCode !== 'ALL') {
       filteredClicks = filteredClicks.filter(c => c.assemblyCode === assemblyCode);
     }
@@ -1043,17 +1033,14 @@ export const dbService = {
     const botClicks = filteredClicks.filter(c => c.isBot).length;
     const duplicateClicks = filteredClicks.filter(c => c.isDuplicate).length;
 
-    // Unique visitors by IP among valid clicks
     const uniqueIps = new Set(filteredClicks.filter(c => c.isValid).map(c => c.ip));
     const uniqueVisitors = uniqueIps.size;
 
     const mobileClicks = filteredClicks.filter(c => c.isValid && c.deviceType === 'Mobile').length;
     const desktopClicks = filteredClicks.filter(c => c.isValid && c.deviceType === 'Desktop').length;
 
-    // Daily target per staff
     const dailyTarget = targetTask?.dailyTarget || 10;
 
-    // Scope active employees
     let activeEmployees = employees.filter(e => e.status === 'Active');
     if (parliamentCode && parliamentCode !== 'ALL') {
       activeEmployees = activeEmployees.filter(e => e.parliamentCode === parliamentCode);
@@ -1064,12 +1051,14 @@ export const dbService = {
 
     const totalTarget = activeEmployees.length * dailyTarget;
 
-    // Staff Performance Leaderboard
-    const staffPerformance = activeEmployees.map(emp => {
-      const empClicks = filteredClicks.filter(c => c.employeeId.toUpperCase() === emp.id.toUpperCase());
+    // Build Staff Leaderboard matching LinkAnalyticsView expectations
+    const staffLeaderboard = activeEmployees.map(emp => {
+      const empClicks = filteredClicks.filter(c => c.employeeId && c.employeeId.toUpperCase() === emp.id.toUpperCase());
       const empValid = empClicks.filter(c => c.isValid).length;
       const empTotal = empClicks.length;
       const empBots = empClicks.filter(c => c.isBot).length;
+      const empUnique = new Set(empClicks.filter(c => c.isValid).map(c => c.ip)).size;
+      const token = this.generateLinkToken(targetTask?.id || 'TASK-INSTA-001', emp.id);
       const target = dailyTarget;
       const completionRate = target > 0 ? Math.min(100, Math.round((empValid / target) * 100)) : 0;
       let status = 'Not Started';
@@ -1077,10 +1066,20 @@ export const dbService = {
       else if (empValid > 0) status = 'In Progress';
 
       return {
-        ...emp,
+        employee: emp,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        supportCode: emp.supportCode || emp.id,
+        staffId: emp.staffId || '',
+        parliamentCode: emp.parliamentCode,
+        parliamentName: emp.parliamentName,
+        assemblyCode: emp.assemblyCode,
+        assemblyName: emp.assemblyName,
         validClicks: empValid,
         totalClicks: empTotal,
+        uniqueIps: empUnique,
         botClicks: empBots,
+        token,
         target,
         completionRate,
         status,
@@ -1088,15 +1087,15 @@ export const dbService = {
       };
     });
 
-    // Sort by valid clicks desc
-    staffPerformance.sort((a, b) => b.validClicks - a.validClicks || a.name.localeCompare(b.name));
+    // Sort by valid clicks descending
+    staffLeaderboard.sort((a, b) => b.validClicks - a.validClicks || a.employeeName.localeCompare(b.employeeName));
 
-    const completedStaffCount = staffPerformance.filter(s => s.status === 'Completed').length;
-    const inProgressStaffCount = staffPerformance.filter(s => s.status === 'In Progress').length;
-    const notStartedStaffCount = staffPerformance.filter(s => s.status === 'Not Started').length;
+    const completedStaffCount = staffLeaderboard.filter(s => s.status === 'Completed').length;
+    const inProgressStaffCount = staffLeaderboard.filter(s => s.status === 'In Progress').length;
+    const notStartedStaffCount = staffLeaderboard.filter(s => s.status === 'Not Started').length;
 
     return {
-      date: effectiveDate,
+      date: date || 'ALL',
       selectedTask: targetTask,
       totalClicks,
       validClicks,
@@ -1110,7 +1109,8 @@ export const dbService = {
       completedStaffCount,
       inProgressStaffCount,
       notStartedStaffCount,
-      staffPerformance,
+      staffPerformance: staffLeaderboard,
+      staffLeaderboard,
       recentClicks: filteredClicks.slice(0, 50)
     };
   },

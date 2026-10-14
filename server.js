@@ -2,14 +2,92 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { PAT_STAFF_OCTOBER_2026 } from './src/services/staffSeedData.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Local persistent file storage fallback
+const DATA_DIR = path.join(__dirname, 'data');
+const CLICKS_FILE = path.join(DATA_DIR, 'link_clicks.json');
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(CLICKS_FILE)) {
+  fs.writeFileSync(CLICKS_FILE, JSON.stringify([]), 'utf8');
+}
+
+function getStoredClicks() {
+  try {
+    if (fs.existsSync(CLICKS_FILE)) {
+      const data = fs.readFileSync(CLICKS_FILE, 'utf8');
+      return JSON.parse(data) || [];
+    }
+  } catch (err) {
+    console.error('Error reading clicks file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredClicks(clicks) {
+  try {
+    fs.writeFileSync(CLICKS_FILE, JSON.stringify(clicks.slice(0, 10000), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing clicks file:', err.message);
+  }
+}
+
+// Generate deterministic short token from taskId + employeeId (identical to dbService)
+function generateLinkToken(taskId, employeeId) {
+  const raw = `${taskId}_${employeeId}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  const absHash = Math.abs(hash);
+  const chars = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+  let str = '';
+  let num = absHash;
+  while (num > 0) {
+    str = chars[num % chars.length] + str;
+    num = Math.floor(num / chars.length);
+  }
+  const empSuffix = employeeId.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toLowerCase();
+  return `${str}${empSuffix}`.slice(0, 10);
+}
+
+// Build Fast O(1) Staff Token & ID Lookup Map
+const STAFF_LOOKUP = new Map();
+PAT_STAFF_OCTOBER_2026.forEach(staff => {
+  const token = generateLinkToken('TASK-INSTA-001', staff.id);
+  const staffObj = { ...staff, token };
+  
+  STAFF_LOOKUP.set(token.toLowerCase(), staffObj);
+  if (staff.id) STAFF_LOOKUP.set(staff.id.toLowerCase(), staffObj);
+  if (staff.supportCode) STAFF_LOOKUP.set(staff.supportCode.toLowerCase(), staffObj);
+  if (staff.staffId) STAFF_LOOKUP.set(staff.staffId.toLowerCase(), staffObj);
+  if (staff.mobilePersonal) STAFF_LOOKUP.set(staff.mobilePersonal, staffObj);
+  if (staff.mobileOffice) STAFF_LOOKUP.set(staff.mobileOffice, staffObj);
+});
+
+function resolveStaff(tokenOrId) {
+  if (!tokenOrId) return null;
+  const clean = String(tokenOrId).trim().toLowerCase();
+  return STAFF_LOOKUP.get(clean) || null;
+}
 
 // PostgreSQL Connection Pool
 const pool = new pg.Pool({
@@ -315,93 +393,124 @@ app.post('/api/submissions', async (req, res) => {
 // IN-HOUSE LINK TRACKING & REDIRECT ROUTES
 // ==========================================
 
-// High-Speed HTTP 302 Tracking Redirect Endpoint
-app.get(['/go/:token', '/instagram/:token', '/track/:slug/:token'], async (req, res) => {
-  const token = (req.params.token || req.params.slug || '').trim();
-  const userAgent = req.headers['user-agent'] || '';
-  const referrer = req.headers['referer'] || req.headers['referrer'] || 'Direct';
-  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
+// Helper to record a link click in persistent storage & PostgreSQL
+async function recordClickEvent({ token, userAgent, referrer, clientIp, forcedEmployeeId, forcedTaskId }) {
+  const ua = userAgent || '';
+  const ref = referrer || 'Direct';
+  const ip = clientIp || '127.0.0.1';
 
   // Bot & WhatsApp Link Preview Crawler Detection
-  const isBot = /bot|crawler|spider|crawling|whatsapp|facebookexternalhit|meta-externalagent|twitterbot|telegrambot|slackbot|discordbot|applebot/i.test(userAgent);
+  const isBot = /bot|crawler|spider|crawling|whatsapp|facebookexternalhit|meta-externalagent|twitterbot|telegrambot|slackbot|discordbot|applebot/i.test(ua);
   let botName = null;
   if (isBot) {
-    if (/whatsapp/i.test(userAgent)) botName = 'WhatsApp Preview';
-    else if (/facebookexternalhit/i.test(userAgent)) botName = 'Facebook Preview';
-    else if (/twitterbot/i.test(userAgent)) botName = 'Twitter/X Preview';
-    else if (/telegrambot/i.test(userAgent)) botName = 'Telegram Preview';
+    if (/whatsapp/i.test(ua)) botName = 'WhatsApp Preview';
+    else if (/facebookexternalhit/i.test(ua)) botName = 'Facebook Preview';
+    else if (/twitterbot/i.test(ua)) botName = 'Twitter/X Preview';
+    else if (/telegrambot/i.test(ua)) botName = 'Telegram Preview';
     else botName = 'Crawler / Bot';
   }
 
-  let targetUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
-  let taskId = null;
-  let employeeId = null;
+  // Resolve staff member
+  const matchedStaff = resolveStaff(token) || (forcedEmployeeId ? resolveStaff(forcedEmployeeId) : null);
+  const employeeId = matchedStaff?.id || forcedEmployeeId || 'UNKNOWN';
+  const taskId = forcedTaskId || 'TASK-INSTA-001';
+  const targetUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
 
-  try {
-    if (isDbConnected) {
-      // 1. Direct match on tracking_links token
-      const linkResult = await pool.query(
-        `SELECT tl.*, t.target_url as task_target_url 
-         FROM tracking_links tl 
-         LEFT JOIN tasks t ON tl.task_id = t.id 
-         WHERE LOWER(tl.token) = LOWER($1)`,
-        [token]
-      );
+  const now = new Date();
+  const clickId = `CLK_${now.getTime()}_${Math.random().toString(36).substring(2, 7)}`;
 
-      if (linkResult.rows.length > 0) {
-        const link = linkResult.rows[0];
-        targetUrl = link.task_target_url || link.target_url || targetUrl;
-        taskId = link.task_id;
-        employeeId = link.employee_id;
-      } else {
-        // Fallback: match by employee ID / code directly
-        const empResult = await pool.query(
-          'SELECT id, parliament_code FROM employees WHERE UPPER(id) = $1',
-          [token.toUpperCase()]
-        );
-        if (empResult.rows.length > 0) {
-          employeeId = empResult.rows[0].id;
-          const activeTask = await pool.query('SELECT id, target_url FROM tasks WHERE status = \'Active\' LIMIT 1');
-          if (activeTask.rows.length > 0) {
-            taskId = activeTask.rows[0].id;
-            targetUrl = activeTask.rows[0].target_url || targetUrl;
-          }
-        }
-      }
+  // Deduplication check: same token and IP within 2 seconds
+  const stored = getStoredClicks();
+  const isDuplicate = stored.some(c => 
+    c.token === (matchedStaff?.token || token) &&
+    c.ip === ip &&
+    (now.getTime() - new Date(c.timestamp).getTime()) < 2000
+  );
 
-      // Check duplicate clicks from same IP within 5 seconds
-      const dupCheck = await pool.query(
-        'SELECT id FROM link_clicks WHERE token = $1 AND ip_address = $2 AND created_at > NOW() - INTERVAL \'5 seconds\'',
-        [token, ip]
-      );
-      const isDuplicate = dupCheck.rows.length > 0;
-      const isValid = !isBot && !isDuplicate;
+  const isValid = !isBot && !isDuplicate;
 
-      // Log click event into PostgreSQL
-      const clickId = `CLK_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const clickRecord = {
+    id: clickId,
+    token: matchedStaff?.token || token,
+    taskId,
+    taskName: 'Sri Bhashyam Ramakrishna — Instagram Follower Outreach',
+    employeeId,
+    employeeName: matchedStaff?.name || 'General Visitor',
+    supportCode: matchedStaff?.supportCode || employeeId,
+    staffId: matchedStaff?.staffId || '',
+    parliamentCode: matchedStaff?.parliamentCode || '',
+    parliamentName: matchedStaff?.parliamentName || '',
+    assemblyCode: matchedStaff?.assemblyCode || '',
+    assemblyName: matchedStaff?.assemblyName || '',
+    targetUrl,
+    ip,
+    userAgent: ua,
+    referrer: ref,
+    deviceType: /mobile|android|iphone|ipad/i.test(ua) ? 'Mobile' : 'Desktop',
+    isBot,
+    botName,
+    isDuplicate,
+    isValid,
+    timestamp: now.toISOString()
+  };
+
+  // Always save to persistent JSON store
+  stored.unshift(clickRecord);
+  saveStoredClicks(stored);
+
+  // Also save to PostgreSQL if connected
+  if (isDbConnected) {
+    try {
       await pool.query(
-        `INSERT INTO link_clicks (id, token, task_id, employee_id, ip_address, user_agent, referrer, device_type, is_bot, bot_name, is_duplicate, is_valid)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        `INSERT INTO link_clicks (id, token, task_id, employee_id, parliament_code, assembly_code, ip_address, user_agent, referrer, device_type, is_bot, bot_name, is_duplicate, is_valid, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
-          clickId, token, taskId, employeeId, ip, userAgent, referrer,
-          /mobile|android|iphone|ipad/i.test(userAgent) ? 'Mobile' : 'Desktop',
-          isBot, botName, isDuplicate, isValid
+          clickRecord.id, clickRecord.token, clickRecord.taskId, clickRecord.employeeId,
+          clickRecord.parliamentCode, clickRecord.assemblyCode, clickRecord.ip, clickRecord.userAgent,
+          clickRecord.referrer, clickRecord.deviceType, clickRecord.isBot, clickRecord.botName,
+          clickRecord.isDuplicate, clickRecord.isValid, clickRecord.timestamp
         ]
       );
+    } catch (err) {
+      console.error('PostgreSQL insert click error:', err.message);
     }
-  } catch (err) {
-    console.error('Click logging error in Express:', err.message);
   }
 
-  // If social preview crawler, return rich OpenGraph tags so WhatsApp preview cards look stunning!
+  return { clickRecord, targetUrl, isBot };
+}
+
+// High-Speed HTTP 302 Tracking Redirect Endpoint
+async function handleTrackingRedirect(req, res) {
+  const token = (req.params.token || req.params.slug || '').trim();
+  const userAgent = req.headers['user-agent'] || '';
+  const referrer = req.headers['referer'] || req.headers['referrer'] || 'Direct';
+  const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
+
+  let targetUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
+  let isBot = false;
+
+  try {
+    const result = await recordClickEvent({
+      token,
+      userAgent,
+      referrer,
+      clientIp
+    });
+    targetUrl = result.targetUrl;
+    isBot = result.isBot;
+  } catch (err) {
+    console.error('Tracking redirect error:', err.message);
+  }
+
+  // If social preview crawler, return rich OpenGraph tags so WhatsApp/FB preview cards look stunning
   if (isBot) {
     return res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Follow Ramakrishna Bhashyam on Instagram</title>
-  <meta property="og:title" content="Follow Ramakrishna Bhashyam on Instagram" />
-  <meta property="og:description" content="Stay connected for official constituency updates, youth outreach, and public welfare initiatives." />
+  <title>Follow Sri Bhashyam Ramakrishna on Instagram</title>
+  <meta property="og:title" content="Follow Sri Bhashyam Ramakrishna on Instagram" />
+  <meta property="og:description" content="Official social outreach for Andhra Pradesh parliamentary and assembly constituency public service initiatives." />
   <meta property="og:image" content="https://social.bhashyamramakrishna.in/images/KutamiLOGO.jpg" />
   <meta property="og:url" content="${targetUrl}" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -412,69 +521,66 @@ app.get(['/go/:token', '/instagram/:token', '/track/:slug/:token'], async (req, 
 </html>`);
   }
 
-  // Genuine human click -> Instant sub-30ms HTTP 302 Redirect!
+  // Instant HTTP 302 Redirect
   return res.redirect(302, targetUrl);
-});
+}
 
-// API: Record Client-Side Click
+app.get('/go/:token', handleTrackingRedirect);
+app.get('/instagram/:token', handleTrackingRedirect);
+app.get('/whatsapp/:token', handleTrackingRedirect);
+app.get('/track/:slug/:token', handleTrackingRedirect);
+
+// API: Record Client-Side Click (Beacon / AJAX)
 app.post('/api/links/click', async (req, res) => {
   const { token, taskId, employeeId, ip, userAgent, referrer } = req.body;
   const clientIp = ip || (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
   const ua = userAgent || req.headers['user-agent'] || '';
   const ref = referrer || req.headers['referer'] || 'Direct';
 
-  const isBot = /bot|crawler|spider|crawling|whatsapp|facebookexternalhit|meta-externalagent|twitterbot|telegrambot|slackbot|discordbot|applebot/i.test(ua);
-  const clickId = `CLK_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
   try {
-    if (isDbConnected) {
-      await pool.query(
-        `INSERT INTO link_clicks (id, token, task_id, employee_id, ip_address, user_agent, referrer, device_type, is_bot, is_valid)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [
-          clickId, token, taskId || null, employeeId || null, clientIp, ua, ref,
-          /mobile|android|iphone|ipad/i.test(ua) ? 'Mobile' : 'Desktop',
-          isBot, !isBot
-        ]
-      );
-    }
-    res.json({ success: true, clickId, isValid: !isBot });
+    const result = await recordClickEvent({
+      token: (token || employeeId || '').trim(),
+      userAgent: ua,
+      referrer: ref,
+      clientIp,
+      forcedEmployeeId: employeeId,
+      forcedTaskId: taskId
+    });
+
+    res.json({
+      success: true,
+      clickRecord: result.clickRecord,
+      isValid: result.clickRecord.isValid
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// API: Query Link Analytics
-app.get('/api/links/analytics', async (req, res) => {
-  const { date, taskId } = req.query;
+// API: Query Live Link Clicks & Analytics
+async function handleAnalytics(req, res) {
   try {
-    if (isDbConnected) {
-      const clicks = await pool.query(
-        `SELECT lc.*, e.name as employee_name, e.parliament_code, e.department
-         FROM link_clicks lc
-         LEFT JOIN employees e ON lc.employee_id = e.id
-         ORDER BY lc.created_at DESC LIMIT 500`
-      );
-      return res.json({ success: true, clicks: clicks.rows });
-    }
-    res.json({ success: true, clicks: [] });
+    // Prefer stored clicks (includes real clicks regardless of database status)
+    const clicks = getStoredClicks();
+    return res.json({
+      success: true,
+      clicks,
+      total: clicks.length,
+      valid: clicks.filter(c => c.isValid).length
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+}
 
-// Serve React Production Build Static Files
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+app.get('/api/links/analytics', handleAnalytics);
+app.get('/api/links/clicks', handleAnalytics);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Serve React Production Build Static Files (Express 5 compatible)
 const distPath = path.join(__dirname, 'dist');
-
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get('*', (req, res, next) => {
+  app.use((req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });
