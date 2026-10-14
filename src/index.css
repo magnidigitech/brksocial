@@ -637,6 +637,110 @@ input::-ms-clear {
   }
 }
 
+/* Utilities for Mobile Responsiveness & PWA */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dashboard Page Layout Responsiveness */
+.dashboard-page-wrapper {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #f3f4f6;
+  color: #1c1917;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 8px;
+  box-sizing: border-box;
+  position: relative;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .dashboard-page-wrapper {
+    padding: 16px 20px;
+  }
+}
+
+.dashboard-main-frame {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  background-color: #fafafa;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  padding: 12px;
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .dashboard-main-frame {
+    border-radius: 24px;
+    padding: 24px;
+  }
+}
+
+.dashboard-section-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 14px 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .dashboard-section-card {
+    border-radius: 24px;
+    padding: 22px 24px;
+  }
+}
+
+/* Leaderboard Dynamic Grid: 1 col on mobile, 2 on tablet, 3 on desktop, 5 on wide */
+.leaderboard-parliaments-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 580px) {
+  .leaderboard-parliaments-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (min-width: 860px) {
+  .leaderboard-parliaments-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .leaderboard-parliaments-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
 
 
 

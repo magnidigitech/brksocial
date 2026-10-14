@@ -5,6 +5,8 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { authService } from './services/auth';
 import { dbService } from './services/db';
 
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+
 export default function App() {
   const [session, setSession] = useState(() => {
     dbService.init();
@@ -20,16 +22,17 @@ export default function App() {
     setSession(null);
   };
 
-  // If user is not signed in, render Standalone Executive Login Page
-  if (!session) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // Render simplified Admin Page or Employee Page when signed in
-  return session.role === 'Employee' ? (
-    <EmployeePortal session={session} onLogout={handleLogout} />
-  ) : (
-    <AdminDashboard session={session} onLogout={handleLogout} />
+  return (
+    <>
+      <PWAInstallPrompt />
+      {!session ? (
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
+      ) : session.role === 'Employee' ? (
+        <EmployeePortal session={session} onLogout={handleLogout} />
+      ) : (
+        <AdminDashboard session={session} onLogout={handleLogout} />
+      )}
+    </>
   );
 }
 

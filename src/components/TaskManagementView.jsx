@@ -320,30 +320,25 @@ export function TaskManagementView() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Header Controls & Search Bar */}
-      <div style={{
+      <div className="dashboard-section-card" style={{
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
-        backgroundColor: '#ffffff',
-        padding: '20px 24px',
-        borderRadius: '24px',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
+        gap: '14px'
       }}>
-        <div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>
+        <div style={{ minWidth: '240px', flex: '1 1 280px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>
             Task Setup & Assignment Rules
           </h2>
-          <p style={{ fontSize: '13px', color: '#6b7280', margin: '4px 0 0 0', fontWeight: 500 }}>
-            Configure task targets, validation constraints, and multi-select Assemblies/Parliaments using checkboxes.
+          <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0', fontWeight: 500 }}>
+            Configure task targets, validation constraints, and multi-select Assemblies/Parliaments.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
           {/* Search Box */}
           <div style={{
             display: 'flex',
@@ -352,10 +347,11 @@ export function TaskManagementView() {
             backgroundColor: '#f9fafb',
             border: '1px solid #d1d5db',
             borderRadius: '9999px',
-            padding: '8px 16px',
-            width: '240px'
+            padding: '7px 14px',
+            flex: '1 1 180px',
+            minWidth: '160px'
           }}>
-            <Search size={16} style={{ color: '#9ca3af' }} />
+            <Search size={15} style={{ color: '#9ca3af', flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search tasks..."
@@ -365,7 +361,7 @@ export function TaskManagementView() {
                 border: 'none',
                 backgroundColor: 'transparent',
                 outline: 'none',
-                fontSize: '13px',
+                fontSize: '12px',
                 width: '100%',
                 fontWeight: 500
               }}
@@ -377,11 +373,11 @@ export function TaskManagementView() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{
-              padding: '8px 16px',
+              padding: '7px 14px',
               borderRadius: '9999px',
               border: '1px solid #d1d5db',
               backgroundColor: '#ffffff',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 600,
               color: '#374151',
               outline: 'none',
@@ -399,21 +395,22 @@ export function TaskManagementView() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 22px',
+              gap: '6px',
+              padding: '8px 18px',
               borderRadius: '9999px',
               backgroundColor: '#ff4d00',
               color: '#ffffff',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 700,
               border: 'none',
               cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(255, 77, 0, 0.3)',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap'
             }}
           >
-            <Plus size={16} />
-            <span>Create New Task</span>
+            <Plus size={15} />
+            <span>Create Task</span>
           </button>
         </div>
       </div>
@@ -421,8 +418,8 @@ export function TaskManagementView() {
       {/* Task Cards Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-        gap: '20px'
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+        gap: '16px'
       }}>
         {filteredTasks.map((task) => {
           const IconComp = PLATFORM_ICONS[task.platform] || Share2;
@@ -433,15 +430,11 @@ export function TaskManagementView() {
           return (
             <div
               key={task.id}
+              className="dashboard-section-card"
               style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '24px',
-                border: '1px solid #e5e7eb',
-                padding: '24px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
                 position: 'relative'
               }}
             >
@@ -639,20 +632,20 @@ export function TaskManagementView() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
-        }}>
+          boxSizing: 'border-box'
+        }} className="p-3 sm:p-6">
           <div style={{
             backgroundColor: '#ffffff',
-            borderRadius: '28px',
+            borderRadius: '20px',
             maxWidth: '680px',
             width: '100%',
-            maxHeight: '90vh',
+            maxHeight: '92vh',
             overflowY: 'auto',
-            padding: '32px',
             boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
             border: '1px solid #e2e8f0',
-            position: 'relative'
-          }}>
+            position: 'relative',
+            boxSizing: 'border-box'
+          }} className="p-4 sm:p-7">
             {/* Modal Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div>

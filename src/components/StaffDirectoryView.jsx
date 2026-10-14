@@ -67,10 +67,14 @@ export function StaffDirectoryView() {
       if (!query) return true;
 
       // Search match in Parliament details
-      const matchPCode = p.code.toLowerCase().includes(query);
+      const pStaff = pData.parliamentStaff;
+      const matchPCode = p.code.toLowerCase().includes(query) || (pStaff?.supportCode && pStaff.supportCode.toLowerCase().includes(query));
       const matchPName = p.name.toLowerCase().includes(query);
-      const matchPStaffName = pData.parliamentStaff?.name?.toLowerCase().includes(query);
-      const matchPStaffMobile = pData.parliamentStaff?.mobile?.includes(query);
+      const matchPStaffName = pStaff?.name?.toLowerCase().includes(query);
+      const matchPStaffPersonalMob = pStaff?.mobilePersonal && pStaff.mobilePersonal.includes(query);
+      const matchPStaffOfficeMob = pStaff?.mobileOffice && pStaff.mobileOffice.includes(query);
+      const matchPStaffMobile = pStaff?.mobile && pStaff.mobile.includes(query);
+      const matchPStaffId = pStaff?.staffId && pStaff.staffId.toLowerCase().includes(query);
 
       // Search match in Assembly details
       const matchAssembly = p.assemblies.some(asm => 
@@ -81,10 +85,14 @@ export function StaffDirectoryView() {
       const matchAssemblyStaff = pData.assemblyStaff.some(st => 
         st.name?.toLowerCase().includes(query) || 
         st.id?.toLowerCase().includes(query) ||
-        st.mobile?.includes(query)
+        (st.supportCode && st.supportCode.toLowerCase().includes(query)) ||
+        (st.staffId && st.staffId.toLowerCase().includes(query)) ||
+        (st.mobilePersonal && st.mobilePersonal.includes(query)) ||
+        (st.mobileOffice && st.mobileOffice.includes(query)) ||
+        (st.mobile && st.mobile.includes(query))
       );
 
-      return matchPCode || matchPName || matchPStaffName || matchPStaffMobile || matchAssembly || matchAssemblyStaff;
+      return matchPCode || matchPName || matchPStaffName || matchPStaffPersonalMob || matchPStaffOfficeMob || matchPStaffMobile || matchPStaffId || matchAssembly || matchAssemblyStaff;
     });
   }, [searchQuery, filterLevel, groupedData]);
 
@@ -100,8 +108,16 @@ export function StaffDirectoryView() {
   };
 
   const copyCredentials = (emp) => {
-    const text = `ID: ${emp.id} | Name: ${emp.name} | Password: ${emp.password || 'password123'}`;
-    navigator.clipboard.writeText(text);
+    const parts = [
+      `Support Code: ${emp.supportCode || emp.id}`,
+      emp.staffId ? `Staff ID: ${emp.staffId}` : null,
+      `Name: ${emp.name}`,
+      emp.mobilePersonal ? `Personal Mob: ${emp.mobilePersonal}` : null,
+      emp.mobileOffice ? `Office Mob: ${emp.mobileOffice}` : null,
+      `Password: ${emp.password || 'password123'}`
+    ].filter(Boolean);
+
+    navigator.clipboard.writeText(parts.join(' | '));
     setCopiedId(emp.id);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -111,7 +127,9 @@ export function StaffDirectoryView() {
     setEditingStaff(staffObj);
     setEditForm({
       name: staffObj?.name || fallbackName,
-      mobile: staffObj?.mobile || '9800000000',
+      staffId: staffObj?.staffId || '',
+      mobilePersonal: staffObj?.mobilePersonal || staffObj?.mobile || '',
+      mobileOffice: staffObj?.mobileOffice || '',
       password: staffObj?.password || 'password123'
     });
     setShowModalPassword(false);
@@ -122,10 +140,16 @@ export function StaffDirectoryView() {
     e.preventDefault();
     if (!editingStaff) return;
 
+    const personal = editForm.mobilePersonal.trim();
+    const office = editForm.mobileOffice.trim();
+
     const updatedData = {
       ...editingStaff,
       name: editForm.name.trim(),
-      mobile: editForm.mobile.trim(),
+      staffId: editForm.staffId.trim(),
+      mobilePersonal: personal,
+      mobileOffice: office,
+      mobile: personal || office || editingStaff.mobile,
       password: editForm.password.trim() || 'password123'
     };
 
@@ -136,7 +160,7 @@ export function StaffDirectoryView() {
     setEditingStaff(null);
 
     // Trigger Toast feedback
-    setToastMessage(`Updated staff details & password for ${updatedData.id}`);
+    setToastMessage(`Updated staff credentials for ${updatedData.supportCode || updatedData.id}`);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -145,27 +169,29 @@ export function StaffDirectoryView() {
     setEditForm(prev => ({ ...prev, password: 'password123' }));
   };
 
-  // 1. Download Excel / CSV Template
+  // 1. Download Excel / CSV Template in PAT Staff Details October 2026 Format
   const handleDownloadTemplate = () => {
     const templateData = employees.map(emp => ({
-      'Code': emp.id,
+      'Code': emp.supportCode || emp.id,
       'Constituency Name': emp.assemblyName || emp.parliamentName,
       'Level': emp.level,
       'Staff Name': emp.name,
-      'Mobile': emp.mobile,
+      'Staff ID': emp.staffId || '',
+      'Mobile Personal': emp.mobilePersonal || emp.mobile || '',
+      'Mobile Office': emp.mobileOffice || '',
       'Password': emp.password || 'password123'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Staff Logins");
-    XLSX.writeFile(workbook, "BRK_Staff_Directory_Template.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    XLSX.writeFile(workbook, "PAT_Staff_Details_October_2026.xlsx");
 
-    setToastMessage("Excel template generated & downloaded successfully!");
+    setToastMessage("PAT Staff Details October 2026 template downloaded successfully!");
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // 2. Handle Upload & Calculate Detailed Diff / Overrides
+  // 2. Handle Upload & Calculate Detailed Diff / Overrides (Matching PAT Staff Details October 2026)
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -180,21 +206,27 @@ export function StaffDirectoryView() {
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
         const currentEmps = dbService.getEmployees();
-        const currentMap = new Map(currentEmps.map(emp => [emp.id.toUpperCase(), emp]));
+        const currentMap = new Map();
+        currentEmps.forEach(emp => {
+          if (emp.id) currentMap.set(emp.id.toUpperCase(), emp);
+          if (emp.supportCode) currentMap.set(emp.supportCode.toUpperCase(), emp);
+        });
 
         const changesList = [];
         const itemsToOverride = [];
         let unchangedCount = 0;
 
         rows.forEach(row => {
-          const rawCode = row['Code'] || row['code'] || row['ID'] || row['id'] || row['Staff Code'] || row['CODE'];
+          const rawCode = row['Code'] || row['code'] || row['Support Code'] || row['ID'] || row['id'] || row['Staff Code'];
           if (!rawCode) return;
 
           const empId = String(rawCode).trim().toUpperCase();
           const existing = currentMap.get(empId);
 
           const newName = String(row['Staff Name'] || row['Name'] || row['name'] || row['Staff Member'] || (existing ? existing.name : '')).trim();
-          const newMobile = String(row['Mobile'] || row['Phone'] || row['Contact'] || row['mobile'] || (existing ? existing.mobile : '')).trim();
+          const newStaffId = String(row['Staff ID'] || row['staffId'] || row['Staff Id'] || row['STAFF ID'] || (existing ? (existing.staffId || '') : '')).trim();
+          const newPersonalMob = String(row['Mobile Personal'] || row['Personal Mobile'] || row['Mobile'] || row['Contact'] || (existing ? (existing.mobilePersonal || existing.mobile || '') : '')).trim();
+          const newOfficeMob = String(row['Mobile Office'] || row['Office Mobile'] || (existing ? (existing.mobileOffice || '') : '')).trim();
           const newPassword = String(row['Password'] || row['pass'] || row['password'] || (existing ? existing.password : 'password123')).trim();
 
           if (existing) {
@@ -202,8 +234,14 @@ export function StaffDirectoryView() {
             if (newName && newName !== existing.name) {
               diffs.push({ field: 'Staff Name', oldVal: existing.name, newVal: newName });
             }
-            if (newMobile && newMobile !== existing.mobile) {
-              diffs.push({ field: 'Mobile', oldVal: existing.mobile, newVal: newMobile });
+            if (newStaffId !== (existing.staffId || '')) {
+              diffs.push({ field: 'Staff ID', oldVal: existing.staffId || 'None', newVal: newStaffId || 'None' });
+            }
+            if (newPersonalMob && newPersonalMob !== (existing.mobilePersonal || existing.mobile || '')) {
+              diffs.push({ field: 'Mobile Personal', oldVal: existing.mobilePersonal || existing.mobile || 'None', newVal: newPersonalMob });
+            }
+            if (newOfficeMob !== (existing.mobileOffice || '')) {
+              diffs.push({ field: 'Mobile Office', oldVal: existing.mobileOffice || 'None', newVal: newOfficeMob || 'None' });
             }
             if (newPassword && newPassword !== existing.password) {
               diffs.push({ field: 'Password', oldVal: existing.password, newVal: newPassword });
@@ -213,7 +251,10 @@ export function StaffDirectoryView() {
               const updatedObj = {
                 ...existing,
                 name: newName || existing.name,
-                mobile: newMobile || existing.mobile,
+                staffId: newStaffId,
+                mobilePersonal: newPersonalMob || existing.mobilePersonal || existing.mobile,
+                mobileOffice: newOfficeMob,
+                mobile: newPersonalMob || newOfficeMob || existing.mobile,
                 password: newPassword || existing.password
               };
               changesList.push({
@@ -438,7 +479,7 @@ export function StaffDirectoryView() {
           <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
           <input
             type="text"
-            placeholder="Search by Parliament, Assembly, Staff Code (APP01), or Name..."
+            placeholder="Search by Support Code (APP01), Staff ID (Palakonda_010), Mobile, or Name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -650,8 +691,8 @@ export function StaffDirectoryView() {
                 {/* Accordion Parliament Header */}
                 <div
                   onClick={() => toggleExpand(p.code)}
+                  className="p-3 sm:p-5"
                   style={{
-                    padding: '20px 24px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -719,7 +760,7 @@ export function StaffDirectoryView() {
 
                 {/* Expanded Accordion Body */}
                 {isExpanded && (
-                  <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div className="p-3 sm:p-5" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     
                     {/* 1. Parliament Incharge Credentials Card */}
                     {showParliamentInchargeCard && (
@@ -762,14 +803,17 @@ export function StaffDirectoryView() {
                                 Parliament Incharge
                               </span>
                               <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#92400e' }}>
-                                Login Code: <strong>{pStaff.id}</strong>
+                                Support Code: <strong>{pStaff.supportCode || pStaff.id}</strong>
                               </span>
                             </div>
                             <div style={{ fontSize: '16px', fontWeight: 800, color: '#111827', marginTop: '4px' }}>
                               {pStaff.name}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                              Mobile: <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151' }}>{pStaff.mobile}</span> | Email: <span style={{ fontFamily: 'monospace', color: '#374151' }}>{pStaff.email}</span>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span>Personal Mobile: <strong style={{ fontFamily: 'monospace', color: '#111827' }}>{pStaff.mobilePersonal || pStaff.mobile}</strong></span>
+                              <span style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde047', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                                Parliament Login: Support Code or Personal Mobile
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -862,25 +906,32 @@ export function StaffDirectoryView() {
                         <div style={{
                           border: '1px solid #e5e7eb',
                           borderRadius: '16px',
-                          overflow: 'hidden',
+                          overflowX: 'auto',
+                          WebkitOverflowScrolling: 'touch',
                           backgroundColor: '#ffffff'
                         }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Assembly Code</th>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Assembly Name</th>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Assigned Staff Member</th>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Mobile / Contact</th>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Password</th>
-                                <th style={{ padding: '12px 16px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Support Code</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Constituency</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Staff ID</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Assigned Staff</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Personal Mobile</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Office Mobile</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Password</th>
+                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               {displayAssemblies.map((asm, idx) => {
                                 const asmStaff = aStaffList.find(st => st.assemblyCode === asm.code || st.id === asm.code) || {
                                   id: asm.code,
+                                  supportCode: asm.code,
+                                  staffId: '',
                                   name: `${asm.name} Staff`,
+                                  mobilePersonal: '',
+                                  mobileOffice: '',
                                   mobile: '9800000000',
                                   password: 'password123',
                                   level: 'Assembly',
@@ -899,39 +950,64 @@ export function StaffDirectoryView() {
                                       borderBottom: idx < displayAssemblies.length - 1 ? '1px solid #f3f4f6' : 'none'
                                     }}
                                   >
-                                    {/* Code */}
-                                    <td style={{ padding: '12px 16px' }}>
+                                    {/* Support Code */}
+                                    <td style={{ padding: '12px 14px' }}>
                                       <span style={{
                                         fontFamily: 'monospace',
                                         fontWeight: 800,
-                                        fontSize: '12px',
+                                        fontSize: '11px',
                                         padding: '3px 8px',
                                         borderRadius: '6px',
                                         backgroundColor: '#eff6ff',
                                         color: '#1d4ed8',
                                         border: '1px solid #bfdbfe'
                                       }}>
-                                        {asm.code}
+                                        {asmStaff.supportCode || asm.code}
                                       </span>
                                     </td>
 
-                                    {/* Assembly Name */}
-                                    <td style={{ padding: '12px 16px', fontWeight: 700, color: '#111827' }}>
+                                    {/* Constituency */}
+                                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#111827' }}>
                                       {asm.name}
                                     </td>
 
-                                    {/* Staff Name */}
-                                    <td style={{ padding: '12px 16px', fontWeight: 600, color: '#374151' }}>
-                                      {asmStaff?.name || `${asm.name} Outreach Staff`}
+                                    {/* Staff ID */}
+                                    <td style={{ padding: '12px 14px' }}>
+                                      {asmStaff.staffId ? (
+                                        <span style={{
+                                          fontFamily: 'monospace',
+                                          fontWeight: 800,
+                                          fontSize: '11px',
+                                          padding: '2px 7px',
+                                          borderRadius: '6px',
+                                          backgroundColor: '#f1f5f9',
+                                          color: '#0f172a',
+                                          border: '1px solid #cbd5e1'
+                                        }}>
+                                          {asmStaff.staffId}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>—</span>
+                                      )}
                                     </td>
 
-                                    {/* Mobile */}
-                                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280', fontSize: '12px' }}>
-                                      {asmStaff?.mobile || '9800000000'}
+                                    {/* Staff Name */}
+                                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#1f2937' }}>
+                                      {asmStaff?.name || `${asm.name} Staff`}
+                                    </td>
+
+                                    {/* Personal Mobile */}
+                                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: '#111827', fontWeight: 600, fontSize: '12px' }}>
+                                      {asmStaff?.mobilePersonal || asmStaff?.mobile || '—'}
+                                    </td>
+
+                                    {/* Office Mobile */}
+                                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: '#4b5563', fontSize: '12px' }}>
+                                      {asmStaff?.mobileOffice || '—'}
                                     </td>
 
                                     {/* Password */}
-                                    <td style={{ padding: '12px 16px' }}>
+                                    <td style={{ padding: '12px 14px' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12px', color: '#111827' }}>
                                           {showPasswords[asm.code] ? asmStaff?.password || 'password123' : '••••••••'}
@@ -946,14 +1022,10 @@ export function StaffDirectoryView() {
                                     </td>
 
                                     {/* Actions: Copy & Edit */}
-                                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                         <button
-                                          onClick={() => copyCredentials({
-                                            id: asm.code,
-                                            name: asmStaff?.name || asm.name,
-                                            password: asmStaff?.password || 'password123'
-                                          })}
+                                          onClick={() => copyCredentials(asmStaff)}
                                           style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -1108,17 +1180,67 @@ export function StaffDirectoryView() {
                 />
               </div>
 
-              {/* Field 2: Contact Number */}
+              {/* Field 2: Staff ID (Assembly Segment Staff) */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-                  Contact Mobile Number
+                  Staff ID {editingStaff.level === 'Parliament' ? '(Optional for Parliament)' : '(e.g. Palakonda_010)'}
+                </label>
+                <input
+                  type="text"
+                  value={editForm.staffId}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, staffId: e.target.value }))}
+                  placeholder={editingStaff.level === 'Parliament' ? 'Optional for Parliament Incharge' : 'e.g. Palakonda_010'}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    color: '#111827',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Field 3: Personal Mobile */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+                  Personal Mobile Number (Direct Login Identifier)
                 </label>
                 <input
                   type="text"
                   required
-                  value={editForm.mobile}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, mobile: e.target.value }))}
-                  placeholder="Enter 10-digit mobile number..."
+                  value={editForm.mobilePersonal}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, mobilePersonal: e.target.value }))}
+                  placeholder="e.g. 9030738656"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    color: '#111827',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Field 4: Office Mobile */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+                  Office Mobile Number {editingStaff.level === 'Parliament' ? '(Optional)' : '(CUG / Official)'}
+                </label>
+                <input
+                  type="text"
+                  value={editForm.mobileOffice}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, mobileOffice: e.target.value }))}
+                  placeholder={editingStaff.level === 'Parliament' ? 'Optional office number' : 'e.g. 7997955186'}
                   style={{
                     width: '100%',
                     padding: '10px 14px',

@@ -301,20 +301,20 @@ export function LoginPage({ onLoginSuccess }) {
           <h2 className="login-form-title" style={{ textAlign: 'center' }}>
             {isAdminMode ? 'Admin Portal Sign In' : 'Employee Sign In'}
           </h2>
-          <p style={{ fontSize: '14px', color: '#64748b', fontWeight: '500', marginBottom: '28px', textAlign: 'center' }}>
+          <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', marginBottom: '24px', textAlign: 'center' }}>
             {isAdminMode
               ? 'Enter administrator credentials to proceed to Admin Page.'
-              : 'Enter staff code or mobile to proceed to Employee Page.'}
+              : 'Sign in with your Support Code, Staff ID, Personal Mobile, or Office Mobile.'}
           </p>
 
           {/* Error Message */}
           {errorMsg && (
             <div style={{
-              marginBottom: '24px',
-              padding: '14px 18px',
+              marginBottom: '20px',
+              padding: '12px 16px',
               backgroundColor: '#fef2f2',
               border: '1px solid #fca5a5',
-              borderRadius: '16px',
+              borderRadius: '14px',
               fontSize: '13px',
               fontWeight: '600',
               color: '#b91c1c',
@@ -325,30 +325,42 @@ export function LoginPage({ onLoginSuccess }) {
           )}
 
           {/* Form */}
-          <form onSubmit={isAdminMode ? handleAdminSubmit : handleEmployeeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form onSubmit={isAdminMode ? handleAdminSubmit : handleEmployeeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                {isAdminMode ? 'Admin Username' : 'Staff Code / Mobile'}
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {isAdminMode ? 'Admin Username' : 'Staff Identifier'}
+                </label>
+                {!isAdminMode && (
+                  <span style={{ fontSize: '11px', color: '#0369a1', fontWeight: 600 }}>
+                    Support Code / Staff ID / Mobile
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 required
                 value={isAdminMode ? adminUser : empId}
                 onChange={(e) => isAdminMode ? setAdminUser(e.target.value) : setEmpId(e.target.value)}
-                placeholder={isAdminMode ? "Admin Username" : "e.g. APP13 or APP01A01"}
+                placeholder={isAdminMode ? "Admin Username" : "e.g. APP01, Palakonda_010, or 7997955186"}
                 style={{
                   width: '100%',
                   backgroundColor: '#f8fafc',
                   border: '1px solid #cbd5e1',
                   borderRadius: '9999px',
-                  padding: '16px 24px',
-                  fontSize: '15px',
+                  padding: '14px 22px',
+                  fontSize: '14px',
                   fontWeight: '500',
                   color: '#0f172a',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
               />
+              {!isAdminMode && (
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', paddingLeft: '8px' }}>
+                  💡 <strong>Parliament Staff:</strong> Use Support Code (APP01-APP25) or Personal Mobile
+                </div>
+              )}
             </div>
 
             <div>

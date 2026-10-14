@@ -16,16 +16,7 @@ export function AdminDashboard({ session, onLogout }) {
   ];
 
   return (
-    <div style={{
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#f3f4f6',
-      color: '#1c1917',
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-      padding: '16px 20px',
-      position: 'relative',
-      boxSizing: 'border-box'
-    }}>
+    <div className="dashboard-page-wrapper">
       {/* Soft Ambient Gold Glow */}
       <div style={{
         position: 'absolute',
@@ -40,73 +31,116 @@ export function AdminDashboard({ session, onLogout }) {
         background: 'radial-gradient(circle, rgba(253, 224, 71, 0.45) 0%, rgba(250, 204, 21, 0.2) 50%, transparent 75%)'
       }} />
 
-      {/* Full Width Container */}
-      <div style={{
-        width: '100%',
-        maxWidth: '100%',
-        margin: '0 auto',
-        backgroundColor: '#fafafa',
-        borderRadius: '24px',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-        padding: '24px',
-        position: 'relative',
-        zIndex: 10,
-        boxSizing: 'border-box'
-      }}>
+      {/* Main Container */}
+      <div className="dashboard-main-frame">
         {/* Top Header Bar */}
         <div style={{
           display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px',
-          flexWrap: 'wrap',
-          paddingBottom: '20px',
+          flexDirection: 'column',
+          gap: '14px',
+          paddingBottom: '16px',
           borderBottom: '1px solid #e5e7eb',
-          marginBottom: '28px'
+          marginBottom: '20px'
         }}>
-          {/* Brand Logo & Portal Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #d1d5db',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
-            }}>
-              <img src="/images/KutamiLOGO.jpg" alt="Kutami Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain', borderRadius: '4px' }} />
-              <span style={{ fontWeight: 800, fontSize: '15px', color: '#111827', letterSpacing: '-0.02em' }}>
-                BRK <span style={{ color: '#f59e0b' }}>TaskHub</span>
-              </span>
-            </div>
-            <span style={{
-              fontSize: '11px',
-              fontWeight: 700,
-              padding: '4px 12px',
-              borderRadius: '9999px',
-              backgroundColor: '#f3f4f6',
-              color: '#4b5563',
-              border: '1px solid #e5e7eb'
-            }}>
-              Admin Portal
-            </span>
-          </div>
-
-          {/* Navigation Tabs Bar */}
+          {/* Top Row: Brand & Profile/Logout */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            overflowX: 'auto',
-            padding: '4px',
-            borderRadius: '9999px',
-            backgroundColor: '#f3f4f6',
-            border: '1px solid #e5e7eb'
+            justifyContent: 'space-between',
+            gap: '10px',
+            flexWrap: 'wrap'
           }}>
+            {/* Brand Logo & Portal Badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: '9999px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #d1d5db',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+              }}>
+                <img src="/images/KutamiLOGO.jpg" alt="Kutami Logo" style={{ height: '28px', width: 'auto', objectFit: 'contain', borderRadius: '4px' }} />
+                <span style={{ fontWeight: 800, fontSize: '14px', color: '#111827', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+                  BRK <span style={{ color: '#f59e0b' }}>TaskHub</span>
+                </span>
+              </div>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '3px 10px',
+                borderRadius: '9999px',
+                backgroundColor: '#f3f4f6',
+                color: '#4b5563',
+                border: '1px solid #e5e7eb',
+                whiteSpace: 'nowrap'
+              }}>
+                Admin Portal
+              </span>
+            </div>
+
+            {/* User Session & Sign Out */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '9999px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#374151'
+              }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>
+                  {session?.name || session?.username || 'Admin'}
+                </span>
+              </div>
+
+              <button
+                onClick={onLogout}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#fff1f2',
+                  color: '#e11d48',
+                  border: '1px solid #fecdd3',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <LogOut size={13} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Row: Navigation Tabs Bar (Scrollable on mobile) */}
+          <div 
+            className="no-scrollbar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              overflowX: 'auto',
+              padding: '4px',
+              borderRadius: '9999px',
+              backgroundColor: '#f3f4f6',
+              border: '1px solid #e5e7eb',
+              WebkitOverflowScrolling: 'touch',
+              maxWidth: '100%'
+            }}
+          >
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -118,10 +152,10 @@ export function AdminDashboard({ session, onLogout }) {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 18px',
+                    gap: '7px',
+                    padding: '7px 16px',
                     borderRadius: '9999px',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
@@ -129,56 +163,15 @@ export function AdminDashboard({ session, onLogout }) {
                     border: 'none',
                     backgroundColor: isActive ? '#18181b' : 'transparent',
                     color: isActive ? '#ffffff' : '#4b5563',
-                    boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.12)' : 'none'
+                    boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                    flexShrink: 0
                   }}
                 >
-                  <Icon size={15} style={{ color: isActive ? '#facc15' : '#6b7280' }} />
+                  <Icon size={14} style={{ color: isActive ? '#facc15' : '#6b7280' }} />
                   <span>{tab.label}</span>
                 </button>
               );
             })}
-          </div>
-
-          {/* User Session & Sign Out */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#374151'
-            }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
-              <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>
-                {session?.name || session?.username || 'Admin'}
-              </span>
-            </div>
-
-            <button
-              onClick={onLogout}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                backgroundColor: '#fff1f2',
-                color: '#e11d48',
-                border: '1px solid #fecdd3',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <LogOut size={14} />
-              <span>Sign Out</span>
-            </button>
           </div>
         </div>
 

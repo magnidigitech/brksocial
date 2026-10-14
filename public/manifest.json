@@ -1,17 +1,37 @@
 {
   "short_name": "BRK TaskHub",
-  "name": "BRK TaskHub - Employee Task & Verification",
+  "name": "BRK TaskHub - Centralized Task & Verification Platform",
+  "description": "Real-time task tracking, field employee management and outreach analytics for Andhra Pradesh constituencies.",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait-primary",
+  "background_color": "#f3f4f6",
+  "theme_color": "#18181b",
+  "categories": ["productivity", "business"]
 }

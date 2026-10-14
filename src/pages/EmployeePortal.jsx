@@ -128,16 +128,7 @@ export function EmployeePortal({ session, onLogout }) {
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
   return (
-    <div style={{
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#f3f4f6',
-      color: '#1c1917',
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-      padding: '24px',
-      boxSizing: 'border-box',
-      position: 'relative'
-    }}>
+    <div className="dashboard-page-wrapper">
       {/* Background Soft Glow */}
       <div style={{
         position: 'absolute',
@@ -152,48 +143,39 @@ export function EmployeePortal({ session, onLogout }) {
         background: 'radial-gradient(circle, rgba(255, 77, 0, 0.2) 0%, rgba(255, 26, 64, 0.08) 50%, transparent 75%)'
       }} />
 
-      {/* Main Crextio Frame */}
-      <div style={{
-        maxWidth: '1000px',
-        margin: '0 auto',
-        backgroundColor: '#ffffff',
-        borderRadius: '32px',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 20px 50px -15px rgba(0,0,0,0.06)',
-        padding: '28px',
-        position: 'relative',
-        zIndex: 10
-      }}>
+      {/* Main Container Frame */}
+      <div className="dashboard-main-frame" style={{ maxWidth: '1000px' }}>
         {/* Top Header & Staff Info */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '16px',
-          paddingBottom: '20px',
+          gap: '12px',
+          paddingBottom: '16px',
           borderBottom: '1px solid #e5e7eb',
-          marginBottom: '24px'
+          marginBottom: '20px'
         }}>
           {/* Staff Badge & Name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div style={{
-              width: '48px',
-              height: '48px',
+              width: '42px',
+              height: '42px',
               borderRadius: '50%',
               backgroundColor: '#fff7ed',
               border: '1.5px solid #ffedd5',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ea580c'
+              color: '#ea580c',
+              flexShrink: 0
             }}>
-              <UserCheck size={24} />
+              <UserCheck size={20} />
             </div>
 
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
                   {employee?.name || session?.name || 'Field Staff'}
                 </h1>
                 <span style={{
@@ -206,11 +188,26 @@ export function EmployeePortal({ session, onLogout }) {
                   color: '#334155',
                   border: '1px solid #cbd5e1'
                 }}>
-                  {employee?.id || session?.employeeId}
+                  Code: {employee?.supportCode || employee?.id || session?.employeeId}
                 </span>
+
+                {(employee?.staffId || session?.staffId) && (
+                  <span style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #bfdbfe'
+                  }}>
+                    ID: {employee?.staffId || session?.staffId}
+                  </span>
+                )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500, flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Building2 size={13} style={{ color: '#ff4d00' }} />
                   {employee?.parliamentName} Parliament
@@ -222,6 +219,12 @@ export function EmployeePortal({ session, onLogout }) {
                       <MapPin size={13} style={{ color: '#0284c7' }} />
                       {employee?.assemblyName} Segment
                     </span>
+                  </>
+                )}
+                {(employee?.mobilePersonal || session?.mobilePersonal) && (
+                  <>
+                    <span>•</span>
+                    <span>Mob: <strong style={{ color: '#0f172a' }}>{employee?.mobilePersonal || session?.mobilePersonal}</strong></span>
                   </>
                 )}
               </div>
@@ -293,13 +296,8 @@ export function EmployeePortal({ session, onLogout }) {
         {activeTask ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Task Overview Box */}
-            <div style={{
-              backgroundColor: '#fafafa',
-              borderRadius: '24px',
-              border: '1px solid #e5e7eb',
-              padding: '24px'
-            }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '16px' }}>
+            <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '36px',
@@ -314,21 +312,21 @@ export function EmployeePortal({ session, onLogout }) {
                     <PlatformIcon size={20} />
                   </div>
                   <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
                       {activeTask.name}
                     </h2>
-                    <p style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
                       {activeTask.description || `Platform: ${activeTask.platform}`}
                     </p>
                   </div>
                 </div>
 
                 <div style={{
-                  padding: '6px 14px',
+                  padding: '5px 12px',
                   borderRadius: '9999px',
                   backgroundColor: '#ffffff',
                   border: '1px solid #d1d5db',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 700,
                   color: '#334155'
                 }}>
@@ -338,17 +336,17 @@ export function EmployeePortal({ session, onLogout }) {
 
               {/* Progress Bar */}
               {taskStats && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
                     <span>Daily Completion Progress</span>
                     <span style={{ color: taskStats.validCount >= activeTask.dailyTarget ? '#16a34a' : '#ea580c' }}>
-                      {taskStats.validCount} / {activeTask.dailyTarget} Valid Entries ({taskStats.progressPercent}%)
+                      {taskStats.validCount} / {activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
                     </span>
                   </div>
 
                   <div style={{
                     width: '100%',
-                    height: '12px',
+                    height: '10px',
                     backgroundColor: '#e2e8f0',
                     borderRadius: '9999px',
                     overflow: 'hidden'
@@ -368,37 +366,31 @@ export function EmployeePortal({ session, onLogout }) {
             </div>
 
             {/* Submission Form */}
-            <div style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '24px',
-              border: '1px solid #e5e7eb',
-              padding: '24px',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.02)'
-            }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: '0 0 16px 0' }}>
+            <div className="dashboard-section-card">
+              <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
                 New Submission Entry ({activeTask.submissionType || 'Input'})
               </h3>
 
               {feedback && (
                 <div style={{
-                  marginBottom: '16px',
-                  padding: '12px 16px',
-                  borderRadius: '16px',
-                  fontSize: '13px',
+                  marginBottom: '14px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
+                  gap: '8px',
                   backgroundColor: feedback.type === 'success' ? '#ecfdf5' : (feedback.type === 'warning' ? '#fffbebf' : '#fef2f2'),
                   color: feedback.type === 'success' ? '#047857' : (feedback.type === 'warning' ? '#b45309' : '#b91c1c'),
                   border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5')}`
                 }}>
-                  {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                  {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
                   <span>{feedback.message}</span>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   required
@@ -411,50 +403,49 @@ export function EmployeePortal({ session, onLogout }) {
                   value={inputVal}
                   onChange={(e) => setInputVal(e.target.value)}
                   style={{
-                    flex: 1,
-                    minWidth: '260px',
-                    padding: '14px 20px',
+                    flex: '1 1 200px',
+                    minWidth: '180px',
+                    padding: '12px 16px',
                     borderRadius: '9999px',
                     border: '1px solid #cbd5e1',
-                    fontSize: '15px',
+                    fontSize: '14px',
                     fontWeight: 500,
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    backgroundColor: '#f8fafc',
+                    color: '#0f172a'
                   }}
                 />
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !inputVal.trim()}
                   style={{
-                    padding: '14px 28px',
+                    padding: '12px 24px',
                     borderRadius: '9999px',
                     border: 'none',
                     background: 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
                     color: '#ffffff',
-                    fontSize: '15px',
+                    fontSize: '14px',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 14px rgba(255, 77, 0, 0.35)'
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 14px rgba(255, 77, 0, 0.35)',
+                    whiteSpace: 'nowrap',
+                    flex: '0 0 auto'
                   }}
                 >
-                  <Send size={16} />
+                  <Send size={15} />
                   <span>Submit Entry</span>
                 </button>
               </form>
             </div>
 
             {/* Today's Submissions Log Table */}
-            <div style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '24px',
-              border: '1px solid #e5e7eb',
-              padding: '24px'
-            }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: '0 0 16px 0' }}>
+            <div className="dashboard-section-card">
+              <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
                 Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
               </h3>
 

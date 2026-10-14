@@ -4,9 +4,10 @@
  * initial task "Instagram Follower Outreach", submission engine, settings, and full CRUD helpers.
  */
 import { AP_CONSTITUENCIES } from './constituencyData.js';
+import { PAT_STAFF_OCTOBER_2026 } from './staffSeedData.js';
 
 const STORAGE_KEYS = {
-  EMPLOYEES: 'brk_employees_v2', // bumped to v2 for AP constituency hierarchy
+  EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
   TASKS: 'brk_tasks_v1',
   SUBMISSIONS: 'brk_submissions_v1',
   AUDIT_LOGS: 'brk_audit_logs_v1',
@@ -14,61 +15,9 @@ const STORAGE_KEYS = {
   ADMIN_USER: 'brk_admin_user_v1'
 };
 
-const TELUGU_FIRST_NAMES = ['Ravi', 'Suresh', 'Kalyan', 'Anitha', 'Priya', 'Venkatesh', 'Naresh', 'Srinivas', 'Lakshmi', 'Mahesh', 'Divya', 'Pawan', 'Prasad', 'Sandhya', 'Vikram', 'Rajesh', 'Harish', 'Gautam', 'Kavitha', 'Bhavani', 'Nikhil', 'Satish', 'Bhanu', 'Tarun', 'Deepika'];
-const TELUGU_LAST_NAMES = ['Kumar', 'Reddy', 'Rao', 'Sharma', 'Verma', 'Chowdary', 'Ventu', 'Varma', 'Teja', 'Naidu', 'Raju', 'Singh', 'Patel', 'Goud', 'Kanth'];
-
 // Generate 200 Structured Staff Members (25 Parliament + 175 Assembly)
 function generate200ConstituencyEmployees() {
-  const employees = [];
-  let empCounter = 1;
-
-  AP_CONSTITUENCIES.forEach((p, pIdx) => {
-    // 1. Create 1 Parliament-Level Staff Member (e.g. APP01, APP02, ... APP25)
-    const fnameP = TELUGU_FIRST_NAMES[(pIdx * 2) % TELUGU_FIRST_NAMES.length];
-    const lnameP = TELUGU_LAST_NAMES[(pIdx * 3) % TELUGU_LAST_NAMES.length];
-
-    employees.push({
-      id: p.code, // e.g. APP01
-      name: `${fnameP} ${lnameP}`,
-      level: 'Parliament',
-      parliamentCode: p.code,
-      parliamentName: p.name,
-      assemblyCode: null,
-      assemblyName: null,
-      department: 'Parliament Incharge',
-      mobile: `98${String(10000000 + empCounter * 357).slice(0, 8)}`,
-      email: `${fnameP.toLowerCase()}.${p.code.toLowerCase()}@bhashyam.in`,
-      status: 'Active',
-      joinedDate: '2026-01-15',
-      password: 'password123'
-    });
-    empCounter++;
-
-    // 2. Create 7 Assembly-Level Staff Members (e.g. APP01A01 to APP01A07)
-    p.assemblies.forEach((asm, aIdx) => {
-      const fnameA = TELUGU_FIRST_NAMES[(pIdx + aIdx * 4) % TELUGU_FIRST_NAMES.length];
-      const lnameA = TELUGU_LAST_NAMES[(aIdx + pIdx * 5) % TELUGU_LAST_NAMES.length];
-
-      employees.push({
-        id: asm.code, // e.g. APP01A01
-        name: `${fnameA} ${lnameA}`,
-        level: 'Assembly',
-        parliamentCode: p.code,
-        parliamentName: p.name,
-        assemblyCode: asm.code,
-        assemblyName: asm.name,
-        department: 'Assembly Segment Outreach',
-        mobile: `98${String(10000000 + empCounter * 357).slice(0, 8)}`,
-        email: `${fnameA.toLowerCase()}.${asm.code.toLowerCase()}@bhashyam.in`,
-        status: 'Active',
-        joinedDate: '2026-01-15',
-        password: 'password123'
-      });
-      empCounter++;
-    });
-  });
-
-  return employees;
+  return PAT_STAFF_OCTOBER_2026;
 }
 
 // Initial Task Specifications

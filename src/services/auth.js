@@ -27,22 +27,40 @@ export const authService = {
     localStorage.removeItem(SESSION_KEY);
   },
 
-  // Login Employee by Employee ID or Email
+  // Login Employee by Support Code, Staff ID, Personal Mobile, or Office Mobile
   loginEmployee(identifier, password) {
     dbService.init();
     const emps = dbService.getEmployees();
-    const cleanId = identifier.trim().toUpperCase();
+    const cleanId = (identifier || '').trim();
+    const upperId = cleanId.toUpperCase();
+    const digitsOnly = cleanId.replace(/\D/g, '');
 
-    const emp = emps.find(e => 
-      e.id.toUpperCase() === cleanId || 
-      e.email.toLowerCase() === identifier.trim().toLowerCase() ||
-      e.mobile === identifier.trim()
-    );
+    const emp = emps.find(e => {
+      if (!e) return false;
+      // 1. Support Code / ID (e.g. APP01, APP01A01)
+      if (e.id && e.id.toUpperCase() === upperId) return true;
+      if (e.supportCode && e.supportCode.toUpperCase() === upperId) return true;
+
+      // 2. Staff ID (e.g. Palakonda_010)
+      if (e.staffId && e.staffId.toUpperCase() === upperId) return true;
+
+      // 3. Personal Mobile (e.g. 9030738656)
+      if (digitsOnly && e.mobilePersonal && e.mobilePersonal.replace(/\D/g, '') === digitsOnly) return true;
+
+      // 4. Office Mobile (e.g. 7997955186)
+      if (digitsOnly && e.mobileOffice && e.mobileOffice.replace(/\D/g, '') === digitsOnly) return true;
+
+      // 5. Fallback primary mobile or email
+      if (digitsOnly && e.mobile && e.mobile.replace(/\D/g, '') === digitsOnly) return true;
+      if (e.email && e.email.toLowerCase() === cleanId.toLowerCase()) return true;
+
+      return false;
+    });
 
     if (!emp) {
       return {
         success: false,
-        error: 'Employee ID or Mobile number not found.'
+        error: 'Staff identifier not found. Please enter your Support Code (e.g. APP01), Staff ID, Personal Mobile, or Office Mobile.'
       };
     }
 
@@ -65,8 +83,18 @@ export const authService = {
     const session = {
       role: 'Employee',
       employeeId: emp.id,
+      supportCode: emp.supportCode || emp.id,
+      staffId: emp.staffId || '',
       name: emp.name,
+      level: emp.level || 'Assembly',
+      parliamentCode: emp.parliamentCode,
+      parliamentName: emp.parliamentName,
+      assemblyCode: emp.assemblyCode,
+      assemblyName: emp.assemblyName,
       department: emp.department,
+      mobilePersonal: emp.mobilePersonal || emp.mobile,
+      mobileOffice: emp.mobileOffice || '',
+      mobile: emp.mobilePersonal || emp.mobileOffice || emp.mobile,
       email: emp.email,
       loginTime: new Date().toISOString()
     };
