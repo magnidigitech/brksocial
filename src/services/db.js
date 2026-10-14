@@ -412,7 +412,7 @@ export const dbService = {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) || [];
   },
 
-  processSubmission({ employeeId, taskId, normalizedUsername, rawInput }) {
+  processSubmission({ employeeId, taskId, normalizedUsername, rawInput, followerVerification = null }) {
     this.init();
     const todayStr = new Date().toISOString().split('T')[0];
     const allSubs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
@@ -540,7 +540,12 @@ export const dbService = {
       rawInput,
       status: 'Valid',
       submittedAt: new Date().toISOString(),
-      date: todayStr
+      date: todayStr,
+      isFollower: !!followerVerification?.isFollower,
+      followerStatus: followerVerification?.isFollower ? 'Verified Follower' : 'Pending Verification',
+      followedAtFormatted: followerVerification?.follower?.followedAtFormatted || followerVerification?.followedAtFormatted || null,
+      followedAtTimestamp: followerVerification?.follower?.timestamp || followerVerification?.timestamp || null,
+      followerHref: followerVerification?.follower?.href || followerVerification?.href || null
     };
     allSubs.unshift(validSub);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(allSubs));
@@ -549,10 +554,18 @@ export const dbService = {
       window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: { timestamp: Date.now() } }));
     }
 
+    let successMsg = 'Submission recorded successfully!';
+    const formattedDate = validSub.followedAtFormatted;
+    if (validSub.isFollower && formattedDate) {
+      successMsg = `Accepted! '${normalizedUsername}' is a verified follower (Followed on ${formattedDate}).`;
+    } else if (platform === 'Instagram') {
+      successMsg = `Accepted! '${normalizedUsername}' recorded. Note: Profile will be cross-referenced with official followers upon next daily JSON upload.`;
+    }
+
     return {
       success: true,
       status: 'Valid',
-      message: 'Submission recorded successfully!',
+      message: successMsg,
       submission: validSub
     };
   },
@@ -1148,5 +1161,78 @@ export const dbService = {
     localStorage.removeItem(STORAGE_KEYS.TRACKING_LINKS);
     localStorage.removeItem(STORAGE_KEYS.LINK_CLICKS);
     this.init();
+  },
+
+  // ==========================================
+  // Instagram Followers Verification & Management
+  // ==========================================
+  formatFollowerDate(ts) {
+    if (!ts) return '';
+    const date = new Date(Number(ts) * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    const d = pad(date.getDate());
+    const m = pad(date.getMonth() + 1);
+    const y = date.getFullYear();
+    const h = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    return `${d}/${m}/${y} ${h}:${min}`;
+  },
+
+  async checkInstagramFollower(username) {
+    if (!username) return { exists: false, isFollower: false };
+    const clean = String(username).trim().toLowerCase().replace(/^@+/, '');
+    try {
+      const res = await fetch(`/api/instagram/followers/check/${encodeURIComponent(clean)}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (err) {
+      console.warn('Backend follower check unreachable:', err.message);
+    }
+    return { exists: false, isFollower: false, username: clean };
+  },
+
+  async uploadInstagramFollowers(followersData) {
+    try {
+      const res = await fetch('/api/instagram/followers/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(followersData)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to upload followers data');
+    } catch (err) {
+      console.error('Error uploading followers:', err);
+      throw err;
+    }
+  },
+
+  async getInstagramFollowerStats() {
+    try {
+      const res = await fetch('/api/instagram/followers/stats');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Error fetching follower stats:', err.message);
+    }
+    return { success: false, total: 0, latestFollower: null };
+  },
+
+  async getInstagramFollowersList(search = '', page = 1, limit = 50) {
+    try {
+      const params = new URLSearchParams({ search, page, limit });
+      const res = await fetch(`/api/instagram/followers?${params.toString()}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Error fetching followers list:', err.message);
+    }
+    return { success: false, total: 0, followers: [] };
   }
 };

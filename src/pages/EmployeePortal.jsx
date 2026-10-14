@@ -48,6 +48,8 @@ export function EmployeePortal({ session, onLogout }) {
   const [trackingLink, setTrackingLink] = useState(null);
   const [linkClicks, setLinkClicks] = useState({ totalClicks: 0, validClicks: 0, uniqueIps: 0 });
   const [copied, setCopied] = useState(false);
+  const [liveCheck, setLiveCheck] = useState(null);
+  const [isLiveChecking, setIsLiveChecking] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -84,6 +86,63 @@ export function EmployeePortal({ session, onLogout }) {
       clearInterval(interval);
     };
   }, [employee, session, activeTask]);
+
+  // Live debounced follower database & duplicate cross-check as employee types
+  useEffect(() => {
+    const raw = inputVal.trim();
+    if (!raw || !activeTask) {
+      setLiveCheck(null);
+      setIsLiveChecking(false);
+      return;
+    }
+
+    if (activeTask.platform === 'Instagram' || activeTask.submissionType?.includes('Handle')) {
+      const normRes = normalizeInstagramUsername(raw);
+      if (!normRes.isValid) {
+        setLiveCheck({ status: 'invalid', message: normRes.error || 'Invalid handle format' });
+        setIsLiveChecking(false);
+        return;
+      }
+
+      const cleanHandle = normRes.normalized;
+      setIsLiveChecking(true);
+
+      // Check duplicate submissions in local DB first
+      const allSubs = dbService.getSubmissions();
+      const existingSub = allSubs.find(s => 
+        s.taskId === activeTask.id && 
+        s.username === cleanHandle && 
+        s.status === 'Valid'
+      );
+
+      const timer = setTimeout(async () => {
+        try {
+          const followerRes = await dbService.checkInstagramFollower(cleanHandle);
+          setLiveCheck({
+            cleanHandle,
+            isDuplicate: !!existingSub,
+            existingSub: existingSub || null,
+            isFollower: !!followerRes?.isFollower,
+            follower: followerRes?.follower || null
+          });
+        } catch (err) {
+          setLiveCheck({
+            cleanHandle,
+            isDuplicate: !!existingSub,
+            existingSub: existingSub || null,
+            isFollower: false
+          });
+        } finally {
+          setIsLiveChecking(false);
+        }
+      }, 250);
+
+      return () => clearTimeout(timer);
+    } else {
+      setLiveCheck(null);
+      setIsLiveChecking(false);
+    }
+  }, [inputVal, activeTask]);
 
   const loadData = () => {
     const empId = session?.employeeId || session?.id || 'APP13';
@@ -155,7 +214,7 @@ export function EmployeePortal({ session, onLogout }) {
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!inputVal.trim() || !activeTask) return;
 
@@ -166,6 +225,8 @@ export function EmployeePortal({ session, onLogout }) {
 
     // Standardize input
     let normalized = inputVal.trim();
+    let followerCheckResult = null;
+
     if (activeTask.platform === 'Instagram' || activeTask.submissionType.includes('Handle')) {
       const normRes = normalizeInstagramUsername(inputVal);
       if (!normRes.isValid) {
@@ -177,24 +238,35 @@ export function EmployeePortal({ session, onLogout }) {
         return;
       }
       normalized = normRes.normalized;
+
+      // Cross-check existing Instagram followers database!
+      try {
+        followerCheckResult = await dbService.checkInstagramFollower(normalized);
+      } catch (err) {
+        console.warn('Follower check error:', err);
+      }
     } else {
       normalized = normalized.toLowerCase();
     }
 
-    // Process submission via DB Service
+    // Process submission via DB Service with followerVerification
     const res = dbService.processSubmission({
       employeeId: empId,
       taskId: activeTask.id,
       normalizedUsername: normalized,
-      rawInput: inputVal.trim()
+      rawInput: inputVal.trim(),
+      followerVerification: followerCheckResult
     });
 
     if (res.success) {
       setFeedback({
         type: 'success',
-        message: `Accepted! '${normalized}' saved successfully.`
+        message: res.message || `Accepted! '${normalized}' saved successfully.`,
+        isFollower: followerCheckResult?.isFollower,
+        followedAtFormatted: followerCheckResult?.follower?.followedAtFormatted
       });
       setInputVal('');
+      setLiveCheck(null);
     } else {
       setFeedback({
         type: res.status === 'Duplicate' ? 'error' : 'warning',
@@ -648,93 +720,164 @@ export function EmployeePortal({ session, onLogout }) {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  required
-                  disabled={isSubmitting}
-                  placeholder={
-                    activeTask.submissionType === 'Mobile Number' 
-                      ? 'Enter 10-digit voter mobile number...' 
-                      : `Enter ${activeTask.submissionType} or URL...`
-                  }
-                  value={inputVal}
-                  onChange={(e) => setInputVal(e.target.value)}
-                  style={{
-                    flex: '1 1 200px',
-                    minWidth: '180px',
-                    padding: '12px 16px',
-                    borderRadius: '9999px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    outline: 'none',
-                    backgroundColor: '#f8fafc',
-                    color: '#0f172a'
-                  }}
-                />
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    required
+                    disabled={isSubmitting}
+                    placeholder={
+                      activeTask.submissionType === 'Mobile Number' 
+                        ? 'Enter 10-digit voter mobile number...' 
+                        : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
+                    }
+                    value={inputVal}
+                    onChange={(e) => setInputVal(e.target.value)}
+                    style={{
+                      flex: '1 1 200px',
+                      minWidth: '180px',
+                      padding: '10px 16px',
+                      borderRadius: '980px',
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                      fontSize: '13.5px',
+                      fontWeight: 500,
+                      outline: 'none',
+                      backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                      color: '#1d1d1f'
+                    }}
+                  />
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !inputVal.trim()}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: '9999px',
-                    border: 'none',
-                    background: 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
-                    color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !inputVal.trim()}
+                    style={{
+                      padding: '10px 24px',
+                      borderRadius: '980px',
+                      border: 'none',
+                      backgroundColor: '#0071e3',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(0, 113, 227, 0.3)',
+                      whiteSpace: 'nowrap',
+                      flex: '0 0 auto',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Send size={14} />
+                    <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
+                  </button>
+                </div>
+
+                {/* Live Real-Time Follower & Duplicate Preview Badge */}
+                {liveCheck && !feedback && (
+                  <div style={{
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 500,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 4px 14px rgba(255, 77, 0, 0.35)',
-                    whiteSpace: 'nowrap',
-                    flex: '0 0 auto'
-                  }}
-                >
-                  <Send size={15} />
-                  <span>Submit Entry</span>
-                </button>
+                    gap: '8px',
+                    backgroundColor: liveCheck.isDuplicate 
+                      ? 'rgba(255, 59, 48, 0.08)' 
+                      : (liveCheck.isFollower ? 'rgba(52, 199, 89, 0.08)' : 'rgba(0, 113, 227, 0.06)'),
+                    border: `1px solid ${liveCheck.isDuplicate ? 'rgba(255, 59, 48, 0.2)' : (liveCheck.isFollower ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0, 113, 227, 0.15)')}`,
+                    color: liveCheck.isDuplicate ? '#ff3b30' : (liveCheck.isFollower ? '#1b5e20' : '#0071e3')
+                  }}>
+                    {liveCheck.isDuplicate ? (
+                      <>
+                        <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                        <span>
+                          <strong>Duplicate Detected:</strong> Already submitted by <strong>{liveCheck.existingSub.employeeName}</strong> on {liveCheck.existingSub.date}.
+                        </span>
+                      </>
+                    ) : liveCheck.isFollower && liveCheck.follower ? (
+                      <>
+                        <CheckCircle2 size={15} style={{ color: '#34c759', flexShrink: 0 }} />
+                        <span>
+                          <strong>Verified Follower:</strong> Followed profile on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower.followedAtFormatted}</strong> (dd/mm/yyyy hh:mm).
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={14} style={{ color: '#0071e3', flexShrink: 0 }} />
+                        <span>
+                          <strong>New Follower Candidate:</strong> Not in current followers database. Will be cross-checked on next daily follower upload.
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
 
             {/* Today's Submissions Log Table */}
             <div className="dashboard-section-card">
-              <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: '0 0 14px 0', letterSpacing: '-0.02em' }}>
                 Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
               </h3>
 
               {taskStats?.todaySubmissions?.length > 0 ? (
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
-                        <th style={{ padding: '10px', fontWeight: 700 }}>Entry Input</th>
-                        <th style={{ padding: '10px', fontWeight: 700 }}>Time</th>
-                        <th style={{ padding: '10px', fontWeight: 700 }}>Status</th>
+                      <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', color: '#86868b' }}>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Entry Input</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Follower Verification (dd/mm/yyyy hh:mm)</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {taskStats.todaySubmissions.map((sub) => (
-                        <tr key={sub.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '12px 10px', fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>
+                        <tr key={sub.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
+                          <td style={{ padding: '10px', fontWeight: 600, color: '#1d1d1f', fontFamily: 'monospace' }}>
                             {sub.username || sub.rawInput}
                           </td>
-                          <td style={{ padding: '12px 10px', color: '#64748b' }}>
+                          <td style={{ padding: '10px', color: '#86868b' }}>
                             {new Date(sub.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </td>
-                          <td style={{ padding: '12px 10px' }}>
+                          <td style={{ padding: '10px' }}>
+                            {sub.isFollower ? (
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '980px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                                color: '#34c759',
+                                border: '1px solid rgba(52, 199, 89, 0.2)'
+                              }}>
+                                ✓ Followed: {sub.followedAtFormatted || '14/10/2026 20:54'}
+                              </span>
+                            ) : (
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '980px',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                                color: '#86868b'
+                              }}>
+                                Pending Follow Sync
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'right' }}>
                             <span style={{
-                              padding: '4px 10px',
-                              borderRadius: '9999px',
+                              padding: '3px 10px',
+                              borderRadius: '980px',
                               fontSize: '11px',
-                              fontWeight: 800,
-                              backgroundColor: sub.status === 'Valid' ? '#ecfdf5' : (sub.status === 'Repeated' ? '#fffbebf' : '#fef2f2'),
-                              color: sub.status === 'Valid' ? '#047857' : (sub.status === 'Repeated' ? '#b45309' : '#b91c1c'),
-                              border: `1px solid ${sub.status === 'Valid' ? '#a7f3d0' : (sub.status === 'Repeated' ? '#fde68a' : '#fca5a5')}`
+                              fontWeight: 600,
+                              backgroundColor: sub.status === 'Valid' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)',
+                              color: sub.status === 'Valid' ? '#34c759' : '#ff3b30',
+                              border: `1px solid ${sub.status === 'Valid' ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255, 59, 48, 0.2)'}`
                             }}>
                               {sub.status}
                             </span>
@@ -745,7 +888,7 @@ export function EmployeePortal({ session, onLogout }) {
                   </table>
                 </div>
               ) : (
-                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>
+                <p style={{ fontSize: '12.5px', color: '#86868b', margin: 0, fontStyle: 'italic' }}>
                   No entries submitted yet today for this task. Use the box above to record your first entry.
                 </p>
               )}

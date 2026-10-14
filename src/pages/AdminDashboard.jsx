@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut, MousePointerClick } from 'lucide-react';
+import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut, MousePointerClick, Instagram } from 'lucide-react';
 import { StaffDirectoryView } from '../components/StaffDirectoryView.jsx';
 import { TaskManagementView } from '../components/TaskManagementView.jsx';
 import { AdminMetricsDashboardView } from '../components/AdminMetricsDashboardView.jsx';
 import { LinkAnalyticsView } from '../components/LinkAnalyticsView.jsx';
+import { InstagramFollowersView } from '../components/InstagramFollowersView.jsx';
 
 export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -17,6 +18,7 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'links', label: 'Link Analytics', icon: MousePointerClick },
+    { id: 'followers', label: 'Followers DB', icon: Instagram },
     { id: 'rules', label: 'Tasks & Rules', icon: Sliders },
     { id: 'staff', label: 'Staff Directory', icon: Users },
     { id: 'audit', label: 'Audit Trail', icon: ShieldAlert },
@@ -177,6 +179,10 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
 
           {activeTab === 'links' && (
             <LinkAnalyticsView />
+          )}
+
+          {activeTab === 'followers' && (
+            <InstagramFollowersView />
           )}
 
           {activeTab === 'staff' && (

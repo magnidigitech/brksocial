@@ -16,11 +16,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Local persistent file storage fallback
 const DATA_DIR = path.join(__dirname, 'data');
 const CLICKS_FILE = path.join(DATA_DIR, 'link_clicks.json');
+const FOLLOWERS_FILE = path.join(DATA_DIR, 'instagram_followers.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -48,6 +50,124 @@ function saveStoredClicks(clicks) {
     console.error('Error writing clicks file:', err.message);
   }
 }
+
+// ==========================================
+// Instagram Followers In-Memory Engine & Upsert
+// ==========================================
+let FOLLOWERS_MAP = new Map();
+
+function formatFollowerTimestamp(ts) {
+  if (!ts) return '';
+  const date = new Date(Number(ts) * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = pad(date.getDate());
+  const m = pad(date.getMonth() + 1);
+  const y = date.getFullYear();
+  const h = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${d}/${m}/${y} ${h}:${min}`;
+}
+
+function loadFollowersFromDisk() {
+  try {
+    if (fs.existsSync(FOLLOWERS_FILE)) {
+      const raw = fs.readFileSync(FOLLOWERS_FILE, 'utf8');
+      const list = JSON.parse(raw) || [];
+      FOLLOWERS_MAP = new Map();
+      list.forEach(f => {
+        const k = (f.key || f.username || '').toLowerCase().replace(/^@+/, '').trim();
+        if (k) {
+          if (!f.followedAtFormatted && f.timestamp) {
+            f.followedAtFormatted = formatFollowerTimestamp(f.timestamp);
+          }
+          FOLLOWERS_MAP.set(k, f);
+        }
+      });
+      console.log(`Loaded ${FOLLOWERS_MAP.size} Instagram followers from disk into memory.`);
+      return;
+    }
+
+    // Auto-seed from local followers_1.json and followers_2.json if available
+    const f1Path = path.join(__dirname, 'followers_1.json');
+    const f2Path = path.join(__dirname, 'followers_2.json');
+    let seedList = [];
+    if (fs.existsSync(f1Path)) {
+      try { seedList.push(...JSON.parse(fs.readFileSync(f1Path, 'utf8'))); } catch (e) {}
+    }
+    if (fs.existsSync(f2Path)) {
+      try { seedList.push(...JSON.parse(fs.readFileSync(f2Path, 'utf8'))); } catch (e) {}
+    }
+
+    if (seedList.length > 0) {
+      console.log(`Auto-seeding Instagram followers from local JSON files (${seedList.length} records)...`);
+      upsertFollowersData(seedList);
+    }
+  } catch (err) {
+    console.error('Error loading followers:', err.message);
+  }
+}
+
+function upsertFollowersData(incomingData) {
+  let countAdded = 0;
+  let countUpdated = 0;
+  const items = Array.isArray(incomingData) ? incomingData : [incomingData];
+
+  items.forEach(item => {
+    let username = null;
+    let href = null;
+    let timestamp = 0;
+
+    if (item.string_list_data && item.string_list_data.length > 0) {
+      const d = item.string_list_data[0];
+      username = d.value;
+      href = d.href;
+      timestamp = Number(d.timestamp) || 0;
+    } else if (item.value || item.username) {
+      username = item.value || item.username;
+      href = item.href;
+      timestamp = Number(item.timestamp) || 0;
+    }
+
+    if (username) {
+      const cleanKey = username.trim().toLowerCase().replace(/^@+/, '');
+      if (!cleanKey) return;
+      const existing = FOLLOWERS_MAP.get(cleanKey);
+      const effTimestamp = timestamp || (existing ? existing.timestamp : Math.floor(Date.now() / 1000));
+
+      const record = {
+        username: username.trim().replace(/^@+/, ''),
+        key: cleanKey,
+        href: href || `https://www.instagram.com/${cleanKey}`,
+        timestamp: effTimestamp,
+        followedAtFormatted: formatFollowerTimestamp(effTimestamp),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (!existing) {
+        countAdded++;
+      } else {
+        countUpdated++;
+      }
+      FOLLOWERS_MAP.set(cleanKey, record);
+    }
+  });
+
+  try {
+    const list = Array.from(FOLLOWERS_MAP.values());
+    fs.writeFileSync(FOLLOWERS_FILE, JSON.stringify(list), 'utf8');
+  } catch (err) {
+    console.error('Error saving followers file:', err.message);
+  }
+
+  return {
+    total: FOLLOWERS_MAP.size,
+    added: countAdded,
+    updated: countUpdated
+  };
+}
+
+// Initial load on server startup
+loadFollowersFromDisk();
 
 // Generate deterministic short token from taskId + employeeId (identical to dbService)
 function generateLinkToken(taskId, employeeId) {
@@ -575,6 +695,116 @@ async function handleAnalytics(req, res) {
 
 app.get('/api/links/analytics', handleAnalytics);
 app.get('/api/links/clicks', handleAnalytics);
+
+// ==========================================
+// Instagram Followers Verification & Management APIs
+// ==========================================
+
+// Get follower stats & count
+app.get('/api/instagram/followers/stats', (req, res) => {
+  try {
+    const list = Array.from(FOLLOWERS_MAP.values());
+    const latestFollower = list.reduce((latest, f) => {
+      return (!latest || f.timestamp > latest.timestamp) ? f : latest;
+    }, null);
+
+    res.json({
+      success: true,
+      total: FOLLOWERS_MAP.size,
+      latestFollower: latestFollower ? {
+        username: latestFollower.username,
+        followedAtFormatted: latestFollower.followedAtFormatted,
+        timestamp: latestFollower.timestamp
+      } : null,
+      lastUpdated: fs.existsSync(FOLLOWERS_FILE) ? fs.statSync(FOLLOWERS_FILE).mtime : new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Instant O(1) Check if profile is an existing Instagram follower
+app.get('/api/instagram/followers/check/:username', (req, res) => {
+  try {
+    const raw = req.params.username || '';
+    const clean = raw.trim().toLowerCase().replace(/^@+/, '');
+    const follower = FOLLOWERS_MAP.get(clean);
+
+    if (follower) {
+      return res.json({
+        success: true,
+        exists: true,
+        isFollower: true,
+        follower: {
+          username: follower.username,
+          href: follower.href,
+          timestamp: follower.timestamp,
+          followedAtFormatted: follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp)
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      exists: false,
+      isFollower: false,
+      username: clean
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Upsert / Import new Instagram followers JSON
+app.post('/api/instagram/followers/upsert', (req, res) => {
+  try {
+    const payload = req.body;
+    if (!payload) {
+      return res.status(400).json({ success: false, error: 'No follower data provided in request body' });
+    }
+
+    const result = upsertFollowersData(payload);
+    res.json({
+      success: true,
+      message: `Successfully upserted ${result.total} followers (+${result.added} new, +${result.updated} updated).`,
+      ...result
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Search & Paginate Followers
+app.get('/api/instagram/followers', (req, res) => {
+  try {
+    const search = (req.query.search || '').trim().toLowerCase().replace(/^@+/, '');
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    let list = Array.from(FOLLOWERS_MAP.values());
+    if (search) {
+      list = list.filter(f => f.key.includes(search) || f.username.toLowerCase().includes(search));
+    }
+
+    // Sort by timestamp descending (newest followers first)
+    list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    const total = list.length;
+    const startIndex = (page - 1) * limit;
+    const items = list.slice(startIndex, startIndex + limit);
+
+    res.json({
+      success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      followers: items
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Serve React Production Build Static Files (Express 5 compatible)
 const distPath = path.join(__dirname, 'dist');
