@@ -4,7 +4,7 @@ import {
   Award, Calendar, MapPin, Building2, Activity, Sparkles, 
   BarChart3, ChevronDown, ChevronUp, Filter, AlertCircle, ArrowUpRight, TrendingUp,
   ArrowUpDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp,
-  X, CheckSquare, Square, Check
+  X, CheckSquare, Square, Check, Copy, Link2
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
@@ -77,6 +77,28 @@ export function AdminMetricsDashboardView() {
 
   // Selected Task Campaign Filter State
   const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [copiedStaffToken, setCopiedStaffToken] = useState(null);
+
+  const staffClickMap = useMemo(() => {
+    const analytics = dbService.getLinkAnalytics({ taskId: selectedTaskId || null });
+    const map = {};
+    (analytics.staffLeaderboard || []).forEach(item => {
+      map[item.employeeId] = item;
+    });
+    return map;
+  }, [selectedTaskId, selectedDate]);
+
+  const handleCopyStaffTrackingLink = (empId) => {
+    const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', empId);
+    if (!link) return;
+    const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://social.bhashyamramakrishna.in';
+    const slug = link.slug || link.urlSlug || 'instagram';
+    const url = `${origin}/${slug}/${link.token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedStaffToken(link.token);
+      setTimeout(() => setCopiedStaffToken(null), 2000);
+    });
+  };
 
   // Collapsible Parliaments State for Staff Outreach Tracker
   const [collapsedParliaments, setCollapsedParliaments] = useState(() => {
@@ -1861,6 +1883,7 @@ export function AdminMetricsDashboardView() {
                                 </div>
                               </th>
                               <th style={{ padding: '10px 14px', fontWeight: 800 }}>Target Progress</th>
+                              <th style={{ padding: '10px 14px', fontWeight: 800 }}>Outreach Link</th>
                               <th 
                                 onClick={() => handleHeaderSort('duplicate')}
                                 style={{ padding: '10px 14px', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}
@@ -1955,7 +1978,7 @@ export function AdminMetricsDashboardView() {
                                   </td>
 
                                   {/* Progress Bar */}
-                                  <td style={{ padding: '10px 14px', width: '150px' }}>
+                                  <td style={{ padding: '10px 14px', width: '130px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       <div style={{ flex: 1, height: '5px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
                                         <div style={{
@@ -1967,6 +1990,58 @@ export function AdminMetricsDashboardView() {
                                       </div>
                                       <span style={{ fontSize: '10px', fontWeight: 700, color: '#4b5563', width: '30px' }}>{percent}%</span>
                                     </div>
+                                  </td>
+
+                                  {/* Outreach Tracking Link & Clicks */}
+                                  <td style={{ padding: '10px 14px' }}>
+                                    {(() => {
+                                      const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', emp.id);
+                                      const token = link?.token || '';
+                                      const clickData = staffClickMap[emp.id];
+                                      const clickCount = clickData?.validClicks || 0;
+                                      const isCopied = copiedStaffToken === token;
+
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCopyStaffTrackingLink(emp.id)}
+                                            title={`Copy tracking link for ${emp.name}`}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '3px 8px',
+                                              borderRadius: '9999px',
+                                              backgroundColor: isCopied ? '#ecfdf5' : '#f1f5f9',
+                                              color: isCopied ? '#047857' : '#334155',
+                                              border: `1px solid ${isCopied ? '#a7f3d0' : '#cbd5e1'}`,
+                                              fontSize: '11px',
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              fontFamily: 'monospace'
+                                            }}
+                                          >
+                                            {isCopied ? <Check size={11} /> : <Copy size={11} />}
+                                            <span>{isCopied ? 'Copied' : `/${token ? token.slice(0, 6) : 'link'}...`}</span>
+                                          </button>
+
+                                          {clickCount > 0 && (
+                                             <span style={{
+                                               fontSize: '10px',
+                                               fontWeight: 800,
+                                               padding: '1px 6px',
+                                               borderRadius: '9999px',
+                                               backgroundColor: '#ecfdf5',
+                                               color: '#059669',
+                                               border: '1px solid #a7f3d0'
+                                             }} title="Verified citizen clicks">
+                                               {clickCount} clicks
+                                             </span>
+                                           )}
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
 
                                   {/* Duplicates */}
@@ -2095,8 +2170,64 @@ export function AdminMetricsDashboardView() {
                                   </div>
                                 </div>
 
-                                {/* Duplicate Flag if any */}
-                                {emp.duplicate > 0 && (
+                                {/* Outreach Tracking Link in Mobile Card */}
+                                  {(() => {
+                                    const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', emp.id);
+                                    const token = link?.token || '';
+                                    const clickData = staffClickMap[emp.id];
+                                    const clickCount = clickData?.validClicks || 0;
+                                    const isCopied = copiedStaffToken === token;
+
+                                    return (
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        backgroundColor: '#ffffff',
+                                        padding: '5px 8px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        fontSize: '11px',
+                                        gap: '6px'
+                                      }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden' }}>
+                                          <Link2 size={12} style={{ color: '#0284c7', flexShrink: 0 }} />
+                                          <span style={{ fontFamily: 'monospace', color: '#0f172a', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            /{link?.slug || 'instagram'}/{token}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                          {clickCount > 0 && (
+                                            <span style={{ fontSize: '10px', fontWeight: 800, color: '#059669', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '9999px' }}>
+                                              {clickCount} clicks
+                                            </span>
+                                          )}
+                                          <button
+                                            onClick={() => handleCopyStaffTrackingLink(emp.id)}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '3px',
+                                              padding: '2px 8px',
+                                              borderRadius: '6px',
+                                              backgroundColor: isCopied ? '#ecfdf5' : '#f1f5f9',
+                                              color: isCopied ? '#047857' : '#334155',
+                                              border: '1px solid #cbd5e1',
+                                              fontSize: '10px',
+                                              fontWeight: 700,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            {isCopied ? <Check size={11} /> : <Copy size={11} />}
+                                            <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Duplicate Flag if any */}
+                                  {emp.duplicate > 0 && (
                                   <div style={{ fontSize: '10px', color: '#b91c1c', fontWeight: 700, backgroundColor: '#fef2f2', padding: '2px 8px', borderRadius: '6px', alignSelf: 'flex-start' }}>
                                     {emp.duplicate} Duplicates Flagged
                                   </div>

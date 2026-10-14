@@ -75,8 +75,8 @@ export function EmployeePortal({ session, onLogout }) {
     setTaskStats(stats);
 
     // Fetch employee tracking link & live clicks
-    if (taskId) {
-      const link = dbService.getTrackingLinkForEmployee(empId, taskId);
+    if (empId) {
+      const link = dbService.getTrackingLinkForEmployee(taskId, empId);
       setTrackingLink(link);
       const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
       setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
@@ -87,16 +87,21 @@ export function EmployeePortal({ session, onLogout }) {
     setActiveTask(task);
     setInputVal('');
     setFeedback(null);
-    const empId = employee?.id || session?.employeeId;
+    const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
     updateStats(empId, task.id);
   };
 
+  const effectiveLink = trackingLink || (activeTask && (employee?.id || session?.employeeId || session?.id)
+    ? dbService.getTrackingLinkForEmployee(activeTask.id, employee?.id || session?.employeeId || session?.id)
+    : null);
+
   const getFullTrackingUrl = () => {
-    if (!trackingLink) return '';
-    if (trackingLink.fullUrl) return trackingLink.fullUrl;
+    const link = effectiveLink;
+    if (!link) return '';
+    if (link.fullUrl) return link.fullUrl;
     const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://social.bhashyamramakrishna.in';
-    const slug = trackingLink.urlSlug || 'instagram';
-    return `${origin}/${slug}/${trackingLink.token}`;
+    const slug = link.slug || link.urlSlug || (activeTask?.platform?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'instagram');
+    return `${origin}/${slug}/${link.token}`;
   };
 
   const handleCopyLink = () => {
@@ -106,7 +111,6 @@ export function EmployeePortal({ session, onLogout }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     }).catch(() => {
-      // Fallback
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     });
@@ -115,7 +119,7 @@ export function EmployeePortal({ session, onLogout }) {
   const handleWhatsAppShare = () => {
     const url = getFullTrackingUrl();
     if (!url) return;
-    const msg = `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక Instagram పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna on Instagram!`;
+    const msg = `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక సోషల్ మీడియా పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna!`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
@@ -412,7 +416,7 @@ export function EmployeePortal({ session, onLogout }) {
             </div>
 
             {/* YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
-            {trackingLink && (
+            {effectiveLink && (
               <div className="dashboard-section-card" style={{
                 background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
                 border: '1.5px solid #ffedd5',

@@ -814,11 +814,34 @@ export const dbService = {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.TRACKING_LINKS)) || [];
   },
 
-  getTrackingLinkForEmployee(taskId, employeeId, baseUrl = '') {
+  getTrackingLinkForEmployee(arg1, arg2, baseUrl = '') {
     this.init();
     const links = this.getTrackingLinks();
-    const task = this.getTaskById(taskId) || this.getActiveTask();
-    const emp = this.getEmployeeById(employeeId);
+
+    // Flexible argument detection: support both (taskId, empId) and (empId, taskId)
+    let task = null;
+    let emp = null;
+
+    if (arg1 && arg2) {
+      task = this.getTaskById(arg1);
+      emp = this.getEmployeeById(arg2);
+
+      if (!emp || !task) {
+        const empCandidate = this.getEmployeeById(arg1);
+        const taskCandidate = this.getTaskById(arg2);
+        if (empCandidate) emp = empCandidate;
+        if (taskCandidate) task = taskCandidate;
+      }
+    }
+
+    if (!task) {
+      task = this.getActiveTask();
+    }
+
+    if (!emp) {
+      emp = this.getEmployeeById(arg1) || this.getEmployeeById(arg2);
+    }
+
     if (!task || !emp) return null;
 
     const effectiveBaseUrl = baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://social.bhashyamramakrishna.in');
@@ -1094,14 +1117,25 @@ export const dbService = {
 
   getEmployeeTaskClicks(employeeId, taskId, dateStr) {
     this.init();
+    if (!employeeId) return { totalClicks: 0, validClicks: 0, uniqueIps: 0, botClicks: 0, valueOf() { return 0; } };
     const effectiveDate = dateStr || new Date().toISOString().split('T')[0];
     const allClicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
-    return allClicks.filter(c => 
-      c.employeeId.toUpperCase() === employeeId.toUpperCase() &&
-      c.taskId === taskId &&
-      c.timestamp && c.timestamp.startsWith(effectiveDate) &&
-      c.isValid
-    ).length;
+    const empClicks = allClicks.filter(c => 
+      c.employeeId && c.employeeId.toUpperCase() === employeeId.toUpperCase() &&
+      (!taskId || c.taskId === taskId) &&
+      (!effectiveDate || (c.timestamp && c.timestamp.startsWith(effectiveDate)))
+    );
+    const valid = empClicks.filter(c => c.isValid);
+    const bots = empClicks.filter(c => c.isBot);
+    const uniqueIps = new Set(valid.map(c => c.ip || c.id)).size;
+
+    return {
+      totalClicks: empClicks.length,
+      validClicks: valid.length,
+      uniqueIps: uniqueIps,
+      botClicks: bots.length,
+      valueOf() { return valid.length; }
+    };
   },
 
   resetDatabase() {

@@ -675,26 +675,27 @@ export function TaskManagementView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(6px)',
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxSizing: 'border-box'
-        }} className="p-3 sm:p-6">
+          boxSizing: 'border-box',
+          padding: '24px 16px'
+        }} className="p-4 sm:p-8 lg:p-12">
           <div style={{
             backgroundColor: '#ffffff',
-            borderRadius: '20px',
-            maxWidth: '680px',
+            borderRadius: '24px',
+            maxWidth: '720px',
             width: '100%',
-            maxHeight: '92vh',
+            maxHeight: '86vh',
             overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
             border: '1px solid #e2e8f0',
             position: 'relative',
             boxSizing: 'border-box'
-          }} className="p-4 sm:p-7">
+          }} className="p-5 sm:p-8 lg:p-10">
             {/* Modal Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div>
