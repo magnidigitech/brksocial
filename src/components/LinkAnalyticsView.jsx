@@ -240,257 +240,269 @@ export function LinkAnalyticsView() {
     : 100;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Header & Overview Card */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Apple-Style Executive Header Card */}
       <div className="dashboard-section-card" style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, #fffbf5 100%)',
-        border: '1.5px solid #fed7aa',
-        boxShadow: '0 10px 30px -10px rgba(255, 77, 0, 0.08)'
+        background: '#ffffff',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+        borderRadius: '18px',
+        padding: '24px 28px'
       }}>
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '14px'
+          gap: '16px'
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <span style={{
                 fontSize: '11px',
-                fontWeight: 800,
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                backgroundColor: '#fff7ed',
-                color: '#ea580c',
-                border: '1px solid #ffedd5',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: '980px',
+                backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                color: '#0071e3',
+                border: '1px solid rgba(0, 113, 227, 0.15)',
+                letterSpacing: '0.02em'
               }}>
-                100% In-House Engine • Zero 3rd Party Fees
+                In-House Attribution Engine
               </span>
               <span style={{
                 fontSize: '11px',
-                fontWeight: 800,
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                backgroundColor: '#ecfdf5',
-                color: '#059669',
-                border: '1px solid #a7f3d0'
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: '980px',
+                backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                color: '#248a3d',
+                border: '1px solid rgba(52, 199, 89, 0.2)'
               }}>
-                Sub-50ms Fast Redirect
+                Sub-50ms Fast Direct
               </span>
             </div>
-            <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', margin: '8px 0 4px 0', letterSpacing: '-0.03em' }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#1d1d1f', margin: '0 0 6px 0', letterSpacing: '-0.025em' }}>
               Outreach Link & Click Analytics
             </h1>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: 0, fontWeight: 500, maxWidth: '650px' }}>
-              Live attribution of staff tracking URLs. Validates genuine human visitors and screens out automated WhatsApp/Facebook link preview crawlers before redirecting.
+            <p style={{ fontSize: '13px', color: '#86868b', margin: 0, fontWeight: 400, maxWidth: '640px', lineHeight: 1.45 }}>
+              Real-time verified attribution for staff tracking links. Accurately records genuine citizen engagement while automatically filtering WhatsApp & social preview crawlers.
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               onClick={handleRefresh}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '9px 16px',
-                borderRadius: '9999px',
+                padding: '8px 16px',
+                borderRadius: '980px',
                 backgroundColor: '#ffffff',
-                color: '#475569',
-                border: '1px solid #cbd5e1',
+                color: '#1d1d1f',
+                border: '1px solid rgba(0, 0, 0, 0.12)',
                 fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer'
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={13} style={{ color: '#86868b' }} />
               <span>Refresh</span>
             </button>
 
             <button
               onClick={handleExportCSV}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '9px 18px',
-                borderRadius: '9999px',
-                backgroundColor: '#0f172a',
+                padding: '8px 18px',
+                borderRadius: '980px',
+                backgroundColor: '#0071e3',
                 color: '#ffffff',
                 border: 'none',
                 fontSize: '12px',
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)'
+                boxShadow: '0 2px 8px rgba(0, 113, 227, 0.25)',
+                transition: 'all 0.15s ease'
               }}
             >
-              <Download size={14} />
-              <span>Export CSV Report</span>
+              <Download size={13} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* TOP 4 EXECUTIVE KPI CARDS */}
+      {/* TOP 4 MINIMALIST APPLE KPI CARDS */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '14px'
+        gap: '12px'
       }}>
         {/* Total Clicks */}
-        <div className="dashboard-metric-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+        <div className="dashboard-metric-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Total Link Hits
             </span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
-              <MousePointerClick size={16} />
+            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(255, 149, 0, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9500' }}>
+              <MousePointerClick size={15} />
             </div>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
             {analyticsData.totalClicks.toLocaleString()}
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+          <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
             Raw traffic across all shared staff links
           </div>
         </div>
 
         {/* Valid Human Clicks */}
-        <div className="dashboard-metric-card" style={{ borderLeft: '4px solid #10b981' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#047857', textTransform: 'uppercase' }}>
+        <div className="dashboard-metric-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#248a3d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Verified Human Clicks
             </span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
-              <CheckCircle2 size={16} />
+            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
+              <CheckCircle2 size={15} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <div style={{ fontSize: '28px', fontWeight: 900, color: '#047857', letterSpacing: '-0.02em' }}>
+            <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
               {analyticsData.validClicks.toLocaleString()}
             </div>
             <span style={{
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 600,
               padding: '2px 8px',
-              borderRadius: '9999px',
-              backgroundColor: '#ecfdf5',
-              color: '#059669',
-              border: '1px solid #a7f3d0'
+              borderRadius: '980px',
+              backgroundColor: 'rgba(52, 199, 89, 0.12)',
+              color: '#248a3d'
             }}>
               {validRate}% Valid
             </span>
           </div>
-          <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px', fontWeight: 600 }}>
+          <div style={{ fontSize: '11.5px', color: '#248a3d', marginTop: '6px', fontWeight: 500 }}>
             Counted towards staff outreach completion
           </div>
         </div>
 
         {/* Unique Citizens Reached */}
-        <div className="dashboard-metric-card" style={{ borderLeft: '4px solid #0284c7' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>
+        <div className="dashboard-metric-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Unique Visitors
             </span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
-              <Users size={16} />
+            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(0, 113, 227, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0071e3' }}>
+              <Users size={15} />
             </div>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 900, color: '#0369a1', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
             {analyticsData.uniqueVisitors.toLocaleString()}
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+          <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
             Distinct citizen IP addresses engaged
           </div>
         </div>
 
         {/* Filtered Previews & Bots */}
-        <div className="dashboard-metric-card" style={{ borderLeft: '4px solid #64748b' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+        <div className="dashboard-metric-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Screened Preview Bots
             </span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-              <ShieldCheck size={16} />
+            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(118, 118, 128, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#86868b' }}>
+              <ShieldCheck size={15} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <div style={{ fontSize: '28px', fontWeight: 900, color: '#334155', letterSpacing: '-0.02em' }}>
+            <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
               {analyticsData.botClicks.toLocaleString()}
             </div>
             <span style={{
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 600,
               padding: '2px 8px',
-              borderRadius: '9999px',
-              backgroundColor: '#f1f5f9',
-              color: '#475569',
-              border: '1px solid #cbd5e1'
+              borderRadius: '980px',
+              backgroundColor: 'rgba(118, 118, 128, 0.1)',
+              color: '#86868b'
             }}>
               WhatsApp Crawlers
             </span>
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+          <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
             Auto-screened to avoid false reporting
           </div>
         </div>
       </div>
 
-      {/* FILTER CONTROLS BAR */}
-      <div className="dashboard-section-card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* APPLE-STYLE MINIMAL FILTER CONTROLS BAR */}
+      <div className="dashboard-section-card" style={{ padding: '16px 20px', borderRadius: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Top Row: Date Range & Task Selector */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            {/* Date Range Pills */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>
-                Period:
-              </span>
+            {/* Apple Segmented Control for Period */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '3px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.04)'
+            }}>
               {[
                 { id: 'ALL', label: 'All Time' },
                 { id: 'TODAY', label: 'Today' },
                 { id: 'YESTERDAY', label: 'Yesterday' },
                 { id: '7DAYS', label: 'Last 7 Days' }
-              ].map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => setDateFilter(d.id)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: dateFilter === d.id ? '1.5px solid #ff4d00' : '1px solid #e2e8f0',
-                    backgroundColor: dateFilter === d.id ? '#fff7ed' : '#ffffff',
-                    color: dateFilter === d.id ? '#c2410c' : '#475569',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {d.label}
-                </button>
-              ))}
+              ].map(d => {
+                const isActive = dateFilter === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setDateFilter(d.id)}
+                    style={{
+                      padding: '5px 14px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: isActive ? 600 : 500,
+                      cursor: 'pointer',
+                      border: 'none',
+                      backgroundColor: isActive ? '#ffffff' : 'transparent',
+                      color: isActive ? '#1d1d1f' : '#86868b',
+                      boxShadow: isActive ? '0 1px 3px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Campaign Task Selector */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
                 Task:
-              </label>
+              </span>
               <select
                 value={selectedTaskId}
                 onChange={(e) => setSelectedTaskId(e.target.value)}
                 style={{
-                  padding: '7px 14px',
+                  padding: '6px 14px',
                   borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
                   fontSize: '12px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   outline: 'none',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                  color: '#1d1d1f',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="ALL">All Outreach Tasks</option>
@@ -501,27 +513,27 @@ export function LinkAnalyticsView() {
             </div>
           </div>
 
-          {/* Bottom Row: Parliament Selection with Toggle & Assembly Dropdown */}
+          {/* Bottom Row: Search & Parliament Selector */}
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
-            gap: '12px',
-            paddingTop: '12px',
-            borderTop: '1px solid #f1f5f9'
+            gap: '10px',
+            paddingTop: '10px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.05)'
           }}>
             {/* Search Input */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: '9999px',
-              padding: '6px 14px',
-              flex: '1 1 220px',
+              backgroundColor: 'rgba(118, 118, 128, 0.06)',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              flex: '1 1 240px',
               gap: '6px'
             }}>
-              <Search size={14} style={{ color: '#94a3b8' }} />
+              <Search size={14} style={{ color: '#86868b' }} />
               <input
                 type="text"
                 placeholder="Search staff name, support code, staff ID, mobile..."
@@ -531,46 +543,23 @@ export function LinkAnalyticsView() {
                   border: 'none',
                   outline: 'none',
                   fontSize: '12px',
-                  fontWeight: 500,
+                  fontWeight: 400,
                   width: '100%',
-                  backgroundColor: 'transparent'
+                  backgroundColor: 'transparent',
+                  color: '#1d1d1f'
                 }}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#94a3b8' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#86868b' }}
                 >
                   <X size={13} />
                 </button>
               )}
             </div>
 
-            {/* Multi-Select Toggle */}
-            <button
-              onClick={() => {
-                setIsMultiParliament(!isMultiParliament);
-                setSelectedParliaments([]);
-                setSelectedAssembly('ALL');
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: '9999px',
-                border: isMultiParliament ? '1.5px solid #ff4d00' : '1px solid #cbd5e1',
-                backgroundColor: isMultiParliament ? '#fff7ed' : '#ffffff',
-                color: isMultiParliament ? '#c2410c' : '#475569',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <span>{isMultiParliament ? 'Multi-Select: ON' : 'Single Select'}</span>
-            </button>
-
-            {/* Single Parliament Dropdown (When Multi-Select is OFF) */}
+            {/* Single Parliament Dropdown */}
             {!isMultiParliament ? (
               <select
                 value={selectedParliaments[0] || 'ALL'}
@@ -582,12 +571,14 @@ export function LinkAnalyticsView() {
                 style={{
                   padding: '7px 14px',
                   borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
                   fontSize: '12px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   outline: 'none',
-                  backgroundColor: '#ffffff',
-                  minWidth: '180px'
+                  backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                  color: '#1d1d1f',
+                  minWidth: '180px',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="ALL">All 25 Parliaments</option>
@@ -605,11 +596,13 @@ export function LinkAnalyticsView() {
                 style={{
                   padding: '7px 14px',
                   borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
                   fontSize: '12px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   outline: 'none',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                  color: '#1d1d1f',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="ALL">All Assemblies ({assembliesForSelection.length})</option>
@@ -618,6 +611,30 @@ export function LinkAnalyticsView() {
                 ))}
               </select>
             )}
+
+            {/* Multi-Select Toggle Button */}
+            <button
+              onClick={() => {
+                setIsMultiParliament(!isMultiParliament);
+                setSelectedParliaments([]);
+                setSelectedAssembly('ALL');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '10px',
+                border: isMultiParliament ? '1px solid #0071e3' : '1px solid rgba(0, 0, 0, 0.08)',
+                backgroundColor: isMultiParliament ? 'rgba(0, 113, 227, 0.08)' : '#ffffff',
+                color: isMultiParliament ? '#0071e3' : '#1d1d1f',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <span>{isMultiParliament ? 'Multi-Select: ON' : 'Single Select'}</span>
+            </button>
 
             {(selectedParliaments.length > 0 || selectedAssembly !== 'ALL' || searchQuery) && (
               <button
@@ -628,12 +645,12 @@ export function LinkAnalyticsView() {
                 }}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f1f5f9',
-                  color: '#64748b',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(118, 118, 128, 0.1)',
+                  color: '#86868b',
                   fontSize: '11px',
-                  fontWeight: 700,
-                  border: '1px solid #cbd5e1',
+                  fontWeight: 600,
+                  border: 'none',
                   cursor: 'pointer'
                 }}
               >
@@ -642,11 +659,11 @@ export function LinkAnalyticsView() {
             )}
           </div>
 
-          {/* Multi-Select Parliaments Checkboxes Bar (When Multi-Select is ON) */}
+          {/* Multi-Select Parliaments Grid */}
           {isMultiParliament && (
             <div style={{
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              backgroundColor: 'rgba(118, 118, 128, 0.04)',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
               borderRadius: '12px',
               padding: '12px',
               display: 'flex',
@@ -654,20 +671,20 @@ export function LinkAnalyticsView() {
               gap: '8px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#334155' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d1d1f' }}>
                   Select Parliaments to Compare ({selectedParliaments.length} selected):
                 </span>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     onClick={() => setSelectedParliaments(AP_CONSTITUENCIES.map(p => p.code))}
-                    style={{ fontSize: '10px', fontWeight: 700, color: '#ff4d00', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ fontSize: '11px', fontWeight: 600, color: '#0071e3', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Select All
                   </button>
-                  <span style={{ color: '#cbd5e1' }}>|</span>
+                  <span style={{ color: '#d2d2d7' }}>|</span>
                   <button
                     onClick={() => setSelectedParliaments([])}
-                    style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Clear
                   </button>
@@ -692,11 +709,11 @@ export function LinkAnalyticsView() {
                         gap: '6px',
                         padding: '4px 8px',
                         borderRadius: '6px',
-                        backgroundColor: isChecked ? '#fff7ed' : '#ffffff',
-                        border: `1px solid ${isChecked ? '#ff4d00' : '#e2e8f0'}`,
+                        backgroundColor: isChecked ? 'rgba(0, 113, 227, 0.08)' : '#ffffff',
+                        border: `1px solid ${isChecked ? '#0071e3' : 'rgba(0,0,0,0.06)'}`,
                         fontSize: '11px',
-                        fontWeight: isChecked ? 700 : 500,
-                        color: isChecked ? '#c2410c' : '#475569',
+                        fontWeight: isChecked ? 600 : 400,
+                        color: isChecked ? '#0071e3' : '#1d1d1f',
                         cursor: 'pointer'
                       }}
                     >
@@ -710,7 +727,7 @@ export function LinkAnalyticsView() {
                             setSelectedParliaments([...selectedParliaments, p.code]);
                           }
                         }}
-                        style={{ accentColor: '#ff4d00' }}
+                        style={{ accentColor: '#0071e3' }}
                       />
                       <span>{p.code} - {p.name}</span>
                     </label>
@@ -722,85 +739,96 @@ export function LinkAnalyticsView() {
         </div>
       </div>
 
-      {/* STAFF PERFORMANCE LEADERBOARD */}
-      <div className="dashboard-section-card">
+      {/* APPLE-STYLE STAFF PERFORMANCE LEADERBOARD */}
+      <div className="dashboard-section-card" style={{ padding: '20px 24px', borderRadius: '18px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
               Staff Outreach Link Leaderboard ({filteredLeaderboard.length})
             </h2>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0' }}>
               Ranked by verified clicks generated through exclusive staff tracking links.
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>Sort By:</span>
-            <button
-              onClick={() => {
-                if (sortField === 'validClicks') setSortAsc(!sortAsc);
-                else { setSortField('validClicks'); setSortAsc(false); }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 12px',
-                borderRadius: '9999px',
-                backgroundColor: sortField === 'validClicks' ? '#0f172a' : '#f1f5f9',
-                color: sortField === 'validClicks' ? '#ffffff' : '#475569',
-                fontSize: '11px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <span>Verified Clicks</span>
-              <ArrowUpDown size={12} />
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 500, color: '#86868b' }}>Sort By:</span>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '2px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)'
+            }}>
+              <button
+                onClick={() => {
+                  if (sortField === 'validClicks') setSortAsc(!sortAsc);
+                  else { setSortField('validClicks'); setSortAsc(false); }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  backgroundColor: sortField === 'validClicks' ? '#ffffff' : 'transparent',
+                  color: sortField === 'validClicks' ? '#1d1d1f' : '#86868b',
+                  boxShadow: sortField === 'validClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>Verified Clicks</span>
+                <ArrowUpDown size={11} />
+              </button>
 
-            <button
-              onClick={() => {
-                if (sortField === 'totalClicks') setSortAsc(!sortAsc);
-                else { setSortField('totalClicks'); setSortAsc(false); }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 12px',
-                borderRadius: '9999px',
-                backgroundColor: sortField === 'totalClicks' ? '#0f172a' : '#f1f5f9',
-                color: sortField === 'totalClicks' ? '#ffffff' : '#475569',
-                fontSize: '11px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <span>Total Hits</span>
-              <ArrowUpDown size={12} />
-            </button>
+              <button
+                onClick={() => {
+                  if (sortField === 'totalClicks') setSortAsc(!sortAsc);
+                  else { setSortField('totalClicks'); setSortAsc(false); }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  backgroundColor: sortField === 'totalClicks' ? '#ffffff' : 'transparent',
+                  color: sortField === 'totalClicks' ? '#1d1d1f' : '#86868b',
+                  boxShadow: sortField === 'totalClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>Total Hits</span>
+                <ArrowUpDown size={11} />
+              </button>
+            </div>
           </div>
         </div>
 
         {filteredLeaderboard.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ textAlign: 'center', padding: '48px 20px', color: '#86868b', fontSize: '13px' }}>
             No staff records matching your filter criteria.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '1.5px solid #e2e8f0', color: '#64748b' }}>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, width: '50px' }}>Rank</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700 }}>Staff Member</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700 }}>Constituency</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center' }}>Verified Clicks</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center' }}>Unique Citizens</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center' }}>Screened Bots</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'center' }}>Staff Tracking Link</th>
-                  <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.08)', color: '#86868b' }}>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', width: '50px' }}>Rank</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Staff Member</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Constituency</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Verified Clicks</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Unique Citizens</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Screened Bots</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Staff Tracking Link</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -814,26 +842,26 @@ export function LinkAnalyticsView() {
                     <tr
                       key={item.employeeId}
                       style={{
-                        borderBottom: '1px solid #f1f5f9',
-                        backgroundColor: rank <= 3 ? '#fffdf7' : 'transparent',
+                        borderBottom: '1px solid #f2f2f7',
                         transition: 'background-color 0.15s ease'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.015)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
                       {/* Rank */}
-                      <td style={{ padding: '12px 12px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         {rank === 1 && (
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '26px',
-                            height: '26px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '50%',
-                            backgroundColor: '#fef3c7',
+                            backgroundColor: 'rgba(255, 149, 0, 0.15)',
                             color: '#b45309',
-                            fontWeight: 900,
-                            fontSize: '12px',
-                            border: '1px solid #fde68a'
+                            fontWeight: 700,
+                            fontSize: '11px'
                           }}>
                             1
                           </span>
@@ -843,14 +871,13 @@ export function LinkAnalyticsView() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '26px',
-                            height: '26px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '50%',
-                            backgroundColor: '#f1f5f9',
+                            backgroundColor: 'rgba(118, 118, 128, 0.12)',
                             color: '#475569',
-                            fontWeight: 900,
-                            fontSize: '12px',
-                            border: '1px solid #cbd5e1'
+                            fontWeight: 700,
+                            fontSize: '11px'
                           }}>
                             2
                           </span>
@@ -860,33 +887,32 @@ export function LinkAnalyticsView() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '26px',
-                            height: '26px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '50%',
-                            backgroundColor: '#fff7ed',
+                            backgroundColor: 'rgba(234, 88, 12, 0.12)',
                             color: '#c2410c',
-                            fontWeight: 900,
-                            fontSize: '12px',
-                            border: '1px solid #fed7aa'
+                            fontWeight: 700,
+                            fontSize: '11px'
                           }}>
                             3
                           </span>
                         )}
                         {rank > 3 && (
-                          <span style={{ fontWeight: 700, color: '#94a3b8', paddingLeft: '8px' }}>
+                          <span style={{ fontWeight: 500, color: '#86868b', paddingLeft: '6px', fontSize: '12px' }}>
                             {rank}
                           </span>
                         )}
                       </td>
 
                       {/* Staff Info */}
-                      <td style={{ padding: '12px 12px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 800, color: '#0f172a' }}>
+                          <span style={{ fontWeight: 600, color: '#1d1d1f' }}>
                             {emp?.name || 'Staff Member'}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ea580c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#86868b', marginTop: '2px' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#0071e3' }}>
                               {emp?.supportCode || item.employeeId}
                             </span>
                             {emp?.staffId && (
@@ -900,49 +926,49 @@ export function LinkAnalyticsView() {
                       </td>
 
                       {/* Constituency */}
-                      <td style={{ padding: '12px 12px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', fontSize: '12px' }}>
-                          <span style={{ fontWeight: 700, color: '#334155' }}>
+                          <span style={{ fontWeight: 600, color: '#1d1d1f' }}>
                             {emp?.parliamentName || 'Parliament'}
                           </span>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>
-                            {emp?.assemblyName || 'Assembly'}
+                          <span style={{ fontSize: '11px', color: '#86868b' }}>
+                            {emp?.assemblyName || 'Parliament Incharge'}
                           </span>
                         </div>
                       </td>
 
                       {/* Verified Clicks */}
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                         <span style={{
                           fontFamily: 'monospace',
-                          fontSize: '15px',
-                          fontWeight: 900,
-                          color: item.validClicks > 0 ? '#047857' : '#94a3b8',
-                          backgroundColor: item.validClicks > 0 ? '#ecfdf5' : '#f8fafc',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          border: `1px solid ${item.validClicks > 0 ? '#a7f3d0' : '#e2e8f0'}`
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: item.validClicks > 0 ? '#248a3d' : '#86868b',
+                          backgroundColor: item.validClicks > 0 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(118, 118, 128, 0.06)',
+                          padding: '3px 10px',
+                          borderRadius: '980px',
+                          border: item.validClicks > 0 ? '1px solid rgba(52, 199, 89, 0.2)' : 'none'
                         }}>
                           {item.validClicks}
                         </span>
                       </td>
 
-                      {/* Unique Visitors */}
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0284c7' }}>
+                      {/* Unique Citizens */}
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: item.uniqueIps > 0 ? '#0071e3' : '#86868b' }}>
                           {item.uniqueIps}
                         </span>
                       </td>
 
                       {/* Screened Bots */}
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: item.botClicks > 0 ? '#f59e0b' : '#94a3b8' }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 500, color: item.botClicks > 0 ? '#ff9500' : '#86868b' }}>
                           {item.botClicks}
                         </span>
                       </td>
 
                       {/* Copy Staff Link */}
-                      <td style={{ padding: '12px 12px', textAlign: 'center' }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                         <button
                           type="button"
                           onClick={() => handleCopyStaffLink(token)}
@@ -951,35 +977,37 @@ export function LinkAnalyticsView() {
                             alignItems: 'center',
                             gap: '4px',
                             padding: '4px 10px',
-                            borderRadius: '9999px',
-                            backgroundColor: isCopied ? '#ecfdf5' : '#f1f5f9',
-                            color: isCopied ? '#047857' : '#475569',
-                            border: `1px solid ${isCopied ? '#a7f3d0' : '#cbd5e1'}`,
+                            borderRadius: '980px',
+                            backgroundColor: isCopied ? 'rgba(52, 199, 89, 0.12)' : 'rgba(0, 113, 227, 0.08)',
+                            color: isCopied ? '#248a3d' : '#0071e3',
+                            border: 'none',
                             fontSize: '11px',
-                            fontWeight: 700,
+                            fontWeight: 600,
                             cursor: 'pointer',
-                            fontFamily: 'monospace'
+                            fontFamily: 'monospace',
+                            transition: 'all 0.15s ease'
                           }}
                           title={`Copy tracking link for ${emp?.name}`}
                         >
-                          {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                          {isCopied ? <Check size={11} /> : <Copy size={11} />}
                           <span>{isCopied ? 'Copied' : `/${token.slice(0, 6)}...`}</span>
                         </button>
                       </td>
 
                       {/* Inspect Action */}
-                      <td style={{ padding: '12px 12px', textAlign: 'right' }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <button
                           onClick={() => setInspectStaff(item)}
                           style={{
-                            padding: '5px 12px',
-                            borderRadius: '9999px',
-                            backgroundColor: '#f8fafc',
-                            color: '#0f172a',
-                            border: '1px solid #cbd5e1',
+                            padding: '4px 12px',
+                            borderRadius: '980px',
+                            backgroundColor: '#ffffff',
+                            color: '#1d1d1f',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
                             fontSize: '11px',
-                            fontWeight: 700,
-                            cursor: 'pointer'
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
                           }}
                         >
                           Inspect
@@ -993,6 +1021,7 @@ export function LinkAnalyticsView() {
           </div>
         )}
       </div>
+
 
       {/* RECENT REAL-TIME CLICK STREAM (LIVE TICKER) */}
       <div className="dashboard-section-card">

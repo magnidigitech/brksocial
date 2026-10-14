@@ -344,41 +344,42 @@ export function StaffDirectoryView() {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '16px'
+        gap: '14px'
       }}>
         {/* Total Parliament Incharges Card */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '20px',
-          padding: '20px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          borderRadius: '16px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           alignItems: 'center',
-          gap: '16px'
+          gap: '14px'
         }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '16px',
-            backgroundColor: '#fef3c7',
-            border: '1px solid #fde047',
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 149, 0, 0.1)',
+            border: '1px solid rgba(255, 149, 0, 0.18)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#b45309'
+            color: '#f59e0b',
+            flexShrink: 0
           }}>
-            <Building2 size={24} />
+            <Building2 size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Parliament Staff
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#111827', marginTop: '2px' }}>
-              {totalParliaments} Logins
+            <div style={{ fontSize: '24px', fontWeight: 700, color: '#1d1d1f', marginTop: '2px', letterSpacing: '-0.02em' }}>
+              {totalParliaments} <span style={{ fontSize: '13px', fontWeight: 400, color: '#86868b' }}>Logins</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#854d0e', fontWeight: 600, marginTop: '2px' }}>
-              Code format: APP01 to APP25
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 400, marginTop: '2px' }}>
+              APP01 to APP25
             </div>
           </div>
         </div>
@@ -386,35 +387,36 @@ export function StaffDirectoryView() {
         {/* Total Assembly Outreach Staff Card */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '20px',
-          padding: '20px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          borderRadius: '16px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           alignItems: 'center',
-          gap: '16px'
+          gap: '14px'
         }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '16px',
-            backgroundColor: '#dbeafe',
-            border: '1px solid #93c5fd',
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(0, 113, 227, 0.1)',
+            border: '1px solid rgba(0, 113, 227, 0.18)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#1d4ed8'
+            color: '#0071e3',
+            flexShrink: 0
           }}>
-            <MapPin size={24} />
+            <MapPin size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Assembly Segment Staff
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#111827', marginTop: '2px' }}>
-              {totalAssemblies} Logins
+            <div style={{ fontSize: '24px', fontWeight: 700, color: '#1d1d1f', marginTop: '2px', letterSpacing: '-0.02em' }}>
+              {totalAssemblies} <span style={{ fontSize: '13px', fontWeight: 400, color: '#86868b' }}>Logins</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 600, marginTop: '2px' }}>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 400, marginTop: '2px' }}>
               7 Segments per Parliament
             </div>
           </div>
@@ -423,36 +425,37 @@ export function StaffDirectoryView() {
         {/* Combined Active Staff Directory */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '20px',
-          padding: '20px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          borderRadius: '16px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           alignItems: 'center',
-          gap: '16px'
+          gap: '14px'
         }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '16px',
-            backgroundColor: '#d1fae5',
-            border: '1px solid #6ee7b7',
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(52, 199, 89, 0.1)',
+            border: '1px solid rgba(52, 199, 89, 0.18)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#047857'
+            color: '#34c759',
+            flexShrink: 0
           }}>
-            <UserCheck size={24} />
+            <UserCheck size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Total Active Directory
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#111827', marginTop: '2px' }}>
-              {totalStaffCount} Accounts
+            <div style={{ fontSize: '24px', fontWeight: 700, color: '#1d1d1f', marginTop: '2px', letterSpacing: '-0.02em' }}>
+              {totalStaffCount} <span style={{ fontSize: '13px', fontWeight: 400, color: '#86868b' }}>Accounts</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#065f46', fontWeight: 600, marginTop: '2px' }}>
-              Default Pass: <code style={{ backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>password123</code>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 400, marginTop: '2px' }}>
+              Default: <code style={{ backgroundColor: 'rgba(0, 0, 0, 0.04)', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '10.5px' }}>password123</code>
             </div>
           </div>
         </div>
@@ -461,13 +464,14 @@ export function StaffDirectoryView() {
       {/* Control Toolbar: Search, Filters & Excel Actions */}
       <div style={{
         backgroundColor: '#ffffff',
-        borderRadius: '20px',
-        padding: '16px 20px',
-        border: '1px solid #e5e7eb',
+        borderRadius: '16px',
+        padding: '14px 18px',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
+        gap: '14px',
         flexWrap: 'wrap'
       }}>
         {/* Search Bar */}
@@ -476,23 +480,23 @@ export function StaffDirectoryView() {
           flex: '1',
           minWidth: '260px'
         }}>
-          <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+          <Search size={15} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#86868b' }} />
           <input
             type="text"
-            placeholder="Search by Support Code (APP01), Staff ID (Palakonda_010), Mobile, or Name..."
+            placeholder="Search by Support Code, Staff ID, Mobile, or Name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              padding: '10px 16px 10px 42px',
-              borderRadius: '9999px',
-              backgroundColor: '#f9fafb',
-              border: '1px solid #d1d5db',
-              fontSize: '13px',
+              padding: '8px 16px 8px 38px',
+              borderRadius: '980px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+              fontSize: '12.5px',
               fontWeight: 500,
-              color: '#111827',
+              color: '#1d1d1f',
               outline: 'none',
-              transition: 'border-color 0.2s',
+              transition: 'border-color 0.15s',
               boxSizing: 'border-box'
             }}
           />
@@ -501,15 +505,15 @@ export function StaffDirectoryView() {
               onClick={() => setSearchQuery('')}
               style={{
                 position: 'absolute',
-                right: '14px',
+                right: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 background: 'none',
                 border: 'none',
-                color: '#6b7280',
+                color: '#86868b',
                 cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 700
+                fontSize: '11px',
+                fontWeight: 600
               }}
             >
               Clear
@@ -517,19 +521,29 @@ export function StaffDirectoryView() {
           )}
         </div>
 
-        {/* Level Filter Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Level Filter Pills - Apple Segmented Control */}
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '2px',
+          padding: '3px',
+          borderRadius: '10px',
+          backgroundColor: 'rgba(118, 118, 128, 0.08)',
+          border: '1px solid rgba(0, 0, 0, 0.04)'
+        }}>
           <button
             onClick={() => setFilterLevel('ALL')}
             style={{
-              padding: '7px 14px',
-              borderRadius: '9999px',
+              padding: '5px 12px',
+              borderRadius: '8px',
               fontSize: '12px',
-              fontWeight: 700,
-              border: filterLevel === 'ALL' ? '1px solid #18181b' : '1px solid #e5e7eb',
-              backgroundColor: filterLevel === 'ALL' ? '#18181b' : '#f9fafb',
-              color: filterLevel === 'ALL' ? '#ffffff' : '#4b5563',
-              cursor: 'pointer'
+              fontWeight: filterLevel === 'ALL' ? 600 : 500,
+              border: 'none',
+              backgroundColor: filterLevel === 'ALL' ? '#ffffff' : 'transparent',
+              color: filterLevel === 'ALL' ? '#1d1d1f' : '#86868b',
+              boxShadow: filterLevel === 'ALL' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             All (200)
@@ -537,14 +551,16 @@ export function StaffDirectoryView() {
           <button
             onClick={() => setFilterLevel('PARLIAMENT')}
             style={{
-              padding: '7px 14px',
-              borderRadius: '9999px',
+              padding: '5px 12px',
+              borderRadius: '8px',
               fontSize: '12px',
-              fontWeight: 700,
-              border: filterLevel === 'PARLIAMENT' ? '1px solid #d97706' : '1px solid #e5e7eb',
-              backgroundColor: filterLevel === 'PARLIAMENT' ? '#fef3c7' : '#f9fafb',
-              color: filterLevel === 'PARLIAMENT' ? '#92400e' : '#4b5563',
-              cursor: 'pointer'
+              fontWeight: filterLevel === 'PARLIAMENT' ? 600 : 500,
+              border: 'none',
+              backgroundColor: filterLevel === 'PARLIAMENT' ? '#ffffff' : 'transparent',
+              color: filterLevel === 'PARLIAMENT' ? '#1d1d1f' : '#86868b',
+              boxShadow: filterLevel === 'PARLIAMENT' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
           >
             Parliament (25)
@@ -559,19 +575,20 @@ export function StaffDirectoryView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 14px',
-              borderRadius: '9999px',
+              padding: '6px 14px',
+              borderRadius: '980px',
               fontSize: '12px',
-              fontWeight: 700,
-              border: '1px solid #d1d5db',
+              fontWeight: 500,
+              border: '1px solid rgba(0, 0, 0, 0.08)',
               backgroundColor: '#ffffff',
-              color: '#374151',
+              color: '#1d1d1f',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+              transition: 'all 0.15s'
             }}
           >
-            <Download size={14} style={{ color: '#059669' }} />
-            <span>Download Template</span>
+            <Download size={13} style={{ color: '#0071e3' }} />
+            <span>Template</span>
           </button>
 
           <button
@@ -580,20 +597,19 @@ export function StaffDirectoryView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 16px',
-              borderRadius: '9999px',
+              padding: '6px 14px',
+              borderRadius: '980px',
               fontSize: '12px',
-              fontWeight: 800,
-              border: '1px solid #059669',
-              backgroundColor: '#ecfdf5',
-              color: '#047857',
+              fontWeight: 500,
+              border: '1px solid rgba(0, 113, 227, 0.2)',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              color: '#0071e3',
               cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(16,185,129,0.12)',
-              transition: 'all 0.2s'
+              transition: 'all 0.15s'
             }}
           >
-            <Upload size={14} />
-            <span>Import Excel / CSV</span>
+            <Upload size={13} />
+            <span>Import Excel</span>
           </button>
 
           {activeParliamentCode && (

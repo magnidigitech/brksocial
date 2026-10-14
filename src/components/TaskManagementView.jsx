@@ -342,10 +342,10 @@ export function TaskManagementView() {
         gap: '14px'
       }}>
         <div style={{ minWidth: '240px', flex: '1 1 280px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
             Task Setup & Assignment Rules
           </h2>
-          <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0', fontWeight: 500 }}>
+          <p style={{ fontSize: '12px', color: '#86868b', margin: '3px 0 0 0', fontWeight: 400 }}>
             Configure task targets, validation constraints, and multi-select Assemblies/Parliaments.
           </p>
         </div>
@@ -356,14 +356,14 @@ export function TaskManagementView() {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            backgroundColor: '#f9fafb',
-            border: '1px solid #d1d5db',
-            borderRadius: '9999px',
-            padding: '7px 14px',
+            backgroundColor: 'rgba(118, 118, 128, 0.08)',
+            border: '1px solid rgba(0, 0, 0, 0.06)',
+            borderRadius: '980px',
+            padding: '6px 14px',
             flex: '1 1 180px',
             minWidth: '160px'
           }}>
-            <Search size={15} style={{ color: '#9ca3af', flexShrink: 0 }} />
+            <Search size={14} style={{ color: '#86868b', flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search tasks..."
@@ -375,7 +375,8 @@ export function TaskManagementView() {
                 outline: 'none',
                 fontSize: '12px',
                 width: '100%',
-                fontWeight: 500
+                fontWeight: 500,
+                color: '#1d1d1f'
               }}
             />
           </div>
@@ -385,15 +386,16 @@ export function TaskManagementView() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{
-              padding: '7px 14px',
-              borderRadius: '9999px',
-              border: '1px solid #d1d5db',
+              padding: '6px 14px',
+              borderRadius: '980px',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
               backgroundColor: '#ffffff',
               fontSize: '12px',
-              fontWeight: 600,
-              color: '#374151',
+              fontWeight: 500,
+              color: '#1d1d1f',
               outline: 'none',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
             }}
           >
             <option value="ALL">All Status</option>
@@ -408,20 +410,20 @@ export function TaskManagementView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              backgroundColor: '#ff4d00',
+              padding: '7px 16px',
+              borderRadius: '980px',
+              backgroundColor: '#0071e3',
               color: '#ffffff',
               fontSize: '12px',
-              fontWeight: 700,
+              fontWeight: 600,
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(255, 77, 0, 0.3)',
-              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 6px rgba(0, 113, 227, 0.25)',
+              transition: 'all 0.15s ease',
               whiteSpace: 'nowrap'
             }}
           >
-            <Plus size={15} />
+            <Plus size={14} />
             <span>Create Task</span>
           </button>
         </div>

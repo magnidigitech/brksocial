@@ -41,6 +41,9 @@ const PARLIAMENT_MAP_COORDS = {
 export function AdminMetricsDashboardView() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   
+  // Real-Time Live AJAX Refresh Trigger (must be initialized before useMemo dependencies)
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   // Multi-Select vs Normal Dropdown Mode State
   const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [selectedParliaments, setSelectedParliaments] = useState(['ALL']);
@@ -112,9 +115,6 @@ export function AdminMetricsDashboardView() {
     });
     return map;
   });
-
-  // Real-Time Live AJAX Refresh Trigger
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const handleSubmissionEvent = () => {
@@ -478,26 +478,26 @@ export function AdminMetricsDashboardView() {
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.025em' }}>
               Performance & Outreach Metrics
             </h2>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '5px',
               fontSize: '11px',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '9999px',
-              backgroundColor: '#ecfdf5',
-              color: '#059669',
-              border: '1px solid #a7f3d0'
+              fontWeight: 600,
+              padding: '3px 10px',
+              borderRadius: '980px',
+              backgroundColor: 'rgba(52, 199, 89, 0.1)',
+              color: '#34c759',
+              border: '1px solid rgba(52, 199, 89, 0.2)'
             }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759' }} />
               Live Sync
             </span>
           </div>
-          <p style={{ fontSize: '12px', color: '#6b7280', margin: 0, fontWeight: 500 }}>
+          <p style={{ fontSize: '12px', color: '#86868b', margin: 0, fontWeight: 400 }}>
             Real-time analytics across 25 AP Parliament & 175 Assembly Constituencies
           </p>
         </div>
@@ -508,14 +508,14 @@ export function AdminMetricsDashboardView() {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            backgroundColor: '#f9fafb',
-            border: '1px solid #d1d5db',
-            borderRadius: '9999px',
+            backgroundColor: 'rgba(118, 118, 128, 0.08)',
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            borderRadius: '980px',
             padding: '5px 12px',
             flex: '1 1 auto',
             minWidth: '140px'
           }}>
-            <Calendar size={14} style={{ color: '#6b7280', flexShrink: 0 }} />
+            <Calendar size={14} style={{ color: '#86868b', flexShrink: 0 }} />
             <input 
               type="date"
               value={selectedDate}
@@ -524,8 +524,8 @@ export function AdminMetricsDashboardView() {
                 border: 'none',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
-                fontWeight: 700,
-                color: '#111827',
+                fontWeight: 600,
+                color: '#1d1d1f',
                 outline: 'none',
                 cursor: 'pointer',
                 width: '100%'
@@ -538,14 +538,14 @@ export function AdminMetricsDashboardView() {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            backgroundColor: '#f9fafb',
-            border: '1px solid #d1d5db',
-            borderRadius: '9999px',
+            backgroundColor: 'rgba(118, 118, 128, 0.08)',
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            borderRadius: '980px',
             padding: '5px 12px',
             flex: '2 1 200px',
             minWidth: '180px'
           }}>
-            <Target size={14} style={{ color: '#6b7280', flexShrink: 0 }} />
+            <Target size={14} style={{ color: '#86868b', flexShrink: 0 }} />
             <select
               value={effectiveTaskId}
               onChange={(e) => setSelectedTaskId(e.target.value)}
@@ -553,8 +553,8 @@ export function AdminMetricsDashboardView() {
                 border: 'none',
                 backgroundColor: 'transparent',
                 fontSize: '12px',
-                fontWeight: 700,
-                color: '#111827',
+                fontWeight: 600,
+                color: '#1d1d1f',
                 outline: 'none',
                 cursor: 'pointer',
                 width: '100%',
@@ -575,15 +575,15 @@ export function AdminMetricsDashboardView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: '#f9fafb',
-              border: '1px solid #d1d5db',
-              borderRadius: '9999px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
+              borderRadius: '980px',
               padding: '4px 6px 4px 12px',
               flex: '2 1 240px',
               minWidth: '220px'
             }}
           >
-            <Building2 size={14} style={{ color: '#6b7280', flexShrink: 0 }} />
+            <Building2 size={14} style={{ color: '#86868b', flexShrink: 0 }} />
 
             {/* Mode 1: Normal Single Dropdown */}
             {!isMultiSelect ? (
@@ -604,8 +604,8 @@ export function AdminMetricsDashboardView() {
                   border: 'none',
                   backgroundColor: 'transparent',
                   fontSize: '12px',
-                  fontWeight: 700,
-                  color: '#111827',
+                  fontWeight: 600,
+                  color: '#1d1d1f',
                   outline: 'none',
                   cursor: 'pointer',
                   width: '100%',
@@ -627,8 +627,8 @@ export function AdminMetricsDashboardView() {
                     border: 'none',
                     backgroundColor: 'transparent',
                     fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#111827',
+                    fontWeight: 600,
+                    color: '#1d1d1f',
                     cursor: 'pointer',
                     padding: '2px 0',
                     display: 'flex',
@@ -652,17 +652,17 @@ export function AdminMetricsDashboardView() {
                           ? `${AP_CONSTITUENCIES.find(p => p.code === selectedParliaments[0])?.name || selectedParliaments[0]} (1)`
                           : `${selectedParliaments.length} Parliaments Selected`}
                   </span>
-                  <ChevronDown size={13} style={{ color: '#6b7280', flexShrink: 0, transform: isMultiSelectOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                  <ChevronDown size={13} style={{ color: '#86868b', flexShrink: 0, transform: isMultiSelectOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
                 </button>
               </div>
             )}
 
-            {/* Segmented Mode Switch: Single | Multi */}
+            {/* Apple Segmented Mode Switch: Single | Multi */}
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
-              backgroundColor: '#e5e7eb',
-              borderRadius: '9999px',
+              backgroundColor: 'rgba(118, 118, 128, 0.12)',
+              borderRadius: '980px',
               padding: '2px',
               flexShrink: 0
             }}>
@@ -682,13 +682,14 @@ export function AdminMetricsDashboardView() {
                 title="Normal Single-Select Dropdown"
                 style={{
                   border: 'none',
-                  borderRadius: '9999px',
-                  padding: '3px 7px',
-                  fontSize: '10px',
-                  fontWeight: 800,
+                  borderRadius: '980px',
+                  padding: '3px 9px',
+                  fontSize: '10.5px',
+                  fontWeight: !isMultiSelect ? 600 : 500,
                   cursor: 'pointer',
-                  backgroundColor: !isMultiSelect ? '#18181b' : 'transparent',
-                  color: !isMultiSelect ? '#ffffff' : '#4b5563',
+                  backgroundColor: !isMultiSelect ? '#ffffff' : 'transparent',
+                  color: !isMultiSelect ? '#1d1d1f' : '#86868b',
+                  boxShadow: !isMultiSelect ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -710,13 +711,14 @@ export function AdminMetricsDashboardView() {
                 title="Multi-Select Mode with Checkboxes"
                 style={{
                   border: 'none',
-                  borderRadius: '9999px',
-                  padding: '3px 7px',
-                  fontSize: '10px',
-                  fontWeight: 800,
+                  borderRadius: '980px',
+                  padding: '3px 9px',
+                  fontSize: '10.5px',
+                  fontWeight: isMultiSelect ? 600 : 500,
                   cursor: 'pointer',
-                  backgroundColor: isMultiSelect ? '#18181b' : 'transparent',
-                  color: isMultiSelect ? '#ffffff' : '#4b5563',
+                  backgroundColor: isMultiSelect ? '#ffffff' : 'transparent',
+                  color: isMultiSelect ? '#1d1d1f' : '#86868b',
+                  boxShadow: isMultiSelect ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -735,8 +737,8 @@ export function AdminMetricsDashboardView() {
                   maxWidth: '90vw',
                   backgroundColor: '#ffffff',
                   borderRadius: '16px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 20px 35px -5px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05)',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04)',
                   zIndex: 100,
                   padding: '12px',
                   display: 'flex',
@@ -749,11 +751,11 @@ export function AdminMetricsDashboardView() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: '8px',
+                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                  borderRadius: '10px',
                   padding: '6px 10px'
                 }}>
-                  <Search size={13} style={{ color: '#9ca3af' }} />
+                  <Search size={13} style={{ color: '#86868b' }} />
                   <input
                     type="text"
                     placeholder="Search parliament..."
@@ -763,8 +765,8 @@ export function AdminMetricsDashboardView() {
                       border: 'none',
                       backgroundColor: 'transparent',
                       fontSize: '12px',
-                      fontWeight: 600,
-                      color: '#111827',
+                      fontWeight: 500,
+                      color: '#1d1d1f',
                       outline: 'none',
                       width: '100%'
                     }}
@@ -775,14 +777,14 @@ export function AdminMetricsDashboardView() {
                       onClick={() => setMultiSelectSearchQuery('')}
                       style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
                     >
-                      <X size={12} style={{ color: '#6b7280' }} />
+                      <X size={12} style={{ color: '#86868b' }} />
                     </button>
                   )}
                 </div>
 
                 {/* Quick Selection Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', padding: '0 2px' }}>
-                  <span style={{ fontWeight: 700, color: '#4b5563' }}>
+                  <span style={{ fontWeight: 600, color: '#86868b' }}>
                     {isAllSelected ? 'All 25 Selected' : `${selectedParliaments.length} of 25 Selected`}
                   </span>
                   <div style={{ display: 'flex', gap: '6px' }}>
@@ -792,8 +794,8 @@ export function AdminMetricsDashboardView() {
                       style={{
                         border: 'none',
                         background: 'none',
-                        color: '#2563eb',
-                        fontWeight: 800,
+                        color: '#0071e3',
+                        fontWeight: 600,
                         cursor: 'pointer',
                         padding: '2px 4px'
                       }}
@@ -807,8 +809,8 @@ export function AdminMetricsDashboardView() {
                       style={{
                         border: 'none',
                         background: 'none',
-                        color: '#dc2626',
-                        fontWeight: 800,
+                        color: '#ff3b30',
+                        fontWeight: 600,
                         cursor: 'pointer',
                         padding: '2px 4px'
                       }}
@@ -826,7 +828,7 @@ export function AdminMetricsDashboardView() {
                     overflowY: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '3px'
+                    gap: '2px'
                   }}
                 >
                   {filteredConstituenciesForMulti.map(p => {
@@ -844,38 +846,47 @@ export function AdminMetricsDashboardView() {
                           padding: '6px 8px',
                           borderRadius: '8px',
                           cursor: 'pointer',
-                          backgroundColor: isChecked ? '#eff6ff' : 'transparent',
+                          backgroundColor: isChecked ? 'rgba(0, 113, 227, 0.08)' : 'transparent',
                           transition: 'background-color 0.15s ease'
                         }}
                         onMouseEnter={(e) => {
-                          if (!isChecked) e.currentTarget.style.backgroundColor = '#f9fafb';
+                          if (!isChecked) e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.03)';
                         }}
                         onMouseLeave={(e) => {
                           if (!isChecked) e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          {isChecked ? (
-                            <CheckSquare size={16} style={{ color: '#2563eb', flexShrink: 0 }} />
-                          ) : (
-                            <Square size={16} style={{ color: '#9ca3af', flexShrink: 0 }} />
-                          )}
+                          <div style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '4px',
+                            border: isChecked ? 'none' : '1.5px solid rgba(0, 0, 0, 0.2)',
+                            backgroundColor: isChecked ? '#0071e3' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            {isChecked && <Check size={11} color="#ffffff" strokeWidth={3} />}
+                          </div>
+
                           <span style={{
                             fontSize: '12px',
-                            fontWeight: isChecked ? 800 : 600,
-                            color: isChecked ? '#1e40af' : '#1f2937',
-                            whiteSpace: 'nowrap',
+                            fontWeight: isChecked ? 600 : 400,
+                            color: isChecked ? '#0071e3' : '#1d1d1f',
                             overflow: 'hidden',
-                            textOverflow: 'ellipsis'
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}>
                             {p.name}
                           </span>
+
                           <span style={{
                             fontSize: '10px',
-                            fontFamily: 'monospace',
-                            fontWeight: 700,
-                            color: '#6b7280',
-                            backgroundColor: '#f3f4f6',
+                            fontWeight: 500,
+                            color: '#86868b',
+                            backgroundColor: 'rgba(118, 118, 128, 0.08)',
                             padding: '1px 5px',
                             borderRadius: '4px'
                           }}>
@@ -883,7 +894,7 @@ export function AdminMetricsDashboardView() {
                           </span>
                         </div>
 
-                        <span style={{ fontSize: '10px', fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>
+                        <span style={{ fontSize: '10px', fontWeight: 500, color: '#86868b', flexShrink: 0 }}>
                           {pStaff.length} Staff
                         </span>
                       </div>
@@ -896,17 +907,20 @@ export function AdminMetricsDashboardView() {
                   type="button"
                   onClick={() => setIsMultiSelectOpen(false)}
                   style={{
-                    marginTop: '2px',
+                    marginTop: '4px',
                     padding: '8px 12px',
-                    backgroundColor: '#18181b',
+                    backgroundColor: '#0071e3',
                     color: '#ffffff',
                     border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: 800,
+                    borderRadius: '980px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    transition: 'opacity 0.15s ease'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                 >
                   Done ({isAllSelected ? 'All 25' : selectedParliaments.length} Selected)
                 </button>
@@ -922,18 +936,18 @@ export function AdminMetricsDashboardView() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '34px',
-              height: '34px',
+              width: '32px',
+              height: '32px',
               borderRadius: '50%',
-              backgroundColor: '#f3f4f6',
-              border: '1px solid #e5e7eb',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
               cursor: 'pointer',
-              color: '#374151',
-              transition: 'all 0.2s ease',
+              color: '#1d1d1f',
+              transition: 'all 0.15s ease',
               flexShrink: 0
             }}
           >
-            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -944,17 +958,17 @@ export function AdminMetricsDashboardView() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
+          backgroundColor: 'rgba(0, 113, 227, 0.06)',
+          border: '1px solid rgba(0, 113, 227, 0.15)',
           borderRadius: '14px',
           padding: '10px 16px',
           flexWrap: 'wrap',
           gap: '10px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <Filter size={15} style={{ color: '#2563eb', flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e40af' }}>
+            <Filter size={14} style={{ color: '#0071e3', flexShrink: 0 }} />
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#0071e3' }}>
               Filtered to {activeParliamentCodes?.size || 0} Parliamentary {activeParliamentCodes?.size === 1 ? 'Constituency' : 'Constituencies'}:
             </span>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -965,12 +979,12 @@ export function AdminMetricsDashboardView() {
                     key={code}
                     style={{
                       fontSize: '11px',
-                      fontWeight: 700,
-                      backgroundColor: '#dbeafe',
-                      color: '#1d4ed8',
+                      fontWeight: 600,
+                      backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                      color: '#0071e3',
                       padding: '2px 8px',
-                      borderRadius: '9999px',
-                      border: '1px solid #93c5fd'
+                      borderRadius: '980px',
+                      border: 'none'
                     }}
                   >
                     {name} ({code})
@@ -978,12 +992,12 @@ export function AdminMetricsDashboardView() {
                 );
               })}
               {(activeParliamentCodes?.size || 0) > 4 && (
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#2563eb', alignSelf: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#0071e3', alignSelf: 'center' }}>
                   +{activeParliamentCodes.size - 4} more
                 </span>
               )}
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 400, color: '#86868b' }}>
               • {stats.activeEmployees} Active Staff • {stats.targetSubmissions.toLocaleString()} Target Submissions
             </span>
           </div>
@@ -994,17 +1008,17 @@ export function AdminMetricsDashboardView() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
+              gap: '4px',
               backgroundColor: '#ffffff',
-              border: '1px solid #93c5fd',
-              color: '#1d4ed8',
+              border: '1px solid rgba(0, 113, 227, 0.25)',
+              color: '#0071e3',
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 600,
               padding: '4px 12px',
-              borderRadius: '9999px',
+              borderRadius: '980px',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
             }}
           >
             <X size={12} />
@@ -1022,40 +1036,40 @@ export function AdminMetricsDashboardView() {
         {/* Card 1: Verified Submissions & Daily Target */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          padding: '16px 18px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+          borderRadius: '18px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
           position: 'relative',
           overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>Verified Submissions</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
-              <CheckCircle2 size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Verified Submissions</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
+              <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#065f46', letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em' }}>
               {stats.validSubmissions.toLocaleString()}
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af' }}>
+            <span style={{ fontSize: '12px', fontWeight: 400, color: '#86868b' }}>
               / {stats.targetSubmissions.toLocaleString()} Target
             </span>
           </div>
 
           {/* Progress Bar */}
-          <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#047857', marginBottom: '4px' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: '#34c759', marginBottom: '4px' }}>
               <span>Target Achievement</span>
               <span>{targetCompletionPercentage}%</span>
             </div>
-            <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
               <div style={{
                 width: `${targetCompletionPercentage}%`,
                 height: '100%',
-                backgroundColor: '#10b981',
-                borderRadius: '9999px',
+                backgroundColor: '#34c759',
+                borderRadius: '980px',
                 transition: 'width 0.5s ease-out'
               }} />
             </div>
@@ -1065,37 +1079,37 @@ export function AdminMetricsDashboardView() {
         {/* Card 2: Staff Participation */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          padding: '16px 18px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+          borderRadius: '18px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>Active Staff Engagement</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
-              <Users size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Active Staff Engagement</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(0, 113, 227, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0071e3' }}>
+              <Users size={16} />
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#1e40af', letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em' }}>
               {stats.completedEmpCount + stats.inProgressEmpCount}
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af' }}>
+            <span style={{ fontSize: '12px', fontWeight: 400, color: '#86868b' }}>
               / {stats.activeEmployees} Active Staff
             </span>
           </div>
 
-          <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#1d4ed8', marginBottom: '4px' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: '#0071e3', marginBottom: '4px' }}>
               <span>Participation Rate</span>
               <span>{staffParticipationPercentage}%</span>
             </div>
-            <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
               <div style={{
                 width: `${staffParticipationPercentage}%`,
                 height: '100%',
-                backgroundColor: '#3b82f6',
-                borderRadius: '9999px',
+                backgroundColor: '#0071e3',
+                borderRadius: '980px',
                 transition: 'width 0.5s ease-out'
               }} />
             </div>
@@ -1105,28 +1119,28 @@ export function AdminMetricsDashboardView() {
         {/* Card 3: Duplicates Intercepted */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          padding: '16px 18px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+          borderRadius: '18px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>Duplicates Intercepted</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c' }}>
-              <ShieldCheck size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Duplicates Intercepted</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(255, 149, 0, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9500' }}>
+              <ShieldCheck size={16} />
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#c2410c', letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em' }}>
               {stats.duplicates}
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af' }}>
+            <span style={{ fontSize: '12px', fontWeight: 400, color: '#86868b' }}>
               Attempts Blocked
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#d97706', marginTop: '10px' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 600, color: '#ff9500', marginTop: '10px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff9500', flexShrink: 0 }} />
             <span>Cross-Staff Filter Active</span>
           </div>
         </div>
@@ -1134,35 +1148,35 @@ export function AdminMetricsDashboardView() {
         {/* Card 4: Active Campaign Info */}
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          padding: '16px 18px',
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+          borderRadius: '18px',
+          padding: '18px 20px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280' }}>Active Campaign</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b45309' }}>
-              <Target size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Active Campaign</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(175, 82, 222, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#af52de' }}>
+              <Target size={16} />
             </div>
           </div>
-          <div style={{ marginBottom: '4px' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#111827', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ marginBottom: '6px' }}>
+            <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.02em' }}>
               {activeTask?.name || 'Instagram Follower Outreach'}
             </h4>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
             <span style={{
-              fontSize: '10px',
-              fontWeight: 800,
+              fontSize: '10.5px',
+              fontWeight: 600,
               padding: '2px 8px',
-              borderRadius: '9999px',
-              backgroundColor: '#fef3c7',
-              color: '#92400e',
-              border: '1px solid #fde047'
+              borderRadius: '980px',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              color: '#0071e3',
+              border: '1px solid rgba(0, 113, 227, 0.15)'
             }}>
               {activeTask?.platform || 'Instagram'}
             </span>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 400, color: '#86868b' }}>
               Target: {activeTask?.dailyTarget || 10} / Staff
             </span>
           </div>
@@ -1182,23 +1196,23 @@ export function AdminMetricsDashboardView() {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <MapPin size={20} style={{ color: '#059669', flexShrink: 0 }} />
-              <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#111827', margin: 0 }}>
+              <MapPin size={18} style={{ color: '#34c759', flexShrink: 0 }} />
+              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
                 Interactive AP Parliament Constituency Map
               </h3>
               <span style={{
-                fontSize: '10px',
-                fontWeight: 800,
+                fontSize: '10.5px',
+                fontWeight: 600,
                 padding: '2px 8px',
-                borderRadius: '9999px',
-                backgroundColor: '#ecfdf5',
-                color: '#059669',
-                border: '1px solid #a7f3d0'
+                borderRadius: '980px',
+                backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                color: '#34c759',
+                border: '1px solid rgba(52, 199, 89, 0.2)'
               }}>
                 Live Map
               </span>
             </div>
-            <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0', fontWeight: 500 }}>
+            <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0', fontWeight: 400 }}>
               Tap or hover any constituency node on the AP map to view live progress.
             </p>
           </div>
@@ -1209,14 +1223,14 @@ export function AdminMetricsDashboardView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: '#f9fafb',
-              border: '1px solid #d1d5db',
-              borderRadius: '9999px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
+              borderRadius: '980px',
               padding: '5px 12px',
               flex: '1 1 180px',
               maxWidth: '280px'
             }}>
-              <Search size={13} style={{ color: '#9ca3af' }} />
+              <Search size={13} style={{ color: '#86868b' }} />
               <input
                 type="text"
                 placeholder="Highlight constituency..."
@@ -1228,24 +1242,24 @@ export function AdminMetricsDashboardView() {
                   fontSize: '12px',
                   outline: 'none',
                   width: '100%',
-                  fontWeight: 600,
-                  color: '#111827'
+                  fontWeight: 500,
+                  color: '#1d1d1f'
                 }}
               />
             </div>
 
             {/* Status Color Legend */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', fontWeight: 700, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#047857' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', fontWeight: 600, flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#34c759' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#34c759' }} />
                 &ge; 80%
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#b45309' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ff9500' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ff9500' }} />
                 40 - 79%
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#b91c1c' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ff3b30' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ff3b30' }} />
                 &lt; 40%
               </span>
             </div>
@@ -1536,27 +1550,27 @@ export function AdminMetricsDashboardView() {
       <div className="dashboard-section-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#111827', margin: 0 }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
               Staff Completion Pipeline Status
             </h3>
-            <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 0', fontWeight: 500 }}>
+            <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0', fontWeight: 400 }}>
               {isAllSelected 
                 ? 'Breakdown of staff progress across all 25 assigned constituencies (200 staff)'
                 : `Breakdown of staff progress across ${activeParliamentCodes?.size || 0} selected constituencies (${stats.activeEmployees} staff)`}
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: '#047857' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#10b981' }} />
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 600, color: '#34c759' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#34c759' }} />
               Completed ({stats.completedEmpCount})
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: '#b45309' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#f59e0b' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 600, color: '#ff9500' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ff9500' }} />
               Active ({stats.inProgressEmpCount})
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: '#4b5563' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#9ca3af' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 500, color: '#86868b' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'rgba(118, 118, 128, 0.3)' }} />
               Pending ({stats.notStartedEmpCount})
             </div>
           </div>
@@ -1565,16 +1579,16 @@ export function AdminMetricsDashboardView() {
         {/* Multi-segmented Visual Progress Bar */}
         <div style={{
           display: 'flex',
-          height: '12px',
+          height: '7px',
           width: '100%',
-          backgroundColor: '#f3f4f6',
-          borderRadius: '9999px',
+          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+          borderRadius: '980px',
           overflow: 'hidden'
         }}>
           <div 
             style={{
               width: `${(stats.completedEmpCount / (stats.activeEmployees || 1)) * 100}%`,
-              backgroundColor: '#10b981',
+              backgroundColor: '#34c759',
               transition: 'width 0.5s ease'
             }}
             title={`Completed: ${stats.completedEmpCount}`}
@@ -1582,7 +1596,7 @@ export function AdminMetricsDashboardView() {
           <div 
             style={{
               width: `${(stats.inProgressEmpCount / (stats.activeEmployees || 1)) * 100}%`,
-              backgroundColor: '#f59e0b',
+              backgroundColor: '#ff9500',
               transition: 'width 0.5s ease'
             }}
             title={`In Progress: ${stats.inProgressEmpCount}`}
@@ -1590,7 +1604,7 @@ export function AdminMetricsDashboardView() {
           <div 
             style={{
               width: `${(stats.notStartedEmpCount / (stats.activeEmployees || 1)) * 100}%`,
-              backgroundColor: '#d1d5db',
+              backgroundColor: 'rgba(118, 118, 128, 0.2)',
               transition: 'width 0.5s ease'
             }}
             title={`Not Started: ${stats.notStartedEmpCount}`}
@@ -1605,64 +1619,67 @@ export function AdminMetricsDashboardView() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
                   Individual Staff Outreach Tracker
                 </h3>
                 <span style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
+                  fontSize: '10.5px',
+                  fontWeight: 600,
                   padding: '2px 8px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  border: '1px solid #e5e7eb'
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                  color: '#0071e3',
+                  border: '1px solid rgba(0, 113, 227, 0.15)'
                 }}>
                   {filteredEmployees.length} Staff Across {groupedParliamentsStaff.length} Parliaments
                 </span>
               </div>
-              <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 0', fontWeight: 500 }}>
+              <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0', fontWeight: 400 }}>
                 Collapsible directory grouped by Parliamentary Constituency
               </p>
             </div>
 
-            {/* Status Filter Tabs (Scrollable on mobile) */}
+            {/* Apple Segmented Status Filter Tabs */}
             <div 
               className="no-scrollbar"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
-                backgroundColor: '#f3f4f6',
-                padding: '3px',
-                borderRadius: '9999px',
-                border: '1px solid #e5e7eb',
+                gap: '2px',
+                backgroundColor: 'rgba(118, 118, 128, 0.12)',
+                padding: '2px',
+                borderRadius: '980px',
+                border: 'none',
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 maxWidth: '100%'
               }}
             >
-              {['ALL', 'Completed', 'In Progress', 'Not Started'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setStatusTab(tab)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    border: 'none',
-                    backgroundColor: statusTab === tab ? '#ffffff' : 'transparent',
-                    color: statusTab === tab ? '#111827' : '#6b7280',
-                    boxShadow: statusTab === tab ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
+              {['ALL', 'Completed', 'In Progress', 'Not Started'].map((tab) => {
+                const isActive = statusTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setStatusTab(tab)}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '980px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? 600 : 500,
+                      border: 'none',
+                      backgroundColor: isActive ? '#ffffff' : 'transparent',
+                      color: isActive ? '#1d1d1f' : '#86868b',
+                      boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.1), 0 0.5px 1px rgba(0,0,0,0.06)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1673,14 +1690,14 @@ export function AdminMetricsDashboardView() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              backgroundColor: '#f9fafb',
-              border: '1px solid #d1d5db',
-              borderRadius: '9999px',
-              padding: '8px 14px',
+              backgroundColor: 'rgba(118, 118, 128, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
+              borderRadius: '980px',
+              padding: '7px 14px',
               flex: '1 1 220px',
               maxWidth: '100%'
             }}>
-              <Search size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
+              <Search size={14} style={{ color: '#86868b', flexShrink: 0 }} />
               <input 
                 type="text"
                 placeholder="Search staff by name, code (e.g. APP13), or constituency..."
@@ -1690,8 +1707,8 @@ export function AdminMetricsDashboardView() {
                   border: 'none',
                   backgroundColor: 'transparent',
                   fontSize: '12px',
-                  fontWeight: 500,
-                  color: '#111827',
+                  fontWeight: 400,
+                  color: '#1d1d1f',
                   outline: 'none',
                   width: '100%'
                 }}
@@ -1706,13 +1723,13 @@ export function AdminMetricsDashboardView() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  padding: '6px 12px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
+                  padding: '5px 12px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                  color: '#1d1d1f',
+                  border: '1px solid rgba(0, 0, 0, 0.05)',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap'
@@ -1728,13 +1745,13 @@ export function AdminMetricsDashboardView() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  padding: '6px 12px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
+                  padding: '5px 12px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                  color: '#1d1d1f',
+                  border: '1px solid rgba(0, 0, 0, 0.05)',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap'
@@ -1762,11 +1779,12 @@ export function AdminMetricsDashboardView() {
                   key={group.code}
                   id={`parliament-group-${group.code}`}
                   style={{
-                    backgroundColor: '#fafafa',
-                    borderRadius: '14px',
-                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
                     overflow: 'hidden',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
                   }}
                 >
                   {/* Parliament Accordion Header (Responsive Column on Mobile, Row on Desktop) */}
@@ -1779,11 +1797,11 @@ export function AdminMetricsDashboardView() {
                       padding: '12px 16px',
                       backgroundColor: '#ffffff',
                       cursor: 'pointer',
-                      borderBottom: isCollapsed ? 'none' : '1px solid #e5e7eb',
+                      borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.06)',
                       userSelect: 'none',
                       transition: 'background-color 0.15s ease'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.015)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
                   >
                     {/* Top row / Left Title Section */}
@@ -1793,11 +1811,11 @@ export function AdminMetricsDashboardView() {
                           width: '26px',
                           height: '26px',
                           borderRadius: '50%',
-                          backgroundColor: '#f3f4f6',
+                          backgroundColor: 'rgba(118, 118, 128, 0.08)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#4b5563',
+                          color: '#1d1d1f',
                           flexShrink: 0
                         }}>
                           {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -1805,14 +1823,14 @@ export function AdminMetricsDashboardView() {
 
                         <div style={{ minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                            <h4 style={{ fontSize: '14px', fontWeight: 600, color: '#1d1d1f', margin: 0 }}>
                               {group.name} Parliamentary Constituency
                             </h4>
-                            <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, padding: '1px 6px', borderRadius: '9999px', backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '1px 6px', borderRadius: '6px', backgroundColor: 'rgba(118, 118, 128, 0.08)', color: '#1d1d1f', border: 'none' }}>
                               {group.code}
                             </span>
                           </div>
-                          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 500 }}>
+                          <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 400 }}>
                             {group.staff.length} Staff Assigned
                           </span>
                         </div>
@@ -1821,8 +1839,8 @@ export function AdminMetricsDashboardView() {
                       {/* Compact Percent for Mobile Header */}
                       <span style={{
                         fontSize: '13px',
-                        fontWeight: 900,
-                        color: group.completionRate >= 80 ? '#059669' : group.completionRate >= 40 ? '#d97706' : '#dc2626',
+                        fontWeight: 700,
+                        color: group.completionRate >= 80 ? '#34c759' : group.completionRate >= 40 ? '#ff9500' : '#ff3b30',
                         flexShrink: 0
                       }}>
                         {group.completionRate}%
@@ -1830,26 +1848,26 @@ export function AdminMetricsDashboardView() {
                     </div>
 
                     {/* Summary Metric Badges (Stacked underneath title on mobile) */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px dashed #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid rgba(0, 0, 0, 0.04)' }}>
                       {/* Submissions count */}
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#111827' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#1d1d1f' }}>
                         {group.totalValid} / {group.totalTarget} Submissions
                       </div>
 
                       {/* Status Breakdown Pills */}
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {group.completedCount > 0 && (
-                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+                          <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 8px', borderRadius: '980px', backgroundColor: 'rgba(52, 199, 89, 0.1)', color: '#34c759', border: '1px solid rgba(52, 199, 89, 0.2)' }}>
                             {group.completedCount} Done
                           </span>
                         )}
                         {group.inProgressCount > 0 && (
-                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}>
+                          <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 8px', borderRadius: '980px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', border: '1px solid rgba(255, 149, 0, 0.2)' }}>
                             {group.inProgressCount} Active
                           </span>
                         )}
                         {group.notStartedCount > 0 && (
-                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb' }}>
+                          <span style={{ fontSize: '10.5px', fontWeight: 500, padding: '2px 8px', borderRadius: '980px', backgroundColor: 'rgba(118, 118, 128, 0.08)', color: '#86868b', border: '1px solid rgba(118, 118, 128, 0.15)' }}>
                             {group.notStartedCount} Pending
                           </span>
                         )}
@@ -1864,52 +1882,52 @@ export function AdminMetricsDashboardView() {
                       <div className="hidden sm:block" style={{ overflowX: 'auto', backgroundColor: '#ffffff' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
                           <thead>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#4b5563', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', backgroundColor: 'rgba(118, 118, 128, 0.04)', color: '#86868b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                               <th 
                                 onClick={() => handleHeaderSort('name')}
-                                style={{ padding: '10px 14px', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}
+                                style={{ padding: '10px 14px', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>Staff Member</span>
-                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'name' ? '#111827' : '#9ca3af' }} />
+                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'name' ? '#1d1d1f' : '#86868b' }} />
                                 </div>
                               </th>
                               <th 
                                 onClick={() => handleHeaderSort('constituency')}
-                                style={{ padding: '10px 14px', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}
+                                style={{ padding: '10px 14px', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>Constituency Segment</span>
-                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'constituency' ? '#111827' : '#9ca3af' }} />
+                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'constituency' ? '#1d1d1f' : '#86868b' }} />
                                 </div>
                               </th>
                               <th 
                                 onClick={() => handleHeaderSort('valid')}
-                                style={{ padding: '10px 14px', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}
+                                style={{ padding: '10px 14px', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>Submissions</span>
-                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'valid' ? '#111827' : '#9ca3af' }} />
+                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'valid' ? '#1d1d1f' : '#86868b' }} />
                                 </div>
                               </th>
-                              <th style={{ padding: '10px 14px', fontWeight: 800 }}>Target Progress</th>
-                              <th style={{ padding: '10px 14px', fontWeight: 800 }}>Outreach Link</th>
+                              <th style={{ padding: '10px 14px', fontWeight: 600 }}>Target Progress</th>
+                              <th style={{ padding: '10px 14px', fontWeight: 600 }}>Outreach Link</th>
                               <th 
                                 onClick={() => handleHeaderSort('duplicate')}
-                                style={{ padding: '10px 14px', fontWeight: 800, cursor: 'pointer', userSelect: 'none' }}
+                                style={{ padding: '10px 14px', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>Duplicates</span>
-                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'duplicate' ? '#111827' : '#9ca3af' }} />
+                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'duplicate' ? '#1d1d1f' : '#86868b' }} />
                                 </div>
                               </th>
                               <th 
                                 onClick={() => handleHeaderSort('status')}
-                                style={{ padding: '10px 14px', fontWeight: 800, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}
+                                style={{ padding: '10px 14px', fontWeight: 600, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                                   <span>Status</span>
-                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'status' ? '#111827' : '#9ca3af' }} />
+                                  <ArrowUpDown size={11} style={{ color: tableSortField === 'status' ? '#1d1d1f' : '#86868b' }} />
                                 </div>
                               </th>
                             </tr>
@@ -1918,28 +1936,28 @@ export function AdminMetricsDashboardView() {
                             {group.staff.map((emp) => {
                               const percent = Math.min(100, Math.round(((emp.valid || 0) / (emp.target || 10)) * 100));
 
-                              let statusBg = '#f3f4f6';
-                              let statusColor = '#4b5563';
-                              let statusBorder = '#e5e7eb';
+                              let statusBg = 'rgba(118, 118, 128, 0.08)';
+                              let statusColor = '#86868b';
+                              let statusBorder = 'rgba(118, 118, 128, 0.15)';
 
                               if (emp.status === 'Completed') {
-                                statusBg = '#ecfdf5';
-                                statusColor = '#047857';
-                                statusBorder = '#a7f3d0';
+                                statusBg = 'rgba(52, 199, 89, 0.1)';
+                                statusColor = '#34c759';
+                                statusBorder = 'rgba(52, 199, 89, 0.2)';
                               } else if (emp.status === 'In Progress') {
-                                statusBg = '#fffbeb';
-                                statusColor = '#b45309';
-                                statusBorder = '#fde68a';
+                                statusBg = 'rgba(255, 149, 0, 0.1)';
+                                statusColor = '#ff9500';
+                                statusBorder = 'rgba(255, 149, 0, 0.2)';
                               }
 
                               return (
                                 <tr 
                                   key={emp.id}
                                   style={{
-                                    borderBottom: '1px solid #f3f4f6',
+                                    borderBottom: '1px solid rgba(0, 0, 0, 0.04)',
                                     transition: 'background-color 0.15s ease'
                                   }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fafafa'}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.015)'}
                                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                 >
                                   {/* Staff info */}
@@ -1949,9 +1967,9 @@ export function AdminMetricsDashboardView() {
                                         width: '28px',
                                         height: '28px',
                                         borderRadius: '50%',
-                                        backgroundColor: '#18181b',
-                                        color: '#facc15',
-                                        fontWeight: 800,
+                                        backgroundColor: '#1d1d1f',
+                                        color: '#ffffff',
+                                        fontWeight: 600,
                                         fontSize: '11px',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -1961,8 +1979,8 @@ export function AdminMetricsDashboardView() {
                                         {emp.name.charAt(0)}
                                       </div>
                                       <div>
-                                        <div style={{ fontWeight: 800, color: '#111827' }}>{emp.name}</div>
-                                        <div style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: '#6b7280' }}>
+                                        <div style={{ fontWeight: 600, color: '#1d1d1f', fontSize: '13px' }}>{emp.name}</div>
+                                        <div style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 500, color: '#86868b' }}>
                                           {emp.supportCode || emp.id} {emp.staffId ? `• ${emp.staffId}` : ''}
                                         </div>
                                       </div>
@@ -1971,34 +1989,34 @@ export function AdminMetricsDashboardView() {
 
                                   {/* Constituency Segment */}
                                   <td style={{ padding: '10px 14px' }}>
-                                    <div style={{ fontWeight: 600, color: '#374151' }}>
+                                    <div style={{ fontWeight: 500, color: '#1d1d1f' }}>
                                       {emp.assemblyName ? `${emp.assemblyName} Segment` : `${emp.parliamentName || group.name} Parliament`}
                                     </div>
-                                    <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 500 }}>
+                                    <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 400 }}>
                                       {emp.level || 'Parliament'} Level
                                     </span>
                                   </td>
 
                                   {/* Valid Count */}
                                   <td style={{ padding: '10px 14px' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#111827' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f' }}>
                                       {emp.valid || 0}
                                     </span>
-                                    <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 500 }}> / {emp.target || 10}</span>
+                                    <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 400 }}> / {emp.target || 10}</span>
                                   </td>
 
                                   {/* Progress Bar */}
                                   <td style={{ padding: '10px 14px', width: '130px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <div style={{ flex: 1, height: '5px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
+                                      <div style={{ flex: 1, height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
                                         <div style={{
                                           width: `${percent}%`,
                                           height: '100%',
-                                          backgroundColor: percent >= 100 ? '#10b981' : percent > 0 ? '#f59e0b' : '#9ca3af',
-                                          borderRadius: '9999px'
+                                          backgroundColor: percent >= 100 ? '#34c759' : percent > 0 ? '#0071e3' : 'rgba(118, 118, 128, 0.2)',
+                                          borderRadius: '980px'
                                         }} />
                                       </div>
-                                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#4b5563', width: '30px' }}>{percent}%</span>
+                                      <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#86868b', width: '32px' }}>{percent}%</span>
                                     </div>
                                   </td>
 
@@ -2021,13 +2039,13 @@ export function AdminMetricsDashboardView() {
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '4px',
-                                              padding: '3px 8px',
-                                              borderRadius: '9999px',
-                                              backgroundColor: isCopied ? '#ecfdf5' : '#f1f5f9',
-                                              color: isCopied ? '#047857' : '#334155',
-                                              border: `1px solid ${isCopied ? '#a7f3d0' : '#cbd5e1'}`,
+                                              padding: '3px 9px',
+                                              borderRadius: '980px',
+                                              backgroundColor: isCopied ? 'rgba(52, 199, 89, 0.1)' : 'rgba(0, 113, 227, 0.08)',
+                                              color: isCopied ? '#34c759' : '#0071e3',
+                                              border: `1px solid ${isCopied ? 'rgba(52, 199, 89, 0.25)' : 'rgba(0, 113, 227, 0.18)'}`,
                                               fontSize: '11px',
-                                              fontWeight: 700,
+                                              fontWeight: 600,
                                               cursor: 'pointer',
                                               fontFamily: 'monospace'
                                             }}
@@ -2038,13 +2056,13 @@ export function AdminMetricsDashboardView() {
 
                                           {clickCount > 0 && (
                                              <span style={{
-                                               fontSize: '10px',
-                                               fontWeight: 800,
-                                               padding: '1px 6px',
-                                               borderRadius: '9999px',
-                                               backgroundColor: '#ecfdf5',
-                                               color: '#059669',
-                                               border: '1px solid #a7f3d0'
+                                               fontSize: '10.5px',
+                                               fontWeight: 600,
+                                               padding: '2px 7px',
+                                               borderRadius: '980px',
+                                               backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                                               color: '#34c759',
+                                               border: '1px solid rgba(52, 199, 89, 0.2)'
                                              }} title="Verified citizen clicks">
                                                {clickCount} clicks
                                              </span>
@@ -2057,11 +2075,11 @@ export function AdminMetricsDashboardView() {
                                   {/* Duplicates */}
                                   <td style={{ padding: '10px 14px' }}>
                                     {emp.duplicate > 0 ? (
-                                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', backgroundColor: '#fef2f2', padding: '2px 6px', borderRadius: '9999px', border: '1px solid #fca5a5' }}>
+                                      <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#ff3b30', backgroundColor: 'rgba(255, 59, 48, 0.1)', padding: '2px 7px', borderRadius: '980px', border: '1px solid rgba(255, 59, 48, 0.2)' }}>
                                         {emp.duplicate} Flagged
                                       </span>
                                     ) : (
-                                      <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>0 Clean</span>
+                                      <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 400 }}>0 Clean</span>
                                     )}
                                   </td>
 
@@ -2069,10 +2087,10 @@ export function AdminMetricsDashboardView() {
                                   <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                                     <span style={{
                                       display: 'inline-block',
-                                      padding: '2px 8px',
-                                      borderRadius: '9999px',
-                                      fontSize: '10px',
-                                      fontWeight: 800,
+                                      padding: '3px 9px',
+                                      borderRadius: '980px',
+                                      fontSize: '10.5px',
+                                      fontWeight: 600,
                                       backgroundColor: statusBg,
                                       color: statusColor,
                                       border: `1px solid ${statusBorder}`
@@ -2093,27 +2111,27 @@ export function AdminMetricsDashboardView() {
                           {group.staff.map((emp) => {
                             const percent = Math.min(100, Math.round(((emp.valid || 0) / (emp.target || 10)) * 100));
 
-                            let statusBg = '#f3f4f6';
-                            let statusColor = '#4b5563';
-                            let statusBorder = '#e5e7eb';
+                            let statusBg = 'rgba(118, 118, 128, 0.08)';
+                            let statusColor = '#86868b';
+                            let statusBorder = 'rgba(118, 118, 128, 0.15)';
 
                             if (emp.status === 'Completed') {
-                              statusBg = '#ecfdf5';
-                              statusColor = '#047857';
-                              statusBorder = '#a7f3d0';
+                              statusBg = 'rgba(52, 199, 89, 0.1)';
+                              statusColor = '#34c759';
+                              statusBorder = 'rgba(52, 199, 89, 0.2)';
                             } else if (emp.status === 'In Progress') {
-                              statusBg = '#fffbeb';
-                              statusColor = '#b45309';
-                              statusBorder = '#fde68a';
+                              statusBg = 'rgba(255, 149, 0, 0.1)';
+                              statusColor = '#ff9500';
+                              statusBorder = 'rgba(255, 149, 0, 0.2)';
                             }
 
                             return (
                               <div
                                 key={emp.id}
                                 style={{
-                                  backgroundColor: '#fafafa',
-                                  borderRadius: '12px',
-                                  border: '1px solid #e5e7eb',
+                                  backgroundColor: 'rgba(118, 118, 128, 0.04)',
+                                  borderRadius: '14px',
+                                  border: '1px solid rgba(0, 0, 0, 0.06)',
                                   padding: '10px 12px',
                                   display: 'flex',
                                   flexDirection: 'column',
@@ -2127,9 +2145,9 @@ export function AdminMetricsDashboardView() {
                                       width: '26px',
                                       height: '26px',
                                       borderRadius: '50%',
-                                      backgroundColor: '#18181b',
-                                      color: '#facc15',
-                                      fontWeight: 800,
+                                      backgroundColor: '#1d1d1f',
+                                      color: '#ffffff',
+                                      fontWeight: 600,
                                       fontSize: '11px',
                                       display: 'flex',
                                       alignItems: 'center',
@@ -2138,8 +2156,8 @@ export function AdminMetricsDashboardView() {
                                       {emp.name.charAt(0)}
                                     </div>
                                     <div>
-                                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#111827' }}>{emp.name}</div>
-                                      <div style={{ fontSize: '10px', fontFamily: 'monospace', color: '#6b7280', fontWeight: 600 }}>
+                                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#1d1d1f' }}>{emp.name}</div>
+                                      <div style={{ fontSize: '10px', fontFamily: 'monospace', color: '#86868b', fontWeight: 500 }}>
                                         {emp.supportCode || emp.id} {emp.staffId ? `• ${emp.staffId}` : ''}
                                       </div>
                                     </div>
@@ -2147,9 +2165,9 @@ export function AdminMetricsDashboardView() {
 
                                   <span style={{
                                     padding: '2px 8px',
-                                    borderRadius: '9999px',
+                                    borderRadius: '980px',
                                     fontSize: '10px',
-                                    fontWeight: 800,
+                                    fontWeight: 600,
                                     backgroundColor: statusBg,
                                     color: statusColor,
                                     border: `1px solid ${statusBorder}`
@@ -2159,23 +2177,23 @@ export function AdminMetricsDashboardView() {
                                 </div>
 
                                 {/* Middle: Constituency Segment */}
-                                <div style={{ fontSize: '11px', color: '#4b5563', fontWeight: 600 }}>
+                                <div style={{ fontSize: '11px', color: '#1d1d1f', fontWeight: 500 }}>
                                   {emp.assemblyName ? `${emp.assemblyName} Segment` : `${emp.parliamentName || group.name} Parliament`}
-                                  <span style={{ color: '#9ca3af', fontWeight: 500 }}> • {emp.level || 'Parliament'} Level</span>
+                                  <span style={{ color: '#86868b', fontWeight: 400 }}> • {emp.level || 'Parliament'} Level</span>
                                 </div>
 
                                 {/* Bottom: Submissions & Progress */}
                                 <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#374151', marginBottom: '3px' }}>
-                                    <span><strong>{emp.valid || 0}</strong> / {emp.target || 10} Submissions</span>
-                                    <span style={{ fontWeight: 800, color: percent >= 100 ? '#059669' : '#d97706' }}>{percent}%</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#86868b', marginBottom: '3px' }}>
+                                    <span><strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{emp.valid || 0}</strong> / {emp.target || 10} Submissions</span>
+                                    <span style={{ fontWeight: 600, color: percent >= 100 ? '#34c759' : '#ff9500' }}>{percent}%</span>
                                   </div>
-                                  <div style={{ width: '100%', height: '5px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
+                                  <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
                                     <div style={{
                                       width: `${percent}%`,
                                       height: '100%',
-                                      backgroundColor: percent >= 100 ? '#10b981' : percent > 0 ? '#f59e0b' : '#9ca3af',
-                                      borderRadius: '9999px'
+                                      backgroundColor: percent >= 100 ? '#34c759' : percent > 0 ? '#0071e3' : 'rgba(118, 118, 128, 0.2)',
+                                      borderRadius: '980px'
                                     }} />
                                   </div>
                                 </div>
@@ -2196,19 +2214,19 @@ export function AdminMetricsDashboardView() {
                                         backgroundColor: '#ffffff',
                                         padding: '5px 8px',
                                         borderRadius: '8px',
-                                        border: '1px solid #e2e8f0',
+                                        border: '1px solid rgba(0, 0, 0, 0.08)',
                                         fontSize: '11px',
                                         gap: '6px'
                                       }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden' }}>
-                                          <Link2 size={12} style={{ color: '#0284c7', flexShrink: 0 }} />
-                                          <span style={{ fontFamily: 'monospace', color: '#0f172a', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          <Link2 size={12} style={{ color: '#0071e3', flexShrink: 0 }} />
+                                          <span style={{ fontFamily: 'monospace', color: '#1d1d1f', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             /{link?.slug || 'instagram'}/{token}
                                           </span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                                           {clickCount > 0 && (
-                                            <span style={{ fontSize: '10px', fontWeight: 800, color: '#059669', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '9999px' }}>
+                                            <span style={{ fontSize: '10px', fontWeight: 600, color: '#34c759', backgroundColor: 'rgba(52, 199, 89, 0.1)', padding: '1px 6px', borderRadius: '980px' }}>
                                               {clickCount} clicks
                                             </span>
                                           )}
@@ -2219,12 +2237,12 @@ export function AdminMetricsDashboardView() {
                                               alignItems: 'center',
                                               gap: '3px',
                                               padding: '2px 8px',
-                                              borderRadius: '6px',
-                                              backgroundColor: isCopied ? '#ecfdf5' : '#f1f5f9',
-                                              color: isCopied ? '#047857' : '#334155',
-                                              border: '1px solid #cbd5e1',
+                                              borderRadius: '980px',
+                                              backgroundColor: isCopied ? 'rgba(52, 199, 89, 0.1)' : 'rgba(0, 113, 227, 0.08)',
+                                              color: isCopied ? '#34c759' : '#0071e3',
+                                              border: `1px solid ${isCopied ? 'rgba(52, 199, 89, 0.25)' : 'rgba(0, 113, 227, 0.18)'}`,
                                               fontSize: '10px',
-                                              fontWeight: 700,
+                                              fontWeight: 600,
                                               cursor: 'pointer'
                                             }}
                                           >
@@ -2238,7 +2256,7 @@ export function AdminMetricsDashboardView() {
 
                                   {/* Duplicate Flag if any */}
                                   {emp.duplicate > 0 && (
-                                  <div style={{ fontSize: '10px', color: '#b91c1c', fontWeight: 700, backgroundColor: '#fef2f2', padding: '2px 8px', borderRadius: '6px', alignSelf: 'flex-start' }}>
+                                  <div style={{ fontSize: '10px', color: '#ff3b30', fontWeight: 600, backgroundColor: 'rgba(255, 59, 48, 0.1)', padding: '2px 8px', borderRadius: '6px', alignSelf: 'flex-start' }}>
                                     {emp.duplicate} Duplicates Flagged
                                   </div>
                                 )}
@@ -2269,40 +2287,40 @@ export function AdminMetricsDashboardView() {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <Award size={20} style={{ color: '#f59e0b', flexShrink: 0 }} />
-              <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#111827', margin: 0 }}>
+              <Award size={18} style={{ color: '#ff9500', flexShrink: 0 }} />
+              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
                 Parliament Performance Leaderboard
               </h3>
               <span style={{
-                fontSize: '10px',
-                fontWeight: 800,
+                fontSize: '10.5px',
+                fontWeight: 600,
                 padding: '2px 8px',
-                borderRadius: '9999px',
-                backgroundColor: '#fef3c7',
-                color: '#b45309',
-                border: '1px solid #fde047'
+                borderRadius: '980px',
+                backgroundColor: 'rgba(255, 149, 0, 0.1)',
+                color: '#ff9500',
+                border: '1px solid rgba(255, 149, 0, 0.2)'
               }}>
                 {sortedParliaments.length} {leaderboardShowMode === 'ALL' ? 'Parliaments' : 'Displayed'}
               </span>
             </div>
-            <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 0', fontWeight: 500 }}>
+            <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0', fontWeight: 400 }}>
               Dynamic performance ranking across all 25 AP Parliament Constituencies
             </p>
           </div>
 
           {/* View Filter & Sort Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', smWidth: 'auto', justifyContent: 'space-between' }}>
-            {/* View Mode Pills (Scrollable on mobile) */}
+            {/* Apple Segmented View Mode Pills */}
             <div 
               className="no-scrollbar"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
-                backgroundColor: '#f3f4f6',
-                padding: '3px',
-                borderRadius: '9999px',
-                border: '1px solid #e5e7eb',
+                gap: '2px',
+                backgroundColor: 'rgba(118, 118, 128, 0.12)',
+                padding: '2px',
+                borderRadius: '980px',
+                border: 'none',
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 maxWidth: '100%'
@@ -2314,27 +2332,31 @@ export function AdminMetricsDashboardView() {
                 { id: 'BOTTOM_5', label: 'Bottom 5' },
                 { id: 'TOP_10', label: 'Top 10' },
                 { id: 'BOTTOM_10', label: 'Bottom 10' }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setLeaderboardShowMode(item.id)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '9999px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    border: 'none',
-                    backgroundColor: leaderboardShowMode === item.id ? '#18181b' : 'transparent',
-                    color: leaderboardShowMode === item.id ? '#ffffff' : '#4b5563',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
+              ].map(item => {
+                const isActive = leaderboardShowMode === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setLeaderboardShowMode(item.id)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '980px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? 600 : 500,
+                      border: 'none',
+                      backgroundColor: isActive ? '#ffffff' : 'transparent',
+                      color: isActive ? '#1d1d1f' : '#86868b',
+                      boxShadow: isActive ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Sort Toggle Button */}
@@ -2343,22 +2365,22 @@ export function AdminMetricsDashboardView() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '6px 12px',
-                borderRadius: '9999px',
-                backgroundColor: leaderboardSortOrder === 'DESC' ? '#ecfdf5' : '#fff1f2',
-                color: leaderboardSortOrder === 'DESC' ? '#047857' : '#be123c',
-                border: `1px solid ${leaderboardSortOrder === 'DESC' ? '#a7f3d0' : '#fecdd3'}`,
+                gap: '4px',
+                padding: '5px 12px',
+                borderRadius: '980px',
+                backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                color: '#1d1d1f',
+                border: '1px solid rgba(0, 0, 0, 0.05)',
                 fontSize: '11px',
-                fontWeight: 800,
+                fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.15s ease',
                 whiteSpace: 'nowrap',
                 flexShrink: 0
               }}
               title="Toggle Dynamic Sort Order"
             >
-              <ArrowUpDown size={12} />
+              <ArrowUpDown size={12} style={{ color: '#86868b' }} />
               <span>{leaderboardSortOrder === 'DESC' ? 'Highest First' : 'Lowest First'}</span>
             </button>
           </div>
@@ -2369,10 +2391,7 @@ export function AdminMetricsDashboardView() {
           {sortedParliaments.map((p, index) => {
             const rankNum = leaderboardSortOrder === 'DESC' ? index + 1 : sortedParliaments.length - index;
 
-            const badgeBg = index === 0 && leaderboardSortOrder === 'DESC' ? '#fef3c7' : index === 1 && leaderboardSortOrder === 'DESC' ? '#f3f4f6' : index === 2 && leaderboardSortOrder === 'DESC' ? '#ffedd5' : '#f9fafb';
-            const badgeColor = index === 0 && leaderboardSortOrder === 'DESC' ? '#92400e' : index === 1 && leaderboardSortOrder === 'DESC' ? '#374151' : index === 2 && leaderboardSortOrder === 'DESC' ? '#9a3412' : '#6b7280';
-
-            const isSelected = isAllSelected || Boolean(activeParliamentCodes?.has(p.code));
+            const isSelected = !isAllSelected && Boolean(activeParliamentCodes?.has(p.code));
 
             return (
               <div 
@@ -2388,11 +2407,11 @@ export function AdminMetricsDashboardView() {
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }}
                 style={{
-                  backgroundColor: !isAllSelected && isSelected ? '#eff6ff' : '#fafafa',
-                  borderRadius: '14px',
-                  border: !isAllSelected && isSelected 
-                    ? '2px solid #2563eb' 
-                    : p.completionRate >= 80 ? '1.5px solid #a7f3d0' : '1px solid #e5e7eb',
+                  backgroundColor: isSelected ? 'rgba(0, 113, 227, 0.04)' : '#ffffff',
+                  borderRadius: '16px',
+                  border: isSelected 
+                    ? '1.5px solid #0071e3' 
+                    : '1px solid rgba(0, 0, 0, 0.08)',
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -2400,41 +2419,40 @@ export function AdminMetricsDashboardView() {
                   transition: 'all 0.15s ease',
                   position: 'relative',
                   cursor: 'pointer',
-                  opacity: !isAllSelected && !isSelected ? 0.55 : 1,
-                  boxShadow: !isAllSelected && isSelected ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'none'
+                  opacity: !isAllSelected && !isSelected ? 0.6 : 1,
+                  boxShadow: isSelected ? '0 4px 16px rgba(0, 113, 227, 0.08)' : '0 1px 3px rgba(0, 0, 0, 0.02)'
                 }}
                 title={`Click to ${isMultiSelect ? 'toggle' : 'filter by'} ${p.name}`}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                     <span style={{
-                      width: '24px',
-                      height: '24px',
+                      width: '22px',
+                      height: '22px',
                       borderRadius: '50%',
-                      backgroundColor: badgeBg,
-                      color: badgeColor,
+                      backgroundColor: 'rgba(118, 118, 128, 0.1)',
+                      color: '#1d1d1f',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      border: '1px solid #e5e7eb',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
                       flexShrink: 0
                     }}>
                       #{rankNum}
                     </span>
                     <div style={{ minWidth: 0, overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#111827', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.name}
                         </h4>
-                        {!isAllSelected && isSelected && (
+                        {isSelected && (
                           <span style={{
                             fontSize: '9px',
-                            fontWeight: 800,
+                            fontWeight: 600,
                             padding: '1px 5px',
-                            borderRadius: '9999px',
-                            backgroundColor: '#2563eb',
+                            borderRadius: '980px',
+                            backgroundColor: '#0071e3',
                             color: '#ffffff',
                             flexShrink: 0
                           }}>
@@ -2442,7 +2460,7 @@ export function AdminMetricsDashboardView() {
                           </span>
                         )}
                       </div>
-                      <span style={{ fontSize: '10px', fontWeight: 600, color: '#6b7280' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 400, color: '#86868b' }}>
                         {p.code} • {p.totalStaff} Staff
                       </span>
                     </div>
@@ -2450,8 +2468,8 @@ export function AdminMetricsDashboardView() {
 
                   <span style={{
                     fontSize: '13px',
-                    fontWeight: 900,
-                    color: p.completionRate >= 80 ? '#059669' : p.completionRate >= 40 ? '#d97706' : '#dc2626',
+                    fontWeight: 700,
+                    color: p.completionRate >= 80 ? '#34c759' : p.completionRate >= 40 ? '#ff9500' : '#ff3b30',
                     flexShrink: 0
                   }}>
                     {p.completionRate}%
@@ -2460,26 +2478,26 @@ export function AdminMetricsDashboardView() {
 
                 {/* Progress bar & Submissions */}
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#4b5563', marginBottom: '3px' }}>
-                    <span>Submissions: <strong style={{ color: '#111827' }}>{p.totalValid}</strong></span>
-                    <span>Target: <strong>{p.totalTarget}</strong></span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#86868b', marginBottom: '3px' }}>
+                    <span>Submissions: <strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{p.totalValid}</strong></span>
+                    <span>Target: <strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{p.totalTarget}</strong></span>
                   </div>
-                  <div style={{ width: '100%', height: '5px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden' }}>
+                  <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
                     <div style={{
                       width: `${p.completionRate}%`,
                       height: '100%',
-                      backgroundColor: p.completionRate >= 80 ? '#10b981' : p.completionRate >= 40 ? '#f59e0b' : '#ef4444',
-                      borderRadius: '9999px',
+                      backgroundColor: p.completionRate >= 80 ? '#34c759' : p.completionRate >= 40 ? '#ff9500' : '#ff3b30',
+                      borderRadius: '980px',
                       transition: 'width 0.4s ease'
                     }} />
                   </div>
                 </div>
 
                 {/* Breakdown Mini Badges */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', paddingTop: '4px', borderTop: '1px solid #f3f4f6' }}>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>{p.completedStaff} Done</span>
-                  <span style={{ color: '#b45309', fontWeight: 700 }}>{p.inProgressStaff} Active</span>
-                  <span style={{ color: '#6b7280', fontWeight: 600 }}>{p.notStartedStaff} Pending</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', paddingTop: '4px', borderTop: '1px solid rgba(0, 0, 0, 0.04)' }}>
+                  <span style={{ color: '#34c759', fontWeight: 600 }}>{p.completedStaff} Done</span>
+                  <span style={{ color: '#ff9500', fontWeight: 600 }}>{p.inProgressStaff} Active</span>
+                  <span style={{ color: '#86868b', fontWeight: 400 }}>{p.notStartedStaff} Pending</span>
                 </div>
               </div>
             );
