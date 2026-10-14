@@ -429,12 +429,8 @@ export function TaskManagementView() {
         </div>
       </div>
 
-      {/* Task Cards Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-        gap: '16px'
-      }}>
+      {/* Task Cards Grid - 3 per row on Desktop */}
+      <div className="tasks-grid-layout">
         {filteredTasks.map((task) => {
           const IconComp = PLATFORM_ICONS[task.platform] || Share2;
           const pColors = PLATFORM_COLORS[task.platform] || PLATFORM_COLORS['Custom'];
@@ -449,37 +445,37 @@ export function TaskManagementView() {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                position: 'relative'
+                position: 'relative',
+                padding: '16px 18px',
+                borderRadius: '16px'
               }}
             >
               <div>
                 {/* Header Row: Platform Icon + Status Badge */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    backgroundColor: pColors.bg,
-                    color: pColors.text,
-                    border: `1px solid ${pColors.border}`,
-                    fontSize: '12px',
-                    fontWeight: 700
+                    gap: '6px',
+                    padding: '3px 10px',
+                    borderRadius: '980px',
+                    backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                    color: '#0071e3',
+                    fontSize: '11px',
+                    fontWeight: 600
                   }}>
-                    <IconComp size={15} />
+                    <IconComp size={12} />
                     <span>{task.platform}</span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '9999px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      backgroundColor: isTaskActive ? '#ecfdf5' : '#fef2f2',
-                      color: isTaskActive ? '#047857' : '#b91c1c',
-                      border: `1px solid ${isTaskActive ? '#a7f3d0' : '#fca5a5'}`
+                      padding: '2px 8px',
+                      borderRadius: '980px',
+                      fontSize: '10.5px',
+                      fontWeight: 600,
+                      backgroundColor: isTaskActive ? 'rgba(52, 199, 89, 0.1)' : 'rgba(118, 118, 128, 0.1)',
+                      color: isTaskActive ? '#34c759' : '#86868b'
                     }}>
                       {task.status}
                     </span>
@@ -491,39 +487,44 @@ export function TaskManagementView() {
                         background: 'none',
                         border: 'none',
                         cursor: 'pointer',
-                        color: isTaskActive ? '#10b981' : '#9ca3af'
+                        color: isTaskActive ? '#34c759' : '#86868b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: 0
                       }}
                     >
-                      {isTaskActive ? <CheckCircle2 size={20} /> : <PauseCircle size={20} />}
+                      {isTaskActive ? <CheckCircle2 size={16} /> : <PauseCircle size={16} />}
                     </button>
                   </div>
                 </div>
 
                 {/* Task Name & Description */}
-                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#111827', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                <h3 style={{ fontSize: '14.5px', fontWeight: 600, color: '#1d1d1f', margin: '0 0 3px 0', letterSpacing: '-0.01em' }}>
                   {task.name}
                 </h3>
-                <p style={{ fontSize: '13px', color: '#6b7280', margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
+                <p style={{ fontSize: '11.5px', color: '#86868b', margin: '0 0 12px 0', lineHeight: 1.4, fontWeight: 400 }}>
                   {task.description || 'No description provided.'}
                 </p>
 
                 {/* Scope & Target Badges */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '18px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {/* Assignment Scope */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#374151',
-                    backgroundColor: '#f8fafc',
-                    padding: '8px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0'
+                    gap: '6px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
+                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                    padding: '5px 8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 0, 0, 0.04)'
                   }}>
-                    <MapPin size={15} style={{ color: '#ff4d00' }} />
-                    <span>Scope: <strong>{scope.targetName || 'All Staff'}</strong></span>
+                    <MapPin size={12} style={{ color: '#0071e3', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      Scope: <strong style={{ fontWeight: 600 }}>{scope.targetName || 'All Staff'}</strong>
+                    </span>
                   </div>
 
                   {/* Daily Target */}
@@ -531,19 +532,19 @@ export function TaskManagementView() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#475569',
-                    backgroundColor: '#fafafa',
-                    padding: '8px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #f1f5f9'
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
+                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                    padding: '5px 8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 0, 0, 0.04)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Target size={15} style={{ color: '#0284c7' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Target size={12} style={{ color: '#0071e3' }} />
                       <span>Daily Target:</span>
                     </div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
                       {task.dailyTarget} {task.submissionType || 'entries'} / day
                     </span>
                   </div>
@@ -554,30 +555,31 @@ export function TaskManagementView() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: '#0369a1',
-                      backgroundColor: '#f0f9ff',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      border: '1px solid #bae6fd',
-                      gap: '8px'
+                      fontSize: '10.5px',
+                      fontWeight: 500,
+                      color: '#0071e3',
+                      backgroundColor: 'rgba(0, 113, 227, 0.04)',
+                      padding: '5px 8px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0, 113, 227, 0.1)',
+                      gap: '6px'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                        <Link2 size={13} style={{ color: '#0284c7', flexShrink: 0 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
+                        <Link2 size={11} style={{ color: '#0071e3', flexShrink: 0 }} />
                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={task.targetUrl}>
                           Target: <span style={{ fontFamily: 'monospace' }}>{task.targetUrl}</span>
                         </span>
                       </div>
                       <span style={{
-                        fontSize: '10px',
-                        fontWeight: 800,
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        backgroundColor: '#e0f2fe',
-                        color: '#0284c7',
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        padding: '1px 5px',
+                        borderRadius: '980px',
+                        backgroundColor: '#ffffff',
+                        color: '#0071e3',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
+                        border: '1px solid rgba(0, 113, 227, 0.15)',
                         flexShrink: 0
                       }}>
                         /{task.urlSlug || 'go'}
@@ -589,13 +591,13 @@ export function TaskManagementView() {
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#64748b'
+                    gap: '4px',
+                    fontSize: '10.5px',
+                    fontWeight: 400,
+                    color: '#86868b'
                   }}>
-                    <ShieldCheck size={14} style={{ color: '#10b981' }} />
-                    <span>Dup Scope: <strong>{task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign'}</strong></span>
+                    <ShieldCheck size={11} style={{ color: '#34c759' }} />
+                    <span>Dup Scope: <strong style={{ color: '#1d1d1f', fontWeight: 500 }}>{task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign'}</strong></span>
                   </div>
                 </div>
               </div>
@@ -604,29 +606,31 @@ export function TaskManagementView() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'flex-end',
                 gap: '8px',
-                marginTop: '20px',
-                paddingTop: '16px',
-                borderTop: '1px solid #f1f5f9'
+                marginTop: '14px',
+                paddingTop: '10px',
+                borderTop: '1px solid rgba(0, 0, 0, 0.05)'
               }}>
                 <button
                   onClick={() => openEditModal(task)}
                   style={{
+                    flex: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#f1f5f9',
-                    color: '#334155',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    border: '1px solid #cbd5e1',
-                    cursor: 'pointer'
+                    justifyContent: 'center',
+                    gap: '5px',
+                    padding: '5px 12px',
+                    borderRadius: '980px',
+                    backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                    color: '#0071e3',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(0, 113, 227, 0.15)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <Edit3 size={14} />
+                  <Edit3 size={11} />
                   <span>Edit Rules</span>
                 </button>
 
@@ -635,18 +639,20 @@ export function TaskManagementView() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#fff1f2',
-                    color: '#e11d48',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    border: '1px solid #fecdd3',
-                    cursor: 'pointer'
+                    justifyContent: 'center',
+                    gap: '4px',
+                    padding: '5px 10px',
+                    borderRadius: '980px',
+                    backgroundColor: 'rgba(255, 59, 48, 0.08)',
+                    color: '#ff3b30',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(255, 59, 48, 0.15)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={11} />
                   <span>Delete</span>
                 </button>
               </div>
@@ -677,34 +683,36 @@ export function TaskManagementView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(6px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           boxSizing: 'border-box',
-          padding: '24px 16px'
-        }} className="p-4 sm:p-8 lg:p-12">
+          padding: '16px'
+        }}>
           <div style={{
             backgroundColor: '#ffffff',
-            borderRadius: '24px',
-            maxWidth: '720px',
+            borderRadius: '18px',
+            maxWidth: '600px',
             width: '100%',
-            maxHeight: '86vh',
+            maxHeight: '88vh',
             overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
-            border: '1px solid #e2e8f0',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.16)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
             position: 'relative',
-            boxSizing: 'border-box'
-          }} className="p-5 sm:p-8 lg:p-10">
+            boxSizing: 'border-box',
+            padding: '22px 24px'
+          }}>
             {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <div>
-                <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                <h3 style={{ fontSize: '16.5px', fontWeight: 600, color: '#1d1d1f', margin: 0, letterSpacing: '-0.01em' }}>
                   {editingTask ? 'Edit Task Specification' : 'Create New Campaign Task'}
                 </h3>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
+                <p style={{ fontSize: '12px', color: '#86868b', margin: '3px 0 0 0' }}>
                   Define target types, daily goals, validation constraints, and target assignment scope.
                 </p>
               </div>
@@ -712,27 +720,28 @@ export function TaskManagementView() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 style={{
-                  background: '#f1f5f9',
+                  background: 'rgba(0, 0, 0, 0.05)',
                   border: 'none',
                   borderRadius: '50%',
-                  width: '36px',
-                  height: '36px',
+                  width: '28px',
+                  height: '28px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  color: '#64748b'
+                  color: '#86868b',
+                  transition: 'background-color 0.15s ease'
                 }}
               >
-                <X size={20} />
+                <X size={15} />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Task Name */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                   Task Name *
                 </label>
                 <input
@@ -743,11 +752,11 @@ export function TaskManagementView() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   style={{
                     width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '14px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '14px',
-                    fontWeight: 600,
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '13px',
+                    fontWeight: 500,
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -756,7 +765,7 @@ export function TaskManagementView() {
 
               {/* Description */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                   Instructions / Description
                 </label>
                 <textarea
@@ -766,11 +775,11 @@ export function TaskManagementView() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   style={{
                     width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '14px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13px',
-                    fontWeight: 500,
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '12.5px',
+                    fontWeight: 400,
                     outline: 'none',
                     boxSizing: 'border-box',
                     fontFamily: 'inherit'
@@ -779,9 +788,9 @@ export function TaskManagementView() {
               </div>
 
               {/* Platform & Submission Input Type Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Platform
                   </label>
                   <select
@@ -804,11 +813,11 @@ export function TaskManagementView() {
                     }}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
@@ -824,7 +833,7 @@ export function TaskManagementView() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Submission Format
                   </label>
                   <select
@@ -832,11 +841,11 @@ export function TaskManagementView() {
                     onChange={(e) => setFormData({ ...formData, submissionType: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
@@ -852,36 +861,24 @@ export function TaskManagementView() {
 
               {/* OUTREACH TRACKING LINK & TARGET REDIRECT URL */}
               <div style={{
-                backgroundColor: '#f0f9ff',
-                borderRadius: '16px',
-                padding: '16px',
-                border: '1px solid #bae6fd',
+                backgroundColor: 'rgba(0, 113, 227, 0.03)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                border: '1px solid rgba(0, 113, 227, 0.12)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px'
+                gap: '10px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Link2 size={16} style={{ color: '#0284c7' }} />
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1' }}>
-                      In-House Staff Outreach Tracking Link Setup
-                    </span>
-                  </div>
-                  <span style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#e0f2fe',
-                    color: '#0284c7'
-                  }}>
-                    Zero-Cost In-House
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Link2 size={13} style={{ color: '#0071e3' }} />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#0071e3' }}>
+                    Staff Outreach Tracking Link Setup
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                       Destination Redirect Target URL *
                     </label>
                     <input
@@ -892,11 +889,11 @@ export function TaskManagementView() {
                       onChange={(e) => setFormData({ ...formData, targetUrl: e.target.value })}
                       style={{
                         width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '12px',
-                        border: '1px solid #7dd3fc',
-                        fontSize: '13px',
-                        fontWeight: 600,
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
                         outline: 'none',
                         backgroundColor: '#ffffff',
                         boxSizing: 'border-box'
@@ -905,11 +902,11 @@ export function TaskManagementView() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                       URL Route Path
                     </label>
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #7dd3fc', padding: '0 10px' }}>
-                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>/</span>
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '10px', border: '1px solid rgba(0, 0, 0, 0.12)', padding: '0 8px' }}>
+                      <span style={{ fontSize: '12px', color: '#86868b', fontWeight: 600 }}>/</span>
                       <input
                         type="text"
                         placeholder="instagram"
@@ -917,10 +914,10 @@ export function TaskManagementView() {
                         onChange={(e) => setFormData({ ...formData, urlSlug: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
                         style={{
                           width: '100%',
-                          padding: '10px 4px',
+                          padding: '8px 4px',
                           border: 'none',
-                          fontSize: '13px',
-                          fontWeight: 700,
+                          fontSize: '12.5px',
+                          fontWeight: 600,
                           outline: 'none',
                           backgroundColor: 'transparent'
                         }}
@@ -928,35 +925,12 @@ export function TaskManagementView() {
                     </div>
                   </div>
                 </div>
-
-                <div style={{
-                  backgroundColor: '#ffffff',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #e0f2fe',
-                  fontSize: '11px',
-                  color: '#475569',
-                  lineHeight: 1.4
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontWeight: 700, marginBottom: '2px' }}>
-                    <ExternalLink size={12} />
-                    <span>Live Tracking Route Preview:</span>
-                  </div>
-                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0f172a', wordBreak: 'break-all' }}>
-                    https://social.bhashyamramakrishna.in/{formData.urlSlug || 'instagram'}/<span style={{ color: '#ff4d00', fontWeight: 700 }}>[staff_token]</span>
-                    <span style={{ color: '#0284c7' }}> ➔ </span>
-                    <span style={{ color: '#16a34a', fontWeight: 700 }}>{formData.targetUrl || 'Target URL'}</span>
-                  </div>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#64748b' }}>
-                    Every staff member receives a unique token link. Clicks are verified (WhatsApp bots filtered out) and redirected in &lt;50ms.
-                  </p>
-                </div>
               </div>
 
               {/* Daily Target & Frequency */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Daily Target (per employee)
                   </label>
                   <input
@@ -968,11 +942,11 @@ export function TaskManagementView() {
                     onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -980,7 +954,7 @@ export function TaskManagementView() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Target Frequency
                   </label>
                   <select
@@ -988,11 +962,11 @@ export function TaskManagementView() {
                     onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
@@ -1006,25 +980,25 @@ export function TaskManagementView() {
 
               {/* GEOGRAPHIC ASSIGNMENT SCOPE WITH MULTI-SELECT CHECKBOXES */}
               <div style={{
-                backgroundColor: '#f8fafc',
-                borderRadius: '18px',
-                padding: '20px',
-                border: '1px solid #e2e8f0',
+                backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                borderRadius: '12px',
+                padding: '14px',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '16px'
+                gap: '12px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <MapPin size={18} style={{ color: '#ff4d00' }} />
-                    <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={14} style={{ color: '#0071e3' }} />
+                    <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f', margin: 0 }}>
                       Geographic Assignment Scope
                     </h4>
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Assign Task To:
                   </label>
                   <select
@@ -1032,21 +1006,21 @@ export function TaskManagementView() {
                     onChange={(e) => setFormData({ ...formData, scopeType: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #ff4d00',
-                      fontSize: '14px',
-                      fontWeight: 700,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 113, 227, 0.3)',
+                      fontSize: '13px',
+                      fontWeight: 600,
                       outline: 'none',
                       backgroundColor: '#ffffff',
-                      color: '#0f172a'
+                      color: '#1d1d1f'
                     }}
                   >
                     <option value="ALL_STAFF">All Staff & Constituencies</option>
                     <option value="ALL_ASSEMBLIES">All 175 Assembly Constituencies</option>
-                    <option value="SELECTED_ASSEMBLIES">Selected Assembly Constituencies (Multi-Select Checkboxes)</option>
+                    <option value="SELECTED_ASSEMBLIES">Selected Assembly Constituencies (Multi-Select)</option>
                     <option value="ALL_PARLIAMENTS">All 25 Parliament Constituencies</option>
-                    <option value="SELECTED_PARLIAMENTS">Selected Parliament Constituencies (Multi-Select Checkboxes)</option>
+                    <option value="SELECTED_PARLIAMENTS">Selected Parliament Constituencies (Multi-Select)</option>
                   </select>
                 </div>
 
@@ -1054,58 +1028,57 @@ export function TaskManagementView() {
                 {(formData.scopeType === 'SPECIFIC_PARLIAMENT' || formData.scopeType === 'SELECTED_PARLIAMENTS') && (
                   <div style={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '14px',
-                    border: '1px solid #cbd5e1',
-                    padding: '16px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    padding: '12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '12px'
+                    gap: '10px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                        Check Parliaments to Assign:
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#1d1d1f', margin: 0 }}>
+                        Select Parliaments:
                       </label>
                       <span style={{
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        padding: '3px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: '#fff7ed',
-                        color: '#ea580c',
-                        border: '1px solid #ffedd5'
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: '980px',
+                        backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                        color: '#0071e3'
                       }}>
-                        Selected: {selectedParliaments.length} / 25 Parliaments
+                        Selected: {selectedParliaments.length} / 25
                       </span>
                     </div>
 
                     {/* Filter & Select All Actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                       <input
                         type="text"
-                        placeholder="Filter 25 Parliaments..."
+                        placeholder="Filter parliaments..."
                         value={parliamentSearchText}
                         onChange={(e) => setParliamentSearchText(e.target.value)}
                         style={{
                           flex: 1,
-                          padding: '8px 12px',
+                          padding: '6px 10px',
                           borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          fontSize: '12px',
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: '11.5px',
                           outline: 'none'
                         }}
                       />
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
                         <button
                           type="button"
                           onClick={selectAllParliaments}
                           style={{
-                            padding: '6px 10px',
+                            padding: '4px 8px',
                             borderRadius: '6px',
-                            backgroundColor: '#f1f5f9',
-                            color: '#0f172a',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid #cbd5e1',
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            color: '#1d1d1f',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            border: 'none',
                             cursor: 'pointer'
                           }}
                         >
@@ -1115,13 +1088,13 @@ export function TaskManagementView() {
                           type="button"
                           onClick={deselectAllParliaments}
                           style={{
-                            padding: '6px 10px',
+                            padding: '4px 8px',
                             borderRadius: '6px',
-                            backgroundColor: '#f1f5f9',
-                            color: '#64748b',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid #cbd5e1',
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            color: '#86868b',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            border: 'none',
                             cursor: 'pointer'
                           }}
                         >
@@ -1132,11 +1105,11 @@ export function TaskManagementView() {
 
                     {/* Checkbox Items Container */}
                     <div style={{
-                      maxHeight: '220px',
+                      maxHeight: '180px',
                       overflowY: 'auto',
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                      gap: '8px',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                      gap: '6px',
                       paddingRight: '4px'
                     }}>
                       {filteredParliamentsList.map((p) => {
@@ -1148,15 +1121,15 @@ export function TaskManagementView() {
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '8px',
-                              padding: '8px 12px',
+                              gap: '6px',
+                              padding: '6px 10px',
                               borderRadius: '8px',
-                              backgroundColor: isChecked ? '#fff7ed' : '#f8fafc',
-                              border: `1px solid ${isChecked ? '#ff4d00' : '#e2e8f0'}`,
+                              backgroundColor: isChecked ? 'rgba(0, 113, 227, 0.08)' : 'rgba(0, 0, 0, 0.02)',
+                              border: `1px solid ${isChecked ? 'rgba(0, 113, 227, 0.3)' : 'rgba(0, 0, 0, 0.04)'}`,
                               cursor: 'pointer',
-                              fontSize: '12px',
-                              fontWeight: isChecked ? 700 : 500,
-                              color: isChecked ? '#c2410c' : '#334155',
+                              fontSize: '11.5px',
+                              fontWeight: isChecked ? 600 : 400,
+                              color: isChecked ? '#0071e3' : '#1d1d1f',
                               userSelect: 'none'
                             }}
                           >
@@ -1164,7 +1137,7 @@ export function TaskManagementView() {
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => {}}
-                              style={{ accentColor: '#ff4d00', width: '16px', height: '16px' }}
+                              style={{ accentColor: '#0071e3', width: '14px', height: '14px' }}
                             />
                             <span>{p.code} - {p.name}</span>
                           </label>
@@ -1178,58 +1151,57 @@ export function TaskManagementView() {
                 {(formData.scopeType === 'SPECIFIC_ASSEMBLY' || formData.scopeType === 'SELECTED_ASSEMBLIES') && (
                   <div style={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '14px',
-                    border: '1px solid #cbd5e1',
-                    padding: '16px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    padding: '12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '12px'
+                    gap: '10px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                        Check Assemblies to Assign:
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#1d1d1f', margin: 0 }}>
+                        Select Assemblies:
                       </label>
                       <span style={{
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        padding: '3px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: '#fff7ed',
-                        color: '#ea580c',
-                        border: '1px solid #ffedd5'
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: '980px',
+                        backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                        color: '#0071e3'
                       }}>
-                        Selected: {selectedAssemblies.length} / 175 Assemblies
+                        Selected: {selectedAssemblies.length} / 175
                       </span>
                     </div>
 
                     {/* Filter & Select All Actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                       <input
                         type="text"
-                        placeholder="Filter 175 Assemblies by name/parliament..."
+                        placeholder="Filter 175 assemblies..."
                         value={assemblySearchText}
                         onChange={(e) => setAssemblySearchText(e.target.value)}
                         style={{
                           flex: 1,
-                          padding: '8px 12px',
+                          padding: '6px 10px',
                           borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          fontSize: '12px',
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: '11.5px',
                           outline: 'none'
                         }}
                       />
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
                         <button
                           type="button"
                           onClick={selectAllAssemblies}
                           style={{
-                            padding: '6px 10px',
+                            padding: '4px 8px',
                             borderRadius: '6px',
-                            backgroundColor: '#f1f5f9',
-                            color: '#0f172a',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid #cbd5e1',
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            color: '#1d1d1f',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            border: 'none',
                             cursor: 'pointer'
                           }}
                         >
@@ -1239,13 +1211,13 @@ export function TaskManagementView() {
                           type="button"
                           onClick={deselectAllAssemblies}
                           style={{
-                            padding: '6px 10px',
+                            padding: '4px 8px',
                             borderRadius: '6px',
-                            backgroundColor: '#f1f5f9',
-                            color: '#64748b',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid #cbd5e1',
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            color: '#86868b',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            border: 'none',
                             cursor: 'pointer'
                           }}
                         >
@@ -1256,11 +1228,11 @@ export function TaskManagementView() {
 
                     {/* Checkbox Items Container */}
                     <div style={{
-                      maxHeight: '260px',
+                      maxHeight: '200px',
                       overflowY: 'auto',
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                      gap: '8px',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                      gap: '6px',
                       paddingRight: '4px'
                     }}>
                       {filteredAssembliesList.map((a) => {
@@ -1272,15 +1244,15 @@ export function TaskManagementView() {
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '8px',
-                              padding: '8px 12px',
+                              gap: '6px',
+                              padding: '6px 10px',
                               borderRadius: '8px',
-                              backgroundColor: isChecked ? '#fff7ed' : '#f8fafc',
-                              border: `1px solid ${isChecked ? '#ff4d00' : '#e2e8f0'}`,
+                              backgroundColor: isChecked ? 'rgba(0, 113, 227, 0.08)' : 'rgba(0, 0, 0, 0.02)',
+                              border: `1px solid ${isChecked ? 'rgba(0, 113, 227, 0.3)' : 'rgba(0, 0, 0, 0.04)'}`,
                               cursor: 'pointer',
-                              fontSize: '12px',
-                              fontWeight: isChecked ? 700 : 500,
-                              color: isChecked ? '#c2410c' : '#334155',
+                              fontSize: '11.5px',
+                              fontWeight: isChecked ? 600 : 400,
+                              color: isChecked ? '#0071e3' : '#1d1d1f',
                               userSelect: 'none'
                             }}
                           >
@@ -1288,11 +1260,11 @@ export function TaskManagementView() {
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => {}}
-                              style={{ accentColor: '#ff4d00', width: '16px', height: '16px' }}
+                              style={{ accentColor: '#0071e3', width: '14px', height: '14px' }}
                             />
                             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
                               <span>{a.code} - {a.name}</span>
-                              <span style={{ fontSize: '10px', color: '#64748b' }}>({a.parliamentName} Parliament)</span>
+                              <span style={{ fontSize: '9.5px', color: '#86868b' }}>({a.parliamentName} Parliament)</span>
                             </div>
                           </label>
                         );
@@ -1303,13 +1275,13 @@ export function TaskManagementView() {
               </div>
 
               {/* RULES & VALIDATION CONSTRAINTS */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f', margin: 0 }}>
                   Validation Rules & Duplicate Controls
                 </h4>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
                     Duplicate Check Scope
                   </label>
                   <select
@@ -1317,11 +1289,11 @@ export function TaskManagementView() {
                     onChange={(e) => setFormData({ ...formData, duplicateScope: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '14px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
@@ -1329,27 +1301,27 @@ export function TaskManagementView() {
                     <option value="Entire Campaign">Entire Campaign (Global cross-staff duplicate check)</option>
                     <option value="Same Day Only">Same Day Only (Allow re-submission on subsequent days)</option>
                     <option value="Same Constituency">Same Constituency Only (Flag duplicates within constituency)</option>
-                    <option value="None">Disabled (Allow unlimited duplicate entries)</option>
+                    <option value="None">Disabled (Allow duplicate entries)</option>
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500, color: '#1d1d1f', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={formData.allowExtraSubmissions}
                       onChange={(e) => setFormData({ ...formData, allowExtraSubmissions: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#ff4d00' }}
+                      style={{ width: '15px', height: '15px', accentColor: '#0071e3' }}
                     />
-                    <span>Allow Extra Submissions beyond daily target</span>
+                    <span>Allow extra submissions beyond daily target</span>
                   </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500, color: '#1d1d1f', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={formData.requireProof}
                       onChange={(e) => setFormData({ ...formData, requireProof: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#ff4d00' }}
+                      style={{ width: '15px', height: '15px', accentColor: '#0071e3' }}
                     />
                     <span>Require Proof (URL / Note)</span>
                   </label>
@@ -1357,20 +1329,21 @@ export function TaskManagementView() {
               </div>
 
               {/* Submit Buttons */}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   style={{
                     flex: 1,
-                    padding: '14px',
-                    borderRadius: '9999px',
-                    border: '1px solid #cbd5e1',
+                    padding: '8px 16px',
+                    borderRadius: '980px',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
                     backgroundColor: '#ffffff',
-                    color: '#475569',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    color: '#1d1d1f',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   Cancel
@@ -1379,16 +1352,17 @@ export function TaskManagementView() {
                 <button
                   type="submit"
                   style={{
-                    flex: 2,
-                    padding: '14px',
-                    borderRadius: '9999px',
+                    flex: 1.5,
+                    padding: '8px 20px',
+                    borderRadius: '980px',
                     border: 'none',
-                    background: 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
+                    backgroundColor: '#0071e3',
                     color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(255, 77, 0, 0.4)'
+                    boxShadow: '0 2px 8px rgba(0, 113, 227, 0.25)',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {editingTask ? 'Save Changes' : 'Create Task'}

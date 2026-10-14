@@ -697,137 +697,138 @@ export function StaffDirectoryView() {
                 key={p.code}
                 style={{
                   backgroundColor: '#ffffff',
-                  borderRadius: '24px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
                   overflow: 'hidden',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {/* Accordion Parliament Header */}
                 <div
                   onClick={() => toggleExpand(p.code)}
-                  className="p-3 sm:p-5"
                   style={{
+                    padding: '12px 18px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    backgroundColor: isExpanded ? '#fafafa' : '#ffffff',
-                    borderBottom: isExpanded ? '1px solid #e5e7eb' : 'none',
+                    backgroundColor: isExpanded ? 'rgba(0, 0, 0, 0.015)' : '#ffffff',
+                    borderBottom: isExpanded ? '1px solid rgba(0, 0, 0, 0.06)' : 'none',
                     userSelect: 'none'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                     {/* Parliament Code Pill Badge */}
                     <span style={{
-                      padding: '6px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: '#18181b',
-                      color: '#facc15',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                      color: '#1d1d1f',
                       fontFamily: 'monospace',
-                      fontWeight: 800,
-                      fontSize: '14px',
-                      letterSpacing: '0.05em'
+                      fontWeight: 600,
+                      fontSize: '11px',
+                      letterSpacing: '0.04em'
                     }}>
                       {p.code}
                     </span>
 
                     {/* Parliament Title */}
                     <div>
-                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#111827', letterSpacing: '-0.02em' }}>
-                        {p.name} <span style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280' }}>Parliament Constituency</span>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#1d1d1f', letterSpacing: '-0.01em' }}>
+                        {p.name} <span style={{ fontSize: '11.5px', fontWeight: 400, color: '#86868b' }}>Parliament Constituency</span>
                       </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: 500, marginTop: '2px' }}>
-                        Incharge: <strong style={{ color: '#111827' }}>{pStaff?.name || 'Assigned'}</strong> ({pStaff?.mobile})
+                      <div style={{ fontSize: '11.5px', color: '#86868b', fontWeight: 400, marginTop: '1px' }}>
+                        Incharge: <span style={{ color: '#1d1d1f', fontWeight: 500 }}>{pStaff?.name || 'Assigned'}</span> ({pStaff?.mobile})
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {/* Total Logins Badge */}
                     <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '9999px',
-                      backgroundColor: '#fef3c7',
-                      color: '#92400e',
-                      border: '1px solid #fde047',
-                      fontSize: '12px',
-                      fontWeight: 700
+                      padding: '3px 10px',
+                      borderRadius: '980px',
+                      backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                      color: '#0071e3',
+                      border: '1px solid rgba(0, 113, 227, 0.15)',
+                      fontSize: '11px',
+                      fontWeight: 500
                     }}>
                       8 Logins (1 Parliament + 7 Assembly)
                     </span>
 
                     {/* Accordion Chevron Icon */}
                     <div style={{
-                      width: '32px',
-                      height: '32px',
+                      width: '26px',
+                      height: '26px',
                       borderRadius: '50%',
-                      backgroundColor: '#f3f4f6',
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#4b5563'
+                      color: '#86868b'
                     }}>
-                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </div>
                   </div>
                 </div>
 
                 {/* Expanded Accordion Body */}
                 {isExpanded && (
-                  <div className="p-3 sm:p-5" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     
                     {/* 1. Parliament Incharge Credentials Card */}
                     {showParliamentInchargeCard && (
                       <div style={{
-                        backgroundColor: '#fffbeb',
-                        borderRadius: '18px',
-                        border: '1px solid #fde047',
-                        padding: '18px 20px',
+                        backgroundColor: 'rgba(0, 113, 227, 0.03)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(0, 113, 227, 0.12)',
+                        padding: '12px 16px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '16px',
+                        gap: '12px',
                         flexWrap: 'wrap'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '12px',
-                            backgroundColor: '#fef08a',
-                            border: '1px solid #facc15',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            backgroundColor: 'rgba(0, 113, 227, 0.08)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#854d0e'
+                            color: '#0071e3',
+                            flexShrink: 0
                           }}>
-                            <Building2 size={22} />
+                            <Building2 size={18} />
                           </div>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                backgroundColor: '#78350f',
-                                color: '#fef08a',
+                                padding: '1px 6px',
+                                borderRadius: '980px',
+                                backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                                color: '#0071e3',
                                 fontSize: '10px',
-                                fontWeight: 800,
-                                textTransform: 'uppercase'
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.03em'
                               }}>
                                 Parliament Incharge
                               </span>
-                              <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#92400e' }}>
+                              <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 600, color: '#1d1d1f' }}>
                                 Support Code: <strong>{pStaff.supportCode || pStaff.id}</strong>
                               </span>
                             </div>
-                            <div style={{ fontSize: '16px', fontWeight: 800, color: '#111827', marginTop: '4px' }}>
+                            <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#1d1d1f', marginTop: '2px' }}>
                               {pStaff.name}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span>Personal Mobile: <strong style={{ fontFamily: 'monospace', color: '#111827' }}>{pStaff.mobilePersonal || pStaff.mobile}</strong></span>
-                              <span style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde047', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                            <div style={{ fontSize: '11px', color: '#86868b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span>Personal Mobile: <strong style={{ fontFamily: 'monospace', color: '#1d1d1f', fontWeight: 500 }}>{pStaff.mobilePersonal || pStaff.mobile}</strong></span>
+                              <span style={{ backgroundColor: 'rgba(0, 0, 0, 0.04)', color: '#86868b', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>
                                 Parliament Login: Support Code or Personal Mobile
                               </span>
                             </div>
@@ -835,26 +836,26 @@ export function StaffDirectoryView() {
                         </div>
 
                         {/* Password, Copy & Edit Actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <div style={{
                             backgroundColor: '#ffffff',
-                            padding: '6px 12px',
-                            borderRadius: '10px',
-                            border: '1px solid #fcd34d',
+                            padding: '4px 10px',
+                            borderRadius: '980px',
+                            border: '1px solid rgba(0, 0, 0, 0.08)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px'
+                            gap: '6px'
                           }}>
-                            <Key size={14} style={{ color: '#d97706' }} />
-                            <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600 }}>Pass:</span>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '13px', color: '#111827' }}>
+                            <Key size={12} style={{ color: '#86868b' }} />
+                            <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 500 }}>Pass:</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '12px', color: '#1d1d1f' }}>
                               {showPasswords[pStaff.id] ? pStaff.password || 'password123' : '••••••••'}
                             </span>
                             <button
                               onClick={() => toggleShowPassword(pStaff.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: 0 }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86868b', padding: 0 }}
                             >
-                              {showPasswords[pStaff.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                              {showPasswords[pStaff.id] ? <EyeOff size={12} /> : <Eye size={12} />}
                             </button>
                           </div>
 
@@ -863,19 +864,19 @@ export function StaffDirectoryView() {
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              padding: '8px 14px',
-                              borderRadius: '10px',
-                              backgroundColor: copiedId === pStaff.id ? '#10b981' : '#18181b',
+                              gap: '4px',
+                              padding: '5px 12px',
+                              borderRadius: '980px',
+                              backgroundColor: copiedId === pStaff.id ? '#34c759' : '#0071e3',
                               color: '#ffffff',
                               border: 'none',
-                              fontSize: '12px',
-                              fontWeight: 700,
+                              fontSize: '11.5px',
+                              fontWeight: 600,
                               cursor: 'pointer',
-                              transition: 'all 0.2s'
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            {copiedId === pStaff.id ? <Check size={14} /> : <Copy size={14} />}
+                            {copiedId === pStaff.id ? <Check size={12} /> : <Copy size={12} />}
                             <span>{copiedId === pStaff.id ? 'Copied' : 'Copy Login'}</span>
                           </button>
 
@@ -884,19 +885,19 @@ export function StaffDirectoryView() {
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              padding: '8px 14px',
-                              borderRadius: '10px',
-                              backgroundColor: '#ffffff',
-                              color: '#b45309',
-                              border: '1px solid #fde047',
-                              fontSize: '12px',
-                              fontWeight: 700,
+                              gap: '4px',
+                              padding: '5px 12px',
+                              borderRadius: '980px',
+                              backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                              color: '#1d1d1f',
+                              border: 'none',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
                               cursor: 'pointer',
-                              transition: 'all 0.2s'
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            <Edit3 size={14} />
+                            <Edit3 size={12} />
                             <span>Edit Staff</span>
                           </button>
                         </div>
@@ -907,36 +908,36 @@ export function StaffDirectoryView() {
                     {displayAssemblies.length > 0 && (
                       <div>
                         <div style={{
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          color: '#374151',
-                          marginBottom: '10px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#1d1d1f',
+                          marginBottom: '8px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between'
                         }}>
                           <span>Assembly Segment Outreach Staff ({displayAssemblies.length} Segments)</span>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280' }}>All Passwords: password123</span>
+                          <span style={{ fontSize: '11px', fontWeight: 400, color: '#86868b' }}>All Passwords: password123</span>
                         </div>
 
                         <div style={{
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '16px',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          borderRadius: '12px',
                           overflowX: 'auto',
                           WebkitOverflowScrolling: 'touch',
                           backgroundColor: '#ffffff'
                         }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
                             <thead>
-                              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Support Code</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Constituency</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Staff ID</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Assigned Staff</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Personal Mobile</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Office Mobile</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase' }}>Password</th>
-                                <th style={{ padding: '12px 14px', fontWeight: 700, color: '#4b5563', fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                              <tr style={{ backgroundColor: 'rgba(0, 0, 0, 0.02)', borderBottom: '1px solid rgba(0, 0, 0, 0.06)' }}>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Support Code</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Constituency</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Staff ID</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Assigned Staff</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Personal Mobile</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Office Mobile</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Password</th>
+                                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#86868b', fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -962,102 +963,101 @@ export function StaffDirectoryView() {
                                   <tr
                                     key={asm.code}
                                     style={{
-                                      backgroundColor: isEven ? '#ffffff' : '#fcfcfd',
-                                      borderBottom: idx < displayAssemblies.length - 1 ? '1px solid #f3f4f6' : 'none'
+                                      backgroundColor: isEven ? '#ffffff' : 'rgba(0, 0, 0, 0.01)',
+                                      borderBottom: idx < displayAssemblies.length - 1 ? '1px solid rgba(0, 0, 0, 0.04)' : 'none'
                                     }}
                                   >
                                     {/* Support Code */}
-                                    <td style={{ padding: '12px 14px' }}>
+                                    <td style={{ padding: '7px 12px' }}>
                                       <span style={{
                                         fontFamily: 'monospace',
-                                        fontWeight: 800,
-                                        fontSize: '11px',
-                                        padding: '3px 8px',
-                                        borderRadius: '6px',
-                                        backgroundColor: '#eff6ff',
-                                        color: '#1d4ed8',
-                                        border: '1px solid #bfdbfe'
+                                        fontWeight: 600,
+                                        fontSize: '10.5px',
+                                        padding: '2px 6px',
+                                        borderRadius: '5px',
+                                        backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                                        color: '#0071e3',
+                                        border: '1px solid rgba(0, 113, 227, 0.15)'
                                       }}>
                                         {asmStaff.supportCode || asm.code}
                                       </span>
                                     </td>
 
                                     {/* Constituency */}
-                                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#111827' }}>
+                                    <td style={{ padding: '7px 12px', fontWeight: 500, color: '#1d1d1f' }}>
                                       {asm.name}
                                     </td>
 
                                     {/* Staff ID */}
-                                    <td style={{ padding: '12px 14px' }}>
+                                    <td style={{ padding: '7px 12px' }}>
                                       {asmStaff.staffId ? (
                                         <span style={{
                                           fontFamily: 'monospace',
-                                          fontWeight: 800,
-                                          fontSize: '11px',
-                                          padding: '2px 7px',
-                                          borderRadius: '6px',
-                                          backgroundColor: '#f1f5f9',
-                                          color: '#0f172a',
-                                          border: '1px solid #cbd5e1'
+                                          fontWeight: 600,
+                                          fontSize: '10.5px',
+                                          padding: '2px 6px',
+                                          borderRadius: '5px',
+                                          backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                                          color: '#1d1d1f'
                                         }}>
                                           {asmStaff.staffId}
                                         </span>
                                       ) : (
-                                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>—</span>
+                                        <span style={{ color: '#86868b', fontSize: '11px' }}>—</span>
                                       )}
                                     </td>
 
                                     {/* Staff Name */}
-                                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#1f2937' }}>
+                                    <td style={{ padding: '7px 12px', fontWeight: 500, color: '#1d1d1f' }}>
                                       {asmStaff?.name || `${asm.name} Staff`}
                                     </td>
 
                                     {/* Personal Mobile */}
-                                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: '#111827', fontWeight: 600, fontSize: '12px' }}>
+                                    <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#1d1d1f', fontWeight: 500, fontSize: '11.5px' }}>
                                       {asmStaff?.mobilePersonal || asmStaff?.mobile || '—'}
                                     </td>
 
                                     {/* Office Mobile */}
-                                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', color: '#4b5563', fontSize: '12px' }}>
+                                    <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#86868b', fontSize: '11.5px' }}>
                                       {asmStaff?.mobileOffice || '—'}
                                     </td>
 
                                     {/* Password */}
-                                    <td style={{ padding: '12px 14px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12px', color: '#111827' }}>
+                                    <td style={{ padding: '7px 12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <span style={{ fontFamily: 'monospace', fontWeight: 500, fontSize: '11.5px', color: '#1d1d1f' }}>
                                           {showPasswords[asm.code] ? asmStaff?.password || 'password123' : '••••••••'}
                                         </span>
                                         <button
                                           onClick={() => toggleShowPassword(asm.code)}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86868b', padding: 0 }}
                                         >
-                                          {showPasswords[asm.code] ? <EyeOff size={13} /> : <Eye size={13} />}
+                                          {showPasswords[asm.code] ? <EyeOff size={12} /> : <Eye size={12} />}
                                         </button>
                                       </div>
                                     </td>
 
                                     {/* Actions: Copy & Edit */}
-                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                         <button
                                           onClick={() => copyCredentials(asmStaff)}
                                           style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '5px 10px',
-                                            borderRadius: '8px',
-                                            backgroundColor: copiedId === asm.code ? '#ecfdf5' : '#f3f4f6',
-                                            color: copiedId === asm.code ? '#047857' : '#374151',
-                                            border: copiedId === asm.code ? '1px solid #6ee7b7' : '1px solid #e5e7eb',
-                                            fontSize: '11px',
-                                            fontWeight: 700,
+                                            gap: '3px',
+                                            padding: '3px 8px',
+                                            borderRadius: '980px',
+                                            backgroundColor: copiedId === asm.code ? 'rgba(52, 199, 89, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+                                            color: copiedId === asm.code ? '#34c759' : '#1d1d1f',
+                                            border: 'none',
+                                            fontSize: '10.5px',
+                                            fontWeight: 500,
                                             cursor: 'pointer',
-                                            transition: 'all 0.15s'
+                                            transition: 'all 0.15s ease'
                                           }}
                                         >
-                                          {copiedId === asm.code ? <Check size={12} /> : <Copy size={12} />}
+                                          {copiedId === asm.code ? <Check size={11} /> : <Copy size={11} />}
                                           <span>{copiedId === asm.code ? 'Copied' : 'Copy'}</span>
                                         </button>
 
@@ -1066,19 +1066,19 @@ export function StaffDirectoryView() {
                                           style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '5px 10px',
-                                            borderRadius: '8px',
-                                            backgroundColor: '#ffffff',
-                                            color: '#1d4ed8',
-                                            border: '1px solid #bfdbfe',
-                                            fontSize: '11px',
-                                            fontWeight: 700,
+                                            gap: '3px',
+                                            padding: '3px 8px',
+                                            borderRadius: '980px',
+                                            backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                                            color: '#0071e3',
+                                            border: 'none',
+                                            fontSize: '10.5px',
+                                            fontWeight: 500,
                                             cursor: 'pointer',
-                                            transition: 'all 0.15s'
+                                            transition: 'all 0.15s ease'
                                           }}
                                         >
-                                          <Edit3 size={12} />
+                                          <Edit3 size={11} />
                                           <span>Edit</span>
                                         </button>
                                       </div>
@@ -1108,88 +1108,89 @@ export function StaffDirectoryView() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(17, 24, 39, 0.5)',
-          backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 999,
-          padding: '20px'
+          zIndex: 1000,
+          padding: '16px'
         }}>
           <div style={{
             backgroundColor: '#ffffff',
-            borderRadius: '28px',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.25)',
+            borderRadius: '18px',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.16)',
             width: '100%',
-            maxWidth: '460px',
-            padding: '28px',
+            maxWidth: '440px',
+            padding: '22px 24px',
             position: 'relative'
           }}>
             {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{
-                    padding: '3px 10px',
-                    borderRadius: '8px',
-                    backgroundColor: '#18181b',
-                    color: '#facc15',
+                    padding: '2px 7px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                    color: '#0071e3',
                     fontFamily: 'monospace',
-                    fontSize: '12px',
-                    fontWeight: 800
+                    fontSize: '11px',
+                    fontWeight: 600
                   }}>
                     {editingStaff.id}
                   </span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>
-                    {editingStaff.level || 'Staff'} Member
+                  <span style={{ fontSize: '11px', fontWeight: 500, color: '#86868b' }}>
+                    {editingStaff.level || 'Staff'} Account
                   </span>
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#111827', margin: '6px 0 0 0', letterSpacing: '-0.02em' }}>
-                  Edit Staff Logins
+                <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#1d1d1f', margin: '4px 0 0 0', letterSpacing: '-0.01em' }}>
+                  Edit Staff Details
                 </h3>
               </div>
               <button
                 onClick={() => setEditingStaff(null)}
                 style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: '#f3f4f6',
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#6b7280',
+                  color: '#86868b',
                   cursor: 'pointer'
                 }}
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
               {/* Field 1: Staff Name */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-                  Assigned Staff Member Name
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  Assigned Staff Name
                 </label>
                 <input
                   type="text"
                   required
                   value={editForm.name}
                   onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter full name of assigned staff..."
+                  placeholder="Enter staff full name..."
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #d1d5db',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    color: '#111827',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -1198,8 +1199,8 @@ export function StaffDirectoryView() {
 
               {/* Field 2: Staff ID (Assembly Segment Staff) */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-                  Staff ID {editingStaff.level === 'Parliament' ? '(Optional for Parliament)' : '(e.g. Palakonda_010)'}
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  Staff ID {editingStaff.level === 'Parliament' ? '(Optional)' : '(e.g. Palakonda_010)'}
                 </label>
                 <input
                   type="text"
@@ -1208,13 +1209,13 @@ export function StaffDirectoryView() {
                   placeholder={editingStaff.level === 'Parliament' ? 'Optional for Parliament Incharge' : 'e.g. Palakonda_010'}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #d1d5db',
-                    fontSize: '14px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '13px',
                     fontFamily: 'monospace',
-                    fontWeight: 600,
-                    color: '#111827',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -1223,8 +1224,8 @@ export function StaffDirectoryView() {
 
               {/* Field 3: Personal Mobile */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-                  Personal Mobile Number (Direct Login Identifier)
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                  Personal Mobile Number (Login ID)
                 </label>
                 <input
                   type="text"
@@ -1234,13 +1235,13 @@ export function StaffDirectoryView() {
                   placeholder="e.g. 9030738656"
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #d1d5db',
-                    fontSize: '14px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '13px',
                     fontFamily: 'monospace',
-                    fontWeight: 600,
-                    color: '#111827',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -1249,7 +1250,7 @@ export function StaffDirectoryView() {
 
               {/* Field 4: Office Mobile */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                   Office Mobile Number {editingStaff.level === 'Parliament' ? '(Optional)' : '(CUG / Official)'}
                 </label>
                 <input
@@ -1259,24 +1260,24 @@ export function StaffDirectoryView() {
                   placeholder={editingStaff.level === 'Parliament' ? 'Optional office number' : 'e.g. 7997955186'}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    border: '1px solid #d1d5db',
-                    fontSize: '14px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '13px',
                     fontFamily: 'monospace',
-                    fontWeight: 600,
-                    color: '#111827',
+                    fontWeight: 500,
+                    color: '#1d1d1f',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
-              {/* Field 3: Password / Reset Password */}
+              {/* Field 5: Password */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#374151' }}>
-                    Login Password
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Password
                   </label>
                   <button
                     type="button"
@@ -1284,16 +1285,16 @@ export function StaffDirectoryView() {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px',
+                      gap: '3px',
                       background: 'none',
                       border: 'none',
-                      color: '#d97706',
+                      color: '#0071e3',
                       fontSize: '11px',
-                      fontWeight: 700,
+                      fontWeight: 500,
                       cursor: 'pointer'
                     }}
                   >
-                    <RotateCcw size={12} />
+                    <RotateCcw size={11} />
                     <span>Reset to password123</span>
                   </button>
                 </div>
@@ -1304,16 +1305,16 @@ export function StaffDirectoryView() {
                     required
                     value={editForm.password}
                     onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Enter login password..."
+                    placeholder="Enter password..."
                     style={{
                       width: '100%',
-                      padding: '10px 40px 10px 14px',
-                      borderRadius: '12px',
-                      border: '1px solid #d1d5db',
-                      fontSize: '14px',
+                      padding: '8px 36px 8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
                       fontFamily: 'monospace',
-                      fontWeight: 700,
-                      color: '#111827',
+                      fontWeight: 500,
+                      color: '#1d1d1f',
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -1323,35 +1324,35 @@ export function StaffDirectoryView() {
                     onClick={() => setShowModalPassword(prev => !prev)}
                     style={{
                       position: 'absolute',
-                      right: '12px',
+                      right: '10px',
                       top: '50%',
                       transform: 'translateY(-50%)',
                       background: 'none',
                       border: 'none',
-                      color: '#6b7280',
+                      color: '#86868b',
                       cursor: 'pointer',
                       padding: 0
                     }}
                   >
-                    {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showModalPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
               </div>
 
               {/* Modal Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                 <button
                   type="button"
                   onClick={() => setEditingStaff(null)}
                   style={{
                     flex: 1,
-                    padding: '12px',
-                    borderRadius: '9999px',
-                    border: '1px solid #d1d5db',
+                    padding: '8px 14px',
+                    borderRadius: '980px',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
                     backgroundColor: '#ffffff',
-                    color: '#374151',
-                    fontSize: '13px',
-                    fontWeight: 700,
+                    color: '#1d1d1f',
+                    fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
@@ -1361,22 +1362,22 @@ export function StaffDirectoryView() {
                   type="submit"
                   style={{
                     flex: 1,
-                    padding: '12px',
-                    borderRadius: '9999px',
+                    padding: '8px 16px',
+                    borderRadius: '980px',
                     border: 'none',
-                    backgroundColor: '#18181b',
+                    backgroundColor: '#0071e3',
                     color: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 800,
+                    fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                    gap: '5px',
+                    boxShadow: '0 2px 8px rgba(0, 113, 227, 0.25)'
                   }}
                 >
-                  <Save size={15} style={{ color: '#facc15' }} />
+                  <Save size={13} />
                   <span>Save Changes</span>
                 </button>
               </div>
