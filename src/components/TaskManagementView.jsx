@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   Target,
   CheckSquare,
-  Square
+  Square,
+  Link2,
+  ExternalLink
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
@@ -69,6 +71,8 @@ export function TaskManagementView() {
     description: '',
     platform: 'Instagram',
     submissionType: 'Instagram Handle',
+    targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/',
+    urlSlug: 'instagram',
     dailyTarget: 10,
     frequency: 'Daily',
     scopeType: 'ALL_STAFF',
@@ -110,6 +114,8 @@ export function TaskManagementView() {
       description: '',
       platform: 'Instagram',
       submissionType: 'Instagram Handle',
+      targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/',
+      urlSlug: 'instagram',
       dailyTarget: 10,
       frequency: 'Daily',
       scopeType: 'ALL_STAFF',
@@ -144,6 +150,8 @@ export function TaskManagementView() {
       description: task.description || '',
       platform: task.platform || 'Instagram',
       submissionType: task.submissionType || 'Instagram Handle',
+      targetUrl: task.targetUrl || (task.platform === 'Instagram' ? 'https://www.instagram.com/ramakrishnabhashyam/' : ''),
+      urlSlug: task.urlSlug || (task.platform === 'Instagram' ? 'instagram' : 'go'),
       dailyTarget: task.dailyTarget || 10,
       frequency: task.frequency || 'Daily',
       scopeType: scope.scopeType || 'ALL_STAFF',
@@ -261,8 +269,10 @@ export function TaskManagementView() {
       }
     }
 
-    const normalizedScopeType = formData.scopeType === 'SPECIFIC_PARLIAMENT' ? 'SELECTED_PARLIAMENTS' : 
-                               (formData.scopeType === 'SPECIFIC_ASSEMBLY' ? 'SELECTED_ASSEMBLIES' : formData.scopeType);
+    const cleanSlug = (formData.urlSlug || 'go')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9_-]/g, '') || 'go';
 
     const payload = {
       id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
@@ -270,6 +280,8 @@ export function TaskManagementView() {
       description: formData.description,
       platform: formData.platform,
       submissionType: formData.submissionType,
+      targetUrl: formData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
+      urlSlug: cleanSlug,
       dailyTarget: Number(formData.dailyTarget),
       frequency: formData.frequency,
       assignmentScope: {
@@ -534,6 +546,43 @@ export function TaskManagementView() {
                     </span>
                   </div>
 
+                  {/* Outreach Tracking Target Link */}
+                  {task.targetUrl && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#0369a1',
+                      backgroundColor: '#f0f9ff',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #bae6fd',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                        <Link2 size={13} style={{ color: '#0284c7', flexShrink: 0 }} />
+                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={task.targetUrl}>
+                          Target: <span style={{ fontFamily: 'monospace' }}>{task.targetUrl}</span>
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        backgroundColor: '#e0f2fe',
+                        color: '#0284c7',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        flexShrink: 0
+                      }}>
+                        /{task.urlSlug || 'go'}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Duplicate Rule Badge */}
                   <div style={{
                     display: 'flex',
@@ -734,7 +783,22 @@ export function TaskManagementView() {
                   </label>
                   <select
                     value={formData.platform}
-                    onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+                    onChange={(e) => {
+                      const newPlatform = e.target.value;
+                      let newUrl = formData.targetUrl;
+                      let newSlug = formData.urlSlug;
+                      if (newPlatform === 'Instagram') {
+                        newUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
+                        newSlug = 'instagram';
+                      } else if (newPlatform === 'WhatsApp') {
+                        newUrl = 'https://chat.whatsapp.com/';
+                        newSlug = 'whatsapp';
+                      } else if (newPlatform === 'YouTube') {
+                        newUrl = 'https://youtube.com/@ramakrishnabhashyam';
+                        newSlug = 'youtube';
+                      }
+                      setFormData({ ...formData, platform: newPlatform, targetUrl: newUrl, urlSlug: newSlug });
+                    }}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
@@ -780,6 +844,109 @@ export function TaskManagementView() {
                     <option value="Post URL">Post / Media Link</option>
                     <option value="Text Input">Lead / Citizen Text Info</option>
                   </select>
+                </div>
+              </div>
+
+              {/* OUTREACH TRACKING LINK & TARGET REDIRECT URL */}
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid #bae6fd',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Link2 size={16} style={{ color: '#0284c7' }} />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1' }}>
+                      In-House Staff Outreach Tracking Link Setup
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0284c7'
+                  }}>
+                    Zero-Cost In-House
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
+                      Destination Redirect Target URL *
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      placeholder="e.g. https://www.instagram.com/ramakrishnabhashyam/"
+                      value={formData.targetUrl}
+                      onChange={(e) => setFormData({ ...formData, targetUrl: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        border: '1px solid #7dd3fc',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
+                      URL Route Path
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #7dd3fc', padding: '0 10px' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>/</span>
+                      <input
+                        type="text"
+                        placeholder="instagram"
+                        value={formData.urlSlug}
+                        onChange={(e) => setFormData({ ...formData, urlSlug: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 4px',
+                          border: 'none',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          outline: 'none',
+                          backgroundColor: 'transparent'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid #e0f2fe',
+                  fontSize: '11px',
+                  color: '#475569',
+                  lineHeight: 1.4
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontWeight: 700, marginBottom: '2px' }}>
+                    <ExternalLink size={12} />
+                    <span>Live Tracking Route Preview:</span>
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0f172a', wordBreak: 'break-all' }}>
+                    https://social.bhashyamramakrishna.in/{formData.urlSlug || 'instagram'}/<span style={{ color: '#ff4d00', fontWeight: 700 }}>[staff_token]</span>
+                    <span style={{ color: '#0284c7' }}> ➔ </span>
+                    <span style={{ color: '#16a34a', fontWeight: 700 }}>{formData.targetUrl || 'Target URL'}</span>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#64748b' }}>
+                    Every staff member receives a unique token link. Clicks are verified (WhatsApp bots filtered out) and redirected in &lt;50ms.
+                  </p>
                 </div>
               </div>
 

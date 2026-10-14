@@ -17,7 +17,12 @@ import {
   Building2, 
   MapPin,
   ShieldAlert,
-  Award
+  Award,
+  Copy,
+  Check,
+  ExternalLink,
+  MousePointerClick,
+  Flame
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
@@ -40,6 +45,9 @@ export function EmployeePortal({ session, onLogout }) {
   const [feedback, setFeedback] = useState(null);
   const [taskStats, setTaskStats] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [trackingLink, setTrackingLink] = useState(null);
+  const [linkClicks, setLinkClicks] = useState({ totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -62,8 +70,17 @@ export function EmployeePortal({ session, onLogout }) {
   };
 
   const updateStats = (empId, taskId) => {
-    const stats = dbService.getEmployeeDailyStats(empId, new Date().toISOString().split('T')[0], taskId);
+    const today = new Date().toISOString().split('T')[0];
+    const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
     setTaskStats(stats);
+
+    // Fetch employee tracking link & live clicks
+    if (taskId) {
+      const link = dbService.getTrackingLinkForEmployee(empId, taskId);
+      setTrackingLink(link);
+      const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
+      setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+    }
   };
 
   const handleTaskSwitch = (task) => {
@@ -72,6 +89,35 @@ export function EmployeePortal({ session, onLogout }) {
     setFeedback(null);
     const empId = employee?.id || session?.employeeId;
     updateStats(empId, task.id);
+  };
+
+  const getFullTrackingUrl = () => {
+    if (!trackingLink) return '';
+    if (trackingLink.fullUrl) return trackingLink.fullUrl;
+    const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://social.bhashyamramakrishna.in';
+    const slug = trackingLink.urlSlug || 'instagram';
+    return `${origin}/${slug}/${trackingLink.token}`;
+  };
+
+  const handleCopyLink = () => {
+    const url = getFullTrackingUrl();
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    }).catch(() => {
+      // Fallback
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    });
+  };
+
+  const handleWhatsAppShare = () => {
+    const url = getFullTrackingUrl();
+    if (!url) return;
+    const msg = `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక Instagram పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna on Instagram!`;
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleSubmit = (e) => {
@@ -364,6 +410,183 @@ export function EmployeePortal({ session, onLogout }) {
                 </div>
               )}
             </div>
+
+            {/* YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
+            {trackingLink && (
+              <div className="dashboard-section-card" style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
+                border: '1.5px solid #ffedd5',
+                boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
+              }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
+                    }}>
+                      <Share2 size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                        Your Citizen Outreach Tracking Link
+                      </h3>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                        Redirects visitors to official Instagram while recording your staff attribution.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ecfdf5',
+                    color: '#059669',
+                    border: '1px solid #a7f3d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Live Active Link
+                  </span>
+                </div>
+
+                {/* Tracking URL Container */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '14px',
+                  padding: '8px 14px',
+                  marginBottom: '14px',
+                  overflow: 'hidden',
+                  gap: '10px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ flex: 1, minWidth: '220px', overflow: 'hidden' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Exclusive Tracking URL
+                    </div>
+                    <div style={{
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden'
+                    }}>
+                      {getFullTrackingUrl()}
+                    </div>
+                  </div>
+
+                  {/* 1-Tap Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '10px 16px',
+                        borderRadius: '10px',
+                        backgroundColor: copied ? '#ecfdf5' : '#f1f5f9',
+                        color: copied ? '#059669' : '#334155',
+                        border: copied ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copied ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppShare}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '10px 18px',
+                        borderRadius: '10px',
+                        backgroundColor: '#25D366',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <MessageSquare size={14} />
+                      <span>Share on WhatsApp</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real-time Click Metrics Bar */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gap: '10px',
+                  backgroundColor: '#ffffff',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #fed7aa'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks Today</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c' }}>
+                      {linkClicks.validClicks || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Visitors</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>
+                      {linkClicks.uniqueIps || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Link Hits</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#334155' }}>
+                      {linkClicks.totalClicks || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: '#059669',
+                      backgroundColor: '#ecfdf5',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #d1fae5',
+                      textAlign: 'center'
+                    }}>
+                      ✓ WhatsApp Preview Bots Filtered
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Submission Form */}
             <div className="dashboard-section-card">

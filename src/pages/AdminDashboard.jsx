@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut, MousePointerClick } from 'lucide-react';
 import { StaffDirectoryView } from '../components/StaffDirectoryView.jsx';
 import { TaskManagementView } from '../components/TaskManagementView.jsx';
 import { AdminMetricsDashboardView } from '../components/AdminMetricsDashboardView.jsx';
+import { LinkAnalyticsView } from '../components/LinkAnalyticsView.jsx';
 
-export function AdminDashboard({ session, onLogout }) {
-  const [activeTab, setActiveTab] = useState('dashboard'); // Default to 'dashboard' tab
+export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const tabs = [
-    { id: 'rules', label: 'Tasks & Rules', icon: Sliders },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'links', label: 'Link Analytics', icon: MousePointerClick },
+    { id: 'rules', label: 'Tasks & Rules', icon: Sliders },
     { id: 'staff', label: 'Staff Directory', icon: Users },
     { id: 'audit', label: 'Audit Trail', icon: ShieldAlert },
     { id: 'reports', label: 'Export Reports', icon: FileSpreadsheet }
@@ -179,6 +187,10 @@ export function AdminDashboard({ session, onLogout }) {
         <div style={{ marginTop: '12px' }}>
           {activeTab === 'dashboard' && (
             <AdminMetricsDashboardView />
+          )}
+
+          {activeTab === 'links' && (
+            <LinkAnalyticsView />
           )}
 
           {activeTab === 'staff' && (
