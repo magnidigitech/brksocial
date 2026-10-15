@@ -86,6 +86,25 @@ export function getTodayISTDateString() {
 }
 
 /**
+ * Returns date in IST with a day offset formatted as YYYY-MM-DD
+ * e.g. getISTDateOffset(-1) for yesterday, getISTDateOffset(-7) for 7 days ago
+ */
+export function getISTDateOffset(daysOffset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysOffset);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Returns date in IST formatted as YYYY-MM-DD from any ISO string
  */
 export function getISTDateFromISO(isoString) {

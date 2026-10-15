@@ -25,6 +25,30 @@ const STORAGE_KEYS = {
   LINK_CLICKS: 'brk_link_clicks_v1'
 };
 
+// Cross-Tab/Window Instant Synchronization via BroadcastChannel
+const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('brk_sync_bus')
+  : null;
+
+if (syncChannel) {
+  syncChannel.onmessage = (event) => {
+    if (event.data && event.data.name && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(event.data.name, { detail: event.data.detail }));
+      window.dispatchEvent(new Event('storage'));
+    }
+  };
+}
+
+export function broadcastSyncEvent(name, detail) {
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail }));
+      window.dispatchEvent(new Event('storage'));
+      syncChannel?.postMessage({ name, detail });
+    } catch (_) {}
+  }
+}
+
 // Generate 200 Structured Staff Members (25 Parliament + 175 Assembly)
 function generate200ConstituencyEmployees() {
   return PAT_STAFF_OCTOBER_2026;
@@ -515,10 +539,7 @@ export const dbService = {
       localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
     }
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: newSub }));
-      window.dispatchEvent(new Event('storage'));
-    }
+    broadcastSyncEvent('brk_submission_event', newSub);
 
     return {
       success: validation.status !== 'Invalid Submission',
@@ -596,10 +617,7 @@ export const dbService = {
 
     if (updatedCount > 0) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: { updatedCount } }));
-        window.dispatchEvent(new Event('storage'));
-      }
+      broadcastSyncEvent('brk_submission_event', { updatedCount });
     }
 
     return { updatedCount, subs };
@@ -1006,12 +1024,7 @@ export const dbService = {
     localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(clicks));
 
     // Dispatch event so all open views immediately refresh
-    if (typeof window !== 'undefined') {
-      try {
-        window.dispatchEvent(new CustomEvent('brk_link_click_event', { detail: clickRecord }));
-        window.dispatchEvent(new Event('storage'));
-      } catch (e) {}
-    }
+    broadcastSyncEvent('brk_link_click_event', clickRecord);
 
     // Also dispatch to backend server if reachable (ensures global sync across devices)
     if (typeof fetch !== 'undefined') {
@@ -1057,10 +1070,7 @@ export const dbService = {
           });
           if (added > 0) {
             localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(localClicks));
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('brk_link_click_event', { detail: { added } }));
-              window.dispatchEvent(new Event('storage'));
-            }
+            broadcastSyncEvent('brk_link_click_event', { added });
           }
         }
       }
@@ -1195,7 +1205,7 @@ export const dbService = {
   getEmployeeTaskClicks(employeeId, taskId, dateStr) {
     this.init();
     if (!employeeId) return { totalClicks: 0, validClicks: 0, uniqueIps: 0, botClicks: 0, valueOf() { return 0; } };
-    const effectiveDate = dateStr || new Date().toISOString().split('T')[0];
+    const effectiveDate = dateStr || getTodayISTDateString();
     const allClicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
     const empClicks = allClicks.filter(c => 
       c.employeeId && c.employeeId.toUpperCase() === employeeId.toUpperCase() &&

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
+import { getTodayISTDateString } from '../services/istUtils.js';
 
 // Coordinates mapping on the AP SVG Map for 25 AP Parliamentary Constituencies (Aligned 1:1 with printed numbers 1 to 25 on map artwork)
 const PARLIAMENT_MAP_COORDS = {
@@ -39,7 +40,7 @@ const PARLIAMENT_MAP_COORDS = {
 };
 
 export function AdminMetricsDashboardView() {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayISTDateString());
   
   // Real-Time Live AJAX Refresh Trigger (must be initialized before useMemo dependencies)
   const [refreshTrigger, setRefreshTrigger] = useState(0);

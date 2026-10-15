@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
+import { getTodayISTDateString, getISTDateOffset } from '../services/istUtils.js';
 
 export function LinkAnalyticsView() {
   const [tasks, setTasks] = useState([]);
@@ -74,9 +75,9 @@ export function LinkAnalyticsView() {
 
   // Compute analytics based on current filters
   const analyticsData = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const sevenDaysAgoDate = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const today = getTodayISTDateString();
+    const yesterdayDate = getISTDateOffset(-1);
+    const sevenDaysAgoDate = getISTDateOffset(-7);
 
     let targetDate = null;
     let startDate = null;

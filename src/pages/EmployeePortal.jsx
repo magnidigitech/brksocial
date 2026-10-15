@@ -25,7 +25,10 @@ import {
   Flame,
   RefreshCw,
   AlertCircle,
-  XCircle
+  XCircle,
+  QrCode,
+  Download,
+  X
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
@@ -55,6 +58,7 @@ export function EmployeePortal({ session, onLogout }) {
   const [liveCheck, setLiveCheck] = useState(null);
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -201,7 +205,7 @@ export function EmployeePortal({ session, onLogout }) {
   };
 
   const updateStats = (empId, taskId) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayISTDateString();
     const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
     setTaskStats(stats);
 
@@ -699,6 +703,28 @@ export function EmployeePortal({ session, onLogout }) {
                       <MessageSquare size={14} />
                       <span>Share on WhatsApp</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQrModal(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '10px 16px',
+                        borderRadius: '10px',
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <QrCode size={14} style={{ color: '#ff4d00' }} />
+                      <span>QR Code</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1085,6 +1111,162 @@ export function EmployeePortal({ session, onLogout }) {
           </div>
         )}
       </div>
+
+      {/* Citizen Scan & Follow QR Code Modal */}
+      {showQrModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '380px',
+              width: '100%',
+              padding: '28px 24px',
+              textAlign: 'center',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              position: 'relative'
+            }}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowQrModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748b'
+              }}
+            >
+              <X size={16} />
+            </button>
+
+            {/* Header */}
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '14px',
+              backgroundColor: 'rgba(255, 77, 0, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ff4d00',
+              margin: '0 auto 12px auto'
+            }}>
+              <QrCode size={24} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
+              Citizen Outreach QR Code
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 18px 0' }}>
+              Scan with any smartphone camera to follow Sri Bhashyam Ramakrishna on Instagram.
+            </p>
+
+            {/* QR Code Container */}
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              border: '2px solid #ffedd5',
+              boxShadow: '0 4px 15px rgba(255, 77, 0, 0.08)',
+              display: 'inline-block',
+              marginBottom: '16px'
+            }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=10&data=${encodeURIComponent(getFullTrackingUrl())}`}
+                alt="Outreach Tracking QR Code"
+                style={{ width: '220px', height: '220px', display: 'block', borderRadius: '8px' }}
+              />
+            </div>
+
+            {/* Staff Attribution Badge */}
+            <div style={{
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '18px',
+              fontSize: '11.5px',
+              color: '#475569',
+              textAlign: 'left'
+            }}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                Attributed Field Staff
+              </div>
+              <strong style={{ color: '#0f172a', fontSize: '13px' }}>{employee?.name || session?.name}</strong>
+              <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>
+                {employee?.parliamentName} {employee?.assemblyName ? `• ${employee?.assemblyName}` : ''} ({employee?.supportCode || employee?.id})
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <a
+                href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=15&data=${encodeURIComponent(getFullTrackingUrl())}`}
+                target="_blank"
+                rel="noreferrer"
+                download={`BRK_QR_${employee?.supportCode || employee?.id || 'outreach'}.png`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 18px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <Download size={14} />
+                <span>Save High-Res Image</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

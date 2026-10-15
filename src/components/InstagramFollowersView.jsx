@@ -42,6 +42,18 @@ export function InstagramFollowersView() {
     return map;
   }, [submissions]);
 
+  const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'STAFF_MATCHES'
+
+  const displayedFollowers = useMemo(() => {
+    if (filterType === 'STAFF_MATCHES') {
+      return followersList.filter(f => {
+        const k = (f.key || f.username || '').toLowerCase().trim();
+        return staffByUsername.has(k);
+      });
+    }
+    return followersList;
+  }, [followersList, filterType, staffByUsername]);
+
   // Load initial stats & first page
   useEffect(() => {
     fetchStats();
@@ -597,7 +609,53 @@ export function InstagramFollowersView() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Filter Toggle Pills */}
+            <div style={{
+              display: 'inline-flex',
+              padding: '2px',
+              borderRadius: '980px',
+              backgroundColor: 'rgba(118, 118, 128, 0.12)',
+              gap: '2px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setFilterType('ALL')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '980px',
+                  border: 'none',
+                  backgroundColor: filterType === 'ALL' ? '#ffffff' : 'transparent',
+                  color: filterType === 'ALL' ? '#1d1d1f' : '#64748b',
+                  fontSize: '11.5px',
+                  fontWeight: filterType === 'ALL' ? 700 : 500,
+                  cursor: 'pointer',
+                  boxShadow: filterType === 'ALL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                All Accounts
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType('STAFF_MATCHES')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '980px',
+                  border: 'none',
+                  backgroundColor: filterType === 'STAFF_MATCHES' ? '#34c759' : 'transparent',
+                  color: filterType === 'STAFF_MATCHES' ? '#ffffff' : '#15803d',
+                  fontSize: '11.5px',
+                  fontWeight: filterType === 'STAFF_MATCHES' ? 700 : 600,
+                  cursor: 'pointer',
+                  boxShadow: filterType === 'STAFF_MATCHES' ? '0 1px 3px rgba(52, 199, 89, 0.3)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                ✓ Outreach Matches ({verifiedSubmissionsCount})
+              </button>
+            </div>
+
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#86868b' }} />
@@ -656,7 +714,7 @@ export function InstagramFollowersView() {
               </tr>
             </thead>
             <tbody>
-              {followersList.map((f, idx) => {
+              {displayedFollowers.map((f, idx) => {
                 const sub = staffByUsername.get(f.key || f.username?.toLowerCase());
                 return (
                   <tr key={f.key || idx} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)', transition: 'background 0.15s' }}>
