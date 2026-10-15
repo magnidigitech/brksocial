@@ -143,9 +143,12 @@ export function InstagramFollowersView() {
       // Send to server upsert API
       const response = await dbService.uploadInstagramFollowers(combinedData);
 
+      // Automatically cross-check & re-validate all submissions against newly uploaded followers JSON!
+      const revalResult = await dbService.revalidateSubmissionsWithFollowers();
+
       setUploadToast({
         type: 'success',
-        message: `Successfully upserted ${response.total} followers (+${response.added} new, +${response.updated} updated)!`
+        message: `Successfully upserted ${response.total} followers (+${response.added} new, +${response.updated} updated). ${revalResult?.updatedCount > 0 ? `Re-validated: ${revalResult.updatedCount} submission statuses updated!` : 'Submissions synchronized.'}`
       });
 
       // Refresh stats & list

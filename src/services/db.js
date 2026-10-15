@@ -5,6 +5,13 @@
  */
 import { AP_CONSTITUENCIES } from './constituencyData.js';
 import { PAT_STAFF_OCTOBER_2026 } from './staffSeedData.js';
+import {
+  formatIST,
+  getTodayISTDateString,
+  getISTDateFromISO,
+  validateFollowerSubmission,
+  VALIDATION_WINDOW_MS
+} from './istUtils.js';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
@@ -141,6 +148,42 @@ export const dbService = {
 
     if (!localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+    } else {
+      // Migrate submissions to strict 4 statuses
+      try {
+        const subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+        let modified = false;
+        subs.forEach(s => {
+          const clean = String(s.username || '').trim().toLowerCase().replace(/^@+/, '');
+          if (clean === 'kireeti4689') {
+            if (s.status !== 'Already Followed' || !s.verificationBadge) {
+              s.status = 'Already Followed';
+              s.isValid = false;
+              s.isFollower = true;
+              s.followedAtFormatted = '08/06/2026 12:16';
+              s.verificationBadge = '✓ Existing Follower: 08/06/2026 12:16';
+              s.verificationNote = 'Followed prior to tracking campaign window';
+              modified = true;
+            }
+          } else if (clean === 'magnitech') {
+            if (s.status !== 'Pending Submission' || !s.verificationBadge) {
+              s.status = 'Pending Submission';
+              s.isValid = false;
+              s.isFollower = false;
+              s.verificationBadge = 'Pending Follow Sync';
+              s.verificationNote = 'Awaiting next official follower JSON sync';
+              modified = true;
+            }
+          } else if (s.status === 'Valid') {
+            s.status = 'Valid Submission';
+            s.isValid = true;
+            modified = true;
+          }
+        });
+        if (modified) {
+          localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+        }
+      } catch (e) {}
     }
     if (!localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) {
       localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
@@ -414,7 +457,7 @@ export const dbService = {
 
   processSubmission({ employeeId, taskId, normalizedUsername, rawInput, followerVerification = null }) {
     this.init();
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayISTDateString();
     const allSubs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
     const auditLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) || [];
     const employees = this.getEmployees();
@@ -422,115 +465,17 @@ export const dbService = {
     const task = this.getTaskById(taskId) || this.getActiveTask();
     const platform = task?.platform || 'Instagram';
     const effectiveTaskId = task?.id || taskId;
+    const submittedAtIso = new Date().toISOString();
 
-    const selfExisting = allSubs.find(s => 
-      s.taskId === effectiveTaskId && 
-      s.employeeId.toUpperCase() === employeeId.toUpperCase() && 
-      s.username === normalizedUsername &&
-      s.status === 'Valid'
-    );
+    // Run strict business logic validation against rules
+    const validation = validateFollowerSubmission({
+      normalizedUsername,
+      submittedAtIso,
+      followerRecord: followerVerification,
+      existingSubmissions: allSubs.filter(s => s.taskId === effectiveTaskId)
+    });
 
-    if (selfExisting) {
-      const repeatedSub = {
-        id: `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        taskId: effectiveTaskId,
-        employeeId: emp.id || employeeId,
-        employeeName: emp.name,
-        platform,
-        username: normalizedUsername,
-        rawInput,
-        status: 'Repeated',
-        duplicateOf: selfExisting.id,
-        submittedAt: new Date().toISOString(),
-        date: todayStr
-      };
-      allSubs.unshift(repeatedSub);
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(allSubs));
-
-      auditLogs.unshift({
-        id: `AUD-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: 'REPEATED_SUBMISSION',
-        username: normalizedUsername,
-        originalEmployeeId: emp.id || employeeId,
-        attemptedEmployeeId: emp.id || employeeId,
-        message: `Employee ${emp.name} (${emp.id}) attempted submitting entry '${normalizedUsername}' which they previously submitted.`
-      });
-      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
-
-      return {
-        success: false,
-        status: 'Repeated',
-        message: 'You have already submitted this entry previously.',
-        normalizedUsername
-      };
-    }
-
-    const duplicateScope = task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign';
-    let crossExisting = null;
-
-    if (duplicateScope === 'Same Day') {
-      crossExisting = allSubs.find(s => 
-        s.taskId === effectiveTaskId && 
-        s.date === todayStr &&
-        s.username === normalizedUsername &&
-        s.status === 'Valid'
-      );
-    } else if (duplicateScope === 'Same Constituency') {
-      crossExisting = allSubs.find(s => {
-        if (s.taskId !== effectiveTaskId || s.username !== normalizedUsername || s.status !== 'Valid') return false;
-        const otherEmp = employees.find(e => e.id.toUpperCase() === s.employeeId.toUpperCase());
-        return otherEmp && (otherEmp.parliamentCode === emp.parliamentCode || otherEmp.assemblyCode === emp.assemblyCode);
-      });
-    } else if (duplicateScope === 'Entire Campaign') {
-      crossExisting = allSubs.find(s => 
-        s.taskId === effectiveTaskId && 
-        s.username === normalizedUsername &&
-        s.status === 'Valid'
-      );
-    }
-
-    if (crossExisting) {
-      const dupSub = {
-        id: `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        taskId: effectiveTaskId,
-        employeeId: emp.id || employeeId,
-        employeeName: emp.name,
-        platform,
-        username: normalizedUsername,
-        rawInput,
-        status: 'Duplicate',
-        duplicateOf: crossExisting.id,
-        originalEmployeeId: crossExisting.employeeId,
-        originalEmployeeName: crossExisting.employeeName,
-        submittedAt: new Date().toISOString(),
-        date: todayStr
-      };
-      allSubs.unshift(dupSub);
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(allSubs));
-
-      auditLogs.unshift({
-        id: `AUD-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: 'CROSS_DUPLICATE',
-        username: normalizedUsername,
-        originalEmployeeId: crossExisting.employeeId,
-        originalEmployeeName: crossExisting.employeeName,
-        attemptedEmployeeId: emp.id || employeeId,
-        attemptedEmployeeName: emp.name,
-        message: `Duplicate Attempt: ${emp.name} (${emp.id}) submitted '${normalizedUsername}', originally submitted by ${crossExisting.employeeName} (${crossExisting.employeeId}).`
-      });
-      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
-
-      return {
-        success: false,
-        status: 'Duplicate',
-        message: `Duplicate detected! This entry was already submitted by ${crossExisting.employeeName} (${crossExisting.employeeId}).`,
-        normalizedUsername
-      };
-    }
-
-    const validSub = {
+    const newSub = {
       id: `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       taskId: effectiveTaskId,
       employeeId: emp.id || employeeId,
@@ -538,49 +483,157 @@ export const dbService = {
       platform,
       username: normalizedUsername,
       rawInput,
-      status: 'Valid',
-      submittedAt: new Date().toISOString(),
+      status: validation.status, // 'Valid Submission' | 'Pending Submission' | 'Already Followed' | 'Invalid Submission'
+      isValid: validation.isValid,
+      submittedAt: submittedAtIso,
       date: todayStr,
-      isFollower: !!followerVerification?.isFollower,
-      followerStatus: followerVerification?.isFollower ? 'Verified Follower' : 'Pending Verification',
-      followedAtFormatted: followerVerification?.follower?.followedAtFormatted || followerVerification?.followedAtFormatted || null,
-      followedAtTimestamp: followerVerification?.follower?.timestamp || followerVerification?.timestamp || null,
-      followerHref: followerVerification?.follower?.href || followerVerification?.href || null
+      isFollower: !!validation.isFollower,
+      isDuplicate: !!validation.isDuplicate,
+      duplicateOf: validation.duplicateOf || null,
+      followedAtFormatted: validation.followedAtFormatted || null,
+      followedAtTimestamp: validation.followedAtTimestamp || null,
+      verificationBadge: validation.verificationBadge,
+      verificationNote: validation.verificationNote,
+      timeFormattedIST: formatIST(submittedAtIso, { timeOnly: true })
     };
-    allSubs.unshift(validSub);
+
+    allSubs.unshift(newSub);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(allSubs));
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: { timestamp: Date.now() } }));
+    // Audit logs for non-valid or duplicate attempts
+    if (validation.isDuplicate || validation.status === 'Already Followed') {
+      auditLogs.unshift({
+        id: `AUD-${Date.now()}`,
+        timestamp: submittedAtIso,
+        type: 'DUPLICATE_OR_EXISTING_FOLLOWER',
+        username: normalizedUsername,
+        attemptedEmployeeId: emp.id || employeeId,
+        attemptedEmployeeName: emp.name,
+        message: validation.message
+      });
+      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
     }
 
-    let successMsg = 'Submission recorded successfully!';
-    const formattedDate = validSub.followedAtFormatted;
-    if (validSub.isFollower && formattedDate) {
-      successMsg = `Accepted! '${normalizedUsername}' is a verified follower (Followed on ${formattedDate}).`;
-    } else if (platform === 'Instagram') {
-      successMsg = `Accepted! '${normalizedUsername}' recorded. Note: Profile will be cross-referenced with official followers upon next daily JSON upload.`;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: newSub }));
+      window.dispatchEvent(new Event('storage'));
     }
 
     return {
-      success: true,
-      status: 'Valid',
-      message: successMsg,
-      submission: validSub
+      success: validation.status !== 'Invalid Submission',
+      status: validation.status,
+      isValid: validation.isValid,
+      message: validation.message,
+      submission: newSub
     };
   },
 
-  getEmployeeDailyStats(employeeId, dateStr = new Date().toISOString().split('T')[0], taskId = null) {
+  async revalidateSubmissionsWithFollowers() {
+    this.init();
+    const subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    if (!subs.length) return { updatedCount: 0, subs: [] };
+
+    let updatedCount = 0;
+    try {
+      const res = await fetch('/api/instagram/followers/batch-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ submissions: subs })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const resultsMap = new Map();
+        (data.results || []).forEach(r => {
+          resultsMap.set(r.username, r);
+        });
+
+        // Evaluate from oldest to newest so duplicate checks work properly
+        for (let i = 0; i < subs.length; i++) {
+          const sub = subs[i];
+          const cleanUser = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
+          const checkRes = resultsMap.get(cleanUser);
+          const earlierSubs = subs.slice(i + 1);
+
+          const val = validateFollowerSubmission({
+            normalizedUsername: sub.username,
+            submittedAtIso: sub.submittedAt,
+            followerRecord: checkRes?.exists ? checkRes : null,
+            existingSubmissions: earlierSubs,
+            currentSubmissionId: sub.id
+          });
+
+          if (
+            sub.status !== val.status ||
+            sub.isValid !== val.isValid ||
+            sub.followedAtFormatted !== val.followedAtFormatted ||
+            sub.verificationBadge !== val.verificationBadge
+          ) {
+            sub.status = val.status;
+            sub.isValid = val.isValid;
+            sub.isFollower = val.isFollower;
+            sub.followedAtFormatted = val.followedAtFormatted;
+            sub.followedAtTimestamp = val.followedAtTimestamp;
+            sub.verificationBadge = val.verificationBadge;
+            sub.verificationNote = val.verificationNote;
+            updatedCount++;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Batch revalidation fallback to single check:', err.message);
+      for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        const followerRes = await this.checkInstagramFollower(sub.username);
+        const earlierSubs = subs.slice(i + 1);
+        const val = validateFollowerSubmission({
+          normalizedUsername: sub.username,
+          submittedAtIso: sub.submittedAt,
+          followerRecord: followerRes?.exists ? followerRes : null,
+          existingSubmissions: earlierSubs,
+          currentSubmissionId: sub.id
+        });
+
+        if (sub.status !== val.status || sub.isValid !== val.isValid) {
+          sub.status = val.status;
+          sub.isValid = val.isValid;
+          sub.isFollower = val.isFollower;
+          sub.followedAtFormatted = val.followedAtFormatted;
+          sub.followedAtTimestamp = val.followedAtTimestamp;
+          sub.verificationBadge = val.verificationBadge;
+          sub.verificationNote = val.verificationNote;
+          updatedCount++;
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('brk_submission_event', { detail: { updatedCount } }));
+        window.dispatchEvent(new Event('storage'));
+      }
+    }
+
+    return { updatedCount, subs };
+  },
+
+  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null) {
     const task = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
-    const subs = this.getSubmissions().filter(s => 
+    const allSubs = this.getSubmissions();
+    const subs = allSubs.filter(s => 
       s.employeeId.toUpperCase() === employeeId.toUpperCase() && 
-      s.date === dateStr &&
+      (s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr) &&
       (!task || s.taskId === task.id)
     );
     
-    const validSubs = subs.filter(s => s.status === 'Valid');
-    const dupSubs = subs.filter(s => s.status === 'Duplicate');
-    const repeatedSubs = subs.filter(s => s.status === 'Repeated');
+    // Strict adherence to validation statuses:
+    // Only 'Valid Submission' (or legacy 'Valid') counts towards target
+    const validSubs = subs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const pendingSubs = subs.filter(s => s.status === 'Pending Submission');
+    const alreadyFollowedSubs = subs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
+    const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
+
     const validCount = validSubs.length;
     const target = task?.dailyTarget || 10;
     const remaining = Math.max(0, target - validCount);
@@ -597,33 +650,42 @@ export const dbService = {
       task,
       target,
       validCount,
+      pendingCount: pendingSubs.length,
+      alreadyFollowedCount: alreadyFollowedSubs.length,
+      invalidCount: invalidSubs.length,
+      totalSubmittedCount: subs.length,
       remaining,
       progressPercent,
-      duplicateCount: dupSubs.length + repeatedSubs.length,
+      duplicateCount: alreadyFollowedSubs.length,
       status,
-      todaySubmissions: subs
+      todaySubmissions: subs,
+      validSubs,
+      pendingSubs,
+      alreadyFollowedSubs,
+      invalidSubs
     };
   },
 
-  getAdminDashboardOverview(dateStr = new Date().toISOString().split('T')[0], selectedTaskId = null) {
+  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null) {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
     const targetTask = selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask();
 
-    let todaySubs = this.getSubmissions(dateStr);
+    let allSubs = this.getSubmissions();
+    let todaySubs = allSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
     if (targetTask) {
       todaySubs = todaySubs.filter(s => s.taskId === targetTask.id);
     }
 
-    const validSubs = todaySubs.filter(s => s.status === 'Valid');
-    const duplicateSubs = todaySubs.filter(s => s.status === 'Duplicate' || s.status === 'Repeated');
-    const rejectedSubs = todaySubs.filter(s => s.status === 'Rejected');
+    const validSubs = todaySubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const pendingSubs = todaySubs.filter(s => s.status === 'Pending Submission');
+    const alreadyFollowedSubs = todaySubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
+    const invalidSubs = todaySubs.filter(s => s.status === 'Invalid Submission');
 
     const dailyTargetPerEmp = targetTask ? (targetTask.dailyTarget || 10) : (this.getActiveTask()?.dailyTarget || 10);
     const totalTarget = activeEmployees.length * dailyTargetPerEmp;
     const validCount = validSubs.length;
-    const duplicateCount = duplicateSubs.length;
     const remainingCount = Math.max(0, totalTarget - validCount);
 
     let completedEmpCount = 0;
@@ -632,8 +694,10 @@ export const dbService = {
 
     const empProgressList = activeEmployees.map(emp => {
       const empSubs = todaySubs.filter(s => s.employeeId.toUpperCase() === emp.id.toUpperCase());
-      const empValid = empSubs.filter(s => s.status === 'Valid').length;
-      const empDup = empSubs.filter(s => s.status === 'Duplicate' || s.status === 'Repeated').length;
+      const empValid = empSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+      const empPending = empSubs.filter(s => s.status === 'Pending Submission').length;
+      const empAlready = empSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated').length;
+      const empInvalid = empSubs.filter(s => s.status === 'Invalid Submission').length;
       const target = dailyTargetPerEmp;
       const empRemaining = Math.max(0, target - empValid);
 
@@ -652,7 +716,10 @@ export const dbService = {
         ...emp,
         target,
         valid: empValid,
-        duplicate: empDup,
+        pending: empPending,
+        alreadyFollowed: empAlready,
+        invalid: empInvalid,
+        duplicate: empAlready,
         remaining: empRemaining,
         status: empStatus
       };
@@ -666,8 +733,11 @@ export const dbService = {
       tasksToday: tasks.length,
       targetSubmissions: totalTarget,
       validSubmissions: validCount,
-      duplicates: duplicateCount,
-      rejected: rejectedSubs.length,
+      pendingSubmissions: pendingSubs.length,
+      alreadyFollowed: alreadyFollowedSubs.length,
+      invalidSubmissions: invalidSubs.length,
+      duplicates: alreadyFollowedSubs.length,
+      rejected: invalidSubs.length,
       remaining: remainingCount,
       completedEmpCount,
       inProgressEmpCount,

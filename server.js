@@ -59,12 +59,21 @@ let FOLLOWERS_MAP = new Map();
 function formatFollowerTimestamp(ts) {
   if (!ts) return '';
   const date = new Date(Number(ts) * 1000);
-  const pad = (n) => String(n).padStart(2, '0');
-  const d = pad(date.getDate());
-  const m = pad(date.getMonth() + 1);
-  const y = date.getFullYear();
-  const h = pad(date.getHours());
-  const min = pad(date.getMinutes());
+  if (isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const d = parts.find(p => p.type === 'day')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const y = parts.find(p => p.type === 'year')?.value;
+  const h = parts.find(p => p.type === 'hour')?.value;
+  const min = parts.find(p => p.type === 'minute')?.value;
   return `${d}/${m}/${y} ${h}:${min}`;
 }
 
@@ -735,15 +744,24 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
     const follower = FOLLOWERS_MAP.get(clean);
 
     if (follower) {
+      const formattedDate = follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp);
+      const subTime = req.query.submittedAt ? new Date(req.query.submittedAt).getTime() : Date.now();
+      const followTime = Number(follower.timestamp) * 1000;
+      const WINDOW_MS = 24 * 60 * 60 * 1000;
+      const isPreExisting = followTime < (subTime - WINDOW_MS);
+      const isInsideWindow = followTime >= (subTime - WINDOW_MS) && followTime <= (subTime + WINDOW_MS);
+
       return res.json({
         success: true,
         exists: true,
         isFollower: true,
+        isPreExisting,
+        isInsideWindow,
         follower: {
           username: follower.username,
           href: follower.href,
           timestamp: follower.timestamp,
-          followedAtFormatted: follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp)
+          followedAtFormatted: formattedDate
         }
       });
     }
@@ -754,6 +772,58 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
       isFollower: false,
       username: clean
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Batch check multiple usernames against in-memory followers map
+app.post('/api/instagram/followers/batch-check', (req, res) => {
+  try {
+    const { submissions } = req.body || {};
+    if (!Array.isArray(submissions)) {
+      return res.status(400).json({ success: false, error: 'Expected array of submissions' });
+    }
+
+    const WINDOW_MS = 24 * 60 * 60 * 1000;
+    const results = submissions.map(sub => {
+      const clean = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
+      const follower = FOLLOWERS_MAP.get(clean);
+      if (!follower) {
+        return {
+          username: clean,
+          exists: false,
+          isFollower: false,
+          status: 'Pending Submission'
+        };
+      }
+
+      const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
+      const followTime = Number(follower.timestamp) * 1000;
+      const isPreExisting = followTime < (subTime - WINDOW_MS);
+      const isInsideWindow = followTime >= (subTime - WINDOW_MS) && followTime <= (subTime + WINDOW_MS);
+
+      let status = 'Invalid Submission';
+      if (isInsideWindow) status = 'Valid Submission';
+      else if (isPreExisting) status = 'Already Followed';
+
+      return {
+        username: clean,
+        exists: true,
+        isFollower: true,
+        status,
+        follower: {
+          username: follower.username,
+          href: follower.href,
+          timestamp: follower.timestamp,
+          followedAtFormatted: follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp)
+        },
+        isPreExisting,
+        isInsideWindow
+      };
+    });
+
+    res.json({ success: true, results });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

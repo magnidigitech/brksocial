@@ -22,10 +22,14 @@ import {
   Check,
   ExternalLink,
   MousePointerClick,
-  Flame
+  Flame,
+  RefreshCw,
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
+import { formatIST, validateFollowerSubmission, getTodayISTDateString } from '../services/istUtils.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -50,17 +54,41 @@ export function EmployeePortal({ session, onLogout }) {
   const [copied, setCopied] = useState(false);
   const [liveCheck, setLiveCheck] = useState(null);
   const [isLiveChecking, setIsLiveChecking] = useState(false);
+  const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
 
   useEffect(() => {
     loadData();
+    // Auto-revalidate existing submissions against follower DB on mount
+    dbService.revalidateSubmissionsWithFollowers().catch(() => {});
   }, [session]);
+
+  const handleSyncFollowers = async () => {
+    setIsSyncingFollowers(true);
+    try {
+      const res = await dbService.revalidateSubmissionsWithFollowers();
+      const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+      const taskId = activeTask?.id || 'TASK-INSTA-001';
+      const today = getTodayISTDateString();
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+      setTaskStats(stats);
+      setFeedback({
+        type: 'success',
+        message: `Follower synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All submissions are currently up to date.'}`
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err) {
+      console.warn('Sync followers error:', err);
+    } finally {
+      setIsSyncingFollowers(false);
+    }
+  };
 
   // Real-time live update for clicks and submissions across devices
   useEffect(() => {
     const handleLiveRefresh = () => {
       const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
       const taskId = activeTask?.id || 'TASK-INSTA-001';
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayISTDateString();
       const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
       setTaskStats(stats);
       const link = dbService.getTrackingLinkForEmployee(taskId, empId);
@@ -107,30 +135,42 @@ export function EmployeePortal({ session, onLogout }) {
       const cleanHandle = normRes.normalized;
       setIsLiveChecking(true);
 
-      // Check duplicate submissions in local DB first
       const allSubs = dbService.getSubmissions();
       const existingSub = allSubs.find(s => 
         s.taskId === activeTask.id && 
-        s.username === cleanHandle && 
-        s.status === 'Valid'
+        String(s.username || '').toLowerCase() === cleanHandle
       );
 
       const timer = setTimeout(async () => {
         try {
           const followerRes = await dbService.checkInstagramFollower(cleanHandle);
+          const val = validateFollowerSubmission({
+            normalizedUsername: cleanHandle,
+            submittedAtIso: new Date().toISOString(),
+            followerRecord: followerRes?.exists ? followerRes : null,
+            existingSubmissions: allSubs.filter(s => s.taskId === activeTask.id)
+          });
+
           setLiveCheck({
             cleanHandle,
-            isDuplicate: !!existingSub,
+            status: val.status,
+            isValid: val.isValid,
+            isDuplicate: !!val.isDuplicate,
             existingSub: existingSub || null,
-            isFollower: !!followerRes?.isFollower,
-            follower: followerRes?.follower || null
+            isFollower: !!val.isFollower,
+            follower: followerRes?.follower || null,
+            message: val.message,
+            verificationBadge: val.verificationBadge
           });
         } catch (err) {
           setLiveCheck({
             cleanHandle,
+            status: 'Pending Submission',
+            isValid: false,
             isDuplicate: !!existingSub,
             existingSub: existingSub || null,
-            isFollower: false
+            isFollower: false,
+            message: 'Awaiting follower verification on daily JSON sync.'
           });
         } finally {
           setIsLiveChecking(false);
@@ -258,18 +298,34 @@ export function EmployeePortal({ session, onLogout }) {
       followerVerification: followerCheckResult
     });
 
-    if (res.success) {
+    if (res.status === 'Valid Submission') {
       setFeedback({
         type: 'success',
-        message: res.message || `Accepted! '${normalized}' saved successfully.`,
-        isFollower: followerCheckResult?.isFollower,
-        followedAtFormatted: followerCheckResult?.follower?.followedAtFormatted
+        status: res.status,
+        message: res.message
+      });
+      setInputVal('');
+      setLiveCheck(null);
+    } else if (res.status === 'Pending Submission') {
+      setFeedback({
+        type: 'pending',
+        status: res.status,
+        message: res.message
+      });
+      setInputVal('');
+      setLiveCheck(null);
+    } else if (res.status === 'Already Followed') {
+      setFeedback({
+        type: 'warning',
+        status: res.status,
+        message: res.message
       });
       setInputVal('');
       setLiveCheck(null);
     } else {
       setFeedback({
-        type: res.status === 'Duplicate' ? 'error' : 'warning',
+        type: 'error',
+        status: res.status,
         message: res.message
       });
     }
@@ -706,16 +762,38 @@ export function EmployeePortal({ session, onLogout }) {
                   marginBottom: '14px',
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  fontSize: '12px',
+                  fontSize: '12.5px',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  backgroundColor: feedback.type === 'success' ? '#ecfdf5' : (feedback.type === 'warning' ? '#fffbebf' : '#fef2f2'),
-                  color: feedback.type === 'success' ? '#047857' : (feedback.type === 'warning' ? '#b45309' : '#b91c1c'),
-                  border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5')}`
+                  backgroundColor: feedback.type === 'success' 
+                    ? '#ecfdf5' 
+                    : (feedback.type === 'pending'
+                      ? 'rgba(0, 113, 227, 0.08)'
+                      : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
+                  color: feedback.type === 'success' 
+                    ? '#047857' 
+                    : (feedback.type === 'pending'
+                      ? '#0071e3'
+                      : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
+                  border: `1px solid ${
+                    feedback.type === 'success' 
+                      ? '#a7f3d0' 
+                      : (feedback.type === 'pending'
+                        ? 'rgba(0, 113, 227, 0.25)'
+                        : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
+                  }`
                 }}>
-                  {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                  {feedback.type === 'success' ? (
+                    <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                  ) : feedback.type === 'pending' ? (
+                    <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                  ) : feedback.type === 'warning' ? (
+                    <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                  ) : (
+                    <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                  )}
                   <span>{feedback.message}</span>
                 </div>
               )}
@@ -777,38 +855,63 @@ export function EmployeePortal({ session, onLogout }) {
                 {/* Live Real-Time Follower & Duplicate Preview Badge */}
                 {liveCheck && !feedback && (
                   <div style={{
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    fontSize: '12px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12.5px',
                     fontWeight: 500,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    backgroundColor: liveCheck.isDuplicate 
-                      ? 'rgba(255, 59, 48, 0.08)' 
-                      : (liveCheck.isFollower ? 'rgba(52, 199, 89, 0.08)' : 'rgba(0, 113, 227, 0.06)'),
-                    border: `1px solid ${liveCheck.isDuplicate ? 'rgba(255, 59, 48, 0.2)' : (liveCheck.isFollower ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0, 113, 227, 0.15)')}`,
-                    color: liveCheck.isDuplicate ? '#ff3b30' : (liveCheck.isFollower ? '#1b5e20' : '#0071e3')
+                    gap: '9px',
+                    backgroundColor: liveCheck.status === 'Valid Submission'
+                      ? 'rgba(52, 199, 89, 0.08)'
+                      : (liveCheck.status === 'Already Followed'
+                        ? 'rgba(255, 149, 0, 0.10)'
+                        : (liveCheck.status === 'Pending Submission'
+                          ? 'rgba(0, 113, 227, 0.06)'
+                          : 'rgba(255, 59, 48, 0.08)')),
+                    border: `1px solid ${
+                      liveCheck.status === 'Valid Submission'
+                        ? 'rgba(52, 199, 89, 0.25)'
+                        : (liveCheck.status === 'Already Followed'
+                          ? 'rgba(255, 149, 0, 0.3)'
+                          : (liveCheck.status === 'Pending Submission'
+                            ? 'rgba(0, 113, 227, 0.2)'
+                            : 'rgba(255, 59, 48, 0.25)'))
+                    }`,
+                    color: liveCheck.status === 'Valid Submission'
+                      ? '#1b5e20'
+                      : (liveCheck.status === 'Already Followed'
+                        ? '#c2410c'
+                        : (liveCheck.status === 'Pending Submission'
+                          ? '#0071e3'
+                          : '#b91c1c'))
                   }}>
-                    {liveCheck.isDuplicate ? (
+                    {liveCheck.status === 'Valid Submission' ? (
                       <>
-                        <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                        <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
                         <span>
-                          <strong>Duplicate Detected:</strong> Already submitted by <strong>{liveCheck.existingSub.employeeName}</strong> on {liveCheck.existingSub.date}.
+                          <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST (Inside eligible 24h window • Will be counted as Valid Submission).
                         </span>
                       </>
-                    ) : liveCheck.isFollower && liveCheck.follower ? (
+                    ) : liveCheck.status === 'Already Followed' ? (
                       <>
-                        <CheckCircle2 size={15} style={{ color: '#34c759', flexShrink: 0 }} />
+                        <AlertTriangle size={16} style={{ color: '#ea580c', flexShrink: 0 }} />
                         <span>
-                          <strong>Verified Follower:</strong> Followed profile on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower.followedAtFormatted}</strong> (dd/mm/yyyy hh:mm).
+                          <strong>Already Followed:</strong> {liveCheck.message}
+                        </span>
+                      </>
+                    ) : liveCheck.status === 'Pending Submission' ? (
+                      <>
+                        <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                        <span>
+                          <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' is not in current followers database yet. Submission will be saved as <strong>Pending Submission</strong> and verified upon next follower JSON sync.
                         </span>
                       </>
                     ) : (
                       <>
-                        <Clock size={14} style={{ color: '#0071e3', flexShrink: 0 }} />
+                        <AlertCircle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
                         <span>
-                          <strong>New Follower Candidate:</strong> Not in current followers database. Will be cross-checked on next daily follower upload.
+                          <strong>{liveCheck.status}:</strong> {liveCheck.message}
                         </span>
                       </>
                     )}
@@ -819,9 +922,35 @@ export function EmployeePortal({ session, onLogout }) {
 
             {/* Today's Submissions Log Table */}
             <div className="dashboard-section-card">
-              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: '0 0 14px 0', letterSpacing: '-0.02em' }}>
-                Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
+                  Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={handleSyncFollowers}
+                  disabled={isSyncingFollowers}
+                  title="Cross-check all submissions with official Instagram followers JSON"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    padding: '5px 12px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    cursor: isSyncingFollowers ? 'wait' : 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
+                  <span>{isSyncingFollowers ? 'Syncing Follower DB...' : 'Sync Follower Status'}</span>
+                </button>
+              </div>
 
               {taskStats?.todaySubmissions?.length > 0 ? (
                 <div style={{ overflowX: 'auto' }}>
@@ -829,61 +958,113 @@ export function EmployeePortal({ session, onLogout }) {
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', color: '#86868b' }}>
                         <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Entry Input</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time (IST)</th>
                         <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Follower Verification (dd/mm/yyyy hh:mm)</th>
                         <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {taskStats.todaySubmissions.map((sub) => (
-                        <tr key={sub.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
-                          <td style={{ padding: '10px', fontWeight: 600, color: '#1d1d1f', fontFamily: 'monospace' }}>
-                            {sub.username || sub.rawInput}
-                          </td>
-                          <td style={{ padding: '10px', color: '#86868b' }}>
-                            {new Date(sub.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            {sub.isFollower ? (
+                      {taskStats.todaySubmissions.map((sub) => {
+                        const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                        const isStatusPending = sub.status === 'Pending Submission';
+                        const isStatusAlready = sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Repeated';
+                        const isStatusInvalid = sub.status === 'Invalid Submission';
+
+                        return (
+                          <tr key={sub.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
+                            <td style={{ padding: '10px', fontWeight: 600, color: '#1d1d1f', fontFamily: 'monospace' }}>
+                              {sub.username || sub.rawInput}
+                            </td>
+                            <td style={{ padding: '10px', color: '#64748b', fontSize: '12px' }}>
+                              {formatIST(sub.submittedAt, { timeOnly: true }) || '08:21'}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {isStatusValid ? (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '980px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                                  color: '#15803d',
+                                  border: '1px solid rgba(52, 199, 89, 0.25)'
+                                }}>
+                                  ✓ Followed: {sub.followedAtFormatted || 'Within 24h Window'}
+                                </span>
+                              ) : isStatusAlready ? (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '980px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  backgroundColor: 'rgba(255, 149, 0, 0.1)',
+                                  color: '#c2410c',
+                                  border: '1px solid rgba(255, 149, 0, 0.25)'
+                                }}>
+                                  {sub.verificationBadge || (sub.followedAtFormatted ? `✓ Existing Follower: ${sub.followedAtFormatted}` : 'Duplicate Submission')}
+                                </span>
+                              ) : isStatusInvalid ? (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '980px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  color: '#dc2626',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)'
+                                }}>
+                                  Outside 24h Window: {sub.followedAtFormatted}
+                                </span>
+                              ) : (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '980px',
+                                  fontSize: '11px',
+                                  fontWeight: 500,
+                                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                                  color: '#64748b',
+                                  border: '1px solid rgba(118, 118, 128, 0.15)'
+                                }}>
+                                  Pending Follow Sync
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right' }}>
                               <span style={{
-                                padding: '3px 8px',
+                                padding: '4px 10px',
                                 borderRadius: '980px',
                                 fontSize: '11px',
-                                fontWeight: 600,
-                                backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                                color: '#34c759',
-                                border: '1px solid rgba(52, 199, 89, 0.2)'
+                                fontWeight: 700,
+                                backgroundColor: isStatusValid
+                                  ? 'rgba(52, 199, 89, 0.12)'
+                                  : (isStatusPending
+                                    ? 'rgba(255, 149, 0, 0.12)'
+                                    : (isStatusAlready
+                                      ? 'rgba(239, 68, 68, 0.10)'
+                                      : 'rgba(107, 114, 128, 0.10)')),
+                                color: isStatusValid
+                                  ? '#15803d'
+                                  : (isStatusPending
+                                    ? '#b45309'
+                                    : (isStatusAlready
+                                      ? '#b91c1c'
+                                      : '#4b5563')),
+                                border: `1px solid ${
+                                  isStatusValid
+                                    ? 'rgba(52, 199, 89, 0.3)'
+                                    : (isStatusPending
+                                      ? 'rgba(255, 149, 0, 0.3)'
+                                      : (isStatusAlready
+                                        ? 'rgba(239, 68, 68, 0.25)'
+                                        : 'rgba(107, 114, 128, 0.25)'))
+                                }`
                               }}>
-                                ✓ Followed: {sub.followedAtFormatted || '14/10/2026 20:54'}
+                                {sub.status || 'Pending Submission'}
                               </span>
-                            ) : (
-                              <span style={{
-                                padding: '3px 8px',
-                                borderRadius: '980px',
-                                fontSize: '11px',
-                                fontWeight: 500,
-                                backgroundColor: 'rgba(118, 118, 128, 0.08)',
-                                color: '#86868b'
-                              }}>
-                                Pending Follow Sync
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'right' }}>
-                            <span style={{
-                              padding: '3px 10px',
-                              borderRadius: '980px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              backgroundColor: sub.status === 'Valid' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)',
-                              color: sub.status === 'Valid' ? '#34c759' : '#ff3b30',
-                              border: `1px solid ${sub.status === 'Valid' ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255, 59, 48, 0.2)'}`
-                            }}>
-                              {sub.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
