@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LoginPage } from './pages/LoginPage';
 import { EmployeePortal } from './pages/EmployeePortal';
 import { AdminDashboard } from './pages/AdminDashboard';
@@ -10,8 +10,13 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 function TrackingRedirectHandler({ pathname }) {
   const [targetUrl, setTargetUrl] = useState('https://www.instagram.com/ramakrishnabhashyam/');
   const [matchedStaff, setMatchedStaff] = useState(null);
+  const hasTriggeredRef = useRef(false);
 
   useEffect(() => {
+    // Prevent any multiple executions or loops on the same page
+    if (hasTriggeredRef.current) return;
+    hasTriggeredRef.current = true;
+
     try {
       dbService.init();
       const parts = pathname.split('/').filter(Boolean);
@@ -19,7 +24,17 @@ function TrackingRedirectHandler({ pathname }) {
       if (token.includes('?')) token = token.split('?')[0];
       if (token.includes('#')) token = token.split('#')[0];
 
-      if (token) {
+      // Session guard to ensure a token is recorded at most once per browser session
+      const sessionKey = `brk_redir_done_${token}`;
+      const isAlreadyRecorded = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey);
+
+      let dest = 'https://www.instagram.com/ramakrishnabhashyam/';
+
+      if (token && !isAlreadyRecorded) {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(sessionKey, '1');
+        }
+
         // Record click with bot/crawler detection & IP deduplication
         const result = dbService.recordLinkClick(token, {
           userAgent: navigator.userAgent,
@@ -27,28 +42,40 @@ function TrackingRedirectHandler({ pathname }) {
           ip: 'WebClient'
         });
 
-        const target = result?.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/';
-        setTargetUrl(target);
+        if (result?.targetUrl) {
+          dest = result.targetUrl;
+        }
 
         if (result?.clickRecord?.employeeName && result.clickRecord.employeeName !== 'Unknown Staff') {
           setMatchedStaff(result.clickRecord);
         }
-
-        // Smooth 350ms transition so localStorage commits and beacon leaves
-        const timer = setTimeout(() => {
-          window.location.replace(target);
-        }, 350);
-
-        return () => clearTimeout(timer);
-      } else {
-        const timer = setTimeout(() => {
-          window.location.replace('https://www.instagram.com/ramakrishnabhashyam/');
-        }, 200);
-        return () => clearTimeout(timer);
+      } else if (token) {
+        // Resolve target destination without recording duplicate click
+        const resolved = dbService.resolveTrackingToken(token);
+        if (resolved?.targetUrl) {
+          dest = resolved.targetUrl;
+        }
+        if (resolved?.employeeName && resolved.employeeName !== 'Unknown Staff') {
+          setMatchedStaff(resolved);
+        }
       }
+
+      // Safeguard: Ensure destination is an absolute external URL to prevent local self-redirect loops
+      if (!dest.startsWith('http://') && !dest.startsWith('https://')) {
+        dest = 'https://www.instagram.com/ramakrishnabhashyam/';
+      }
+
+      setTargetUrl(dest);
+
+      // Smooth 200ms transition so UI is visible before leaving
+      const timer = setTimeout(() => {
+        window.location.href = dest;
+      }, 200);
+
+      return () => clearTimeout(timer);
     } catch (e) {
       console.error('Tracking redirect failed:', e);
-      window.location.replace('https://www.instagram.com/ramakrishnabhashyam/');
+      window.location.href = 'https://www.instagram.com/ramakrishnabhashyam/';
     }
   }, [pathname]);
 

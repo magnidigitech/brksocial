@@ -539,15 +539,19 @@ async function recordClickEvent({ token, userAgent, referrer, clientIp, forcedEm
   const now = new Date();
   const clickId = `CLK_${now.getTime()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // Deduplication check: same token and IP within 2 seconds
+  // Deduplication check: same token and IP within 3 seconds
   const stored = getStoredClicks();
   const isDuplicate = stored.some(c => 
     c.token === (matchedStaff?.token || token) &&
     c.ip === ip &&
-    (now.getTime() - new Date(c.timestamp).getTime()) < 2000
+    (now.getTime() - new Date(c.timestamp).getTime()) < 3000
   );
 
-  const isValid = !isBot && !isDuplicate;
+  if (isDuplicate) {
+    return { clickRecord: null, targetUrl, isBot };
+  }
+
+  const isValid = !isBot;
 
   const clickRecord = {
     id: clickId,
@@ -569,12 +573,12 @@ async function recordClickEvent({ token, userAgent, referrer, clientIp, forcedEm
     deviceType: /mobile|android|iphone|ipad/i.test(ua) ? 'Mobile' : 'Desktop',
     isBot,
     botName,
-    isDuplicate,
+    isDuplicate: false,
     isValid,
     timestamp: now.toISOString()
   };
 
-  // Always save to persistent JSON store
+  // Save to persistent JSON store
   stored.unshift(clickRecord);
   saveStoredClicks(stored);
 

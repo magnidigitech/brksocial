@@ -902,15 +902,22 @@ export const dbService = {
 
     const clicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
 
-    // Deduplication check: same token and same IP within 1.5 seconds
+    // Deduplication check: same token and same IP within 3 seconds
     const now = Date.now();
     const isDuplicate = clicks.some(c => 
       c.token === (resolved?.token || token) &&
       c.ip === clientIp &&
-      (now - new Date(c.timestamp).getTime()) < 1500
+      (now - new Date(c.timestamp).getTime()) < 3000
     );
 
-    const isValid = !isBot && !isDuplicate;
+    if (isDuplicate) {
+      return {
+        clickRecord: clicks.find(c => c.token === (resolved?.token || token)) || null,
+        targetUrl: resolved?.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/'
+      };
+    }
+
+    const isValid = !isBot;
 
     const clickRecord = {
       id: `CLK-${now}-${Math.random().toString(36).substring(2, 7)}`,
