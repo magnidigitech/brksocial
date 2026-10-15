@@ -82,30 +82,45 @@ function loadFollowersFromDisk() {
     if (fs.existsSync(FOLLOWERS_FILE)) {
       const raw = fs.readFileSync(FOLLOWERS_FILE, 'utf8');
       const list = JSON.parse(raw) || [];
-      FOLLOWERS_MAP = new Map();
-      list.forEach(f => {
-        const k = (f.key || f.username || '').toLowerCase().replace(/^@+/, '').trim();
-        if (k) {
-          if (!f.followedAtFormatted && f.timestamp) {
-            f.followedAtFormatted = formatFollowerTimestamp(f.timestamp);
+      if (Array.isArray(list) && list.length > 0) {
+        FOLLOWERS_MAP = new Map();
+        list.forEach(f => {
+          const k = (f.key || f.username || '').toLowerCase().replace(/^@+/, '').trim();
+          if (k) {
+            if (!f.followedAtFormatted && f.timestamp) {
+              f.followedAtFormatted = formatFollowerTimestamp(f.timestamp);
+            }
+            FOLLOWERS_MAP.set(k, f);
           }
-          FOLLOWERS_MAP.set(k, f);
-        }
-      });
-      console.log(`Loaded ${FOLLOWERS_MAP.size} Instagram followers from disk into memory.`);
-      return;
+        });
+        console.log(`Loaded ${FOLLOWERS_MAP.size} Instagram followers from disk into memory.`);
+        return;
+      }
     }
 
-    // Auto-seed from local followers_1.json and followers_2.json if available
-    const f1Path = path.join(__dirname, 'followers_1.json');
-    const f2Path = path.join(__dirname, 'followers_2.json');
+    // Auto-seed from local followers_1.json and followers_2.json or public/data/ if available
+    const candidatePaths = [
+      path.join(__dirname, 'followers_1.json'),
+      path.join(__dirname, 'followers_2.json'),
+      path.join(__dirname, 'public', 'data', 'followers_1.json'),
+      path.join(__dirname, 'public', 'data', 'followers_2.json')
+    ];
+
     let seedList = [];
-    if (fs.existsSync(f1Path)) {
-      try { seedList.push(...JSON.parse(fs.readFileSync(f1Path, 'utf8'))); } catch (e) {}
-    }
-    if (fs.existsSync(f2Path)) {
-      try { seedList.push(...JSON.parse(fs.readFileSync(f2Path, 'utf8'))); } catch (e) {}
-    }
+    candidatePaths.forEach(p => {
+      if (fs.existsSync(p)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (Array.isArray(parsed)) {
+            for (let i = 0; i < parsed.length; i++) {
+              if (parsed[i]) seedList.push(parsed[i]);
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not parse seed file ${p}:`, e.message);
+        }
+      }
+    });
 
     if (seedList.length > 0) {
       console.log(`Auto-seeding Instagram followers from local JSON files (${seedList.length} records)...`);
@@ -119,32 +134,53 @@ function loadFollowersFromDisk() {
 function upsertFollowersData(incomingData) {
   let countAdded = 0;
   let countUpdated = 0;
-  const items = Array.isArray(incomingData) ? incomingData : [incomingData];
+  let items = [];
+
+  if (Array.isArray(incomingData)) {
+    items = incomingData;
+  } else if (incomingData && typeof incomingData === 'object') {
+    const candidateArrays = [
+      incomingData.followers,
+      incomingData.relationships_followers,
+      incomingData.data,
+      incomingData.items,
+      incomingData.users
+    ];
+    for (const arr of candidateArrays) {
+      if (Array.isArray(arr)) {
+        items = arr;
+        break;
+      }
+    }
+    if (!items.length) items = [incomingData];
+  }
 
   items.forEach(item => {
     let username = null;
     let href = null;
     let timestamp = 0;
 
-    if (item.string_list_data && item.string_list_data.length > 0) {
+    if (item && item.string_list_data && item.string_list_data.length > 0) {
       const d = item.string_list_data[0];
       username = d.value;
       href = d.href;
       timestamp = Number(d.timestamp) || 0;
-    } else if (item.value || item.username) {
+    } else if (item && (item.value || item.username)) {
       username = item.value || item.username;
       href = item.href;
       timestamp = Number(item.timestamp) || 0;
+    } else if (typeof item === 'string') {
+      username = item;
     }
 
     if (username) {
-      const cleanKey = username.trim().toLowerCase().replace(/^@+/, '');
+      const cleanKey = String(username).trim().toLowerCase().replace(/^@+/, '');
       if (!cleanKey) return;
       const existing = FOLLOWERS_MAP.get(cleanKey);
       const effTimestamp = timestamp || (existing ? existing.timestamp : Math.floor(Date.now() / 1000));
 
       const record = {
-        username: username.trim().replace(/^@+/, ''),
+        username: String(username).trim().replace(/^@+/, ''),
         key: cleanKey,
         href: href || `https://www.instagram.com/${cleanKey}`,
         timestamp: effTimestamp,

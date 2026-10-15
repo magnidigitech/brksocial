@@ -12,6 +12,7 @@ import {
   validateFollowerSubmission,
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
+import { followerStorage } from './followerStorage.js';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
@@ -534,76 +535,62 @@ export const dbService = {
     if (!subs.length) return { updatedCount: 0, subs: [] };
 
     let updatedCount = 0;
+
+    // Check if backend batch-check is available AND returning application/json
+    let resultsMap = new Map();
+    let usedBackend = false;
+
     try {
       const res = await fetch('/api/instagram/followers/batch-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ submissions: subs })
+        body: JSON.stringify({ submissions: subs }),
+        signal: AbortSignal.timeout(3000)
       });
-
-      if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
-        const resultsMap = new Map();
-        (data.results || []).forEach(r => {
-          resultsMap.set(r.username, r);
-        });
-
-        // Evaluate from oldest to newest so duplicate checks work properly
-        for (let i = 0; i < subs.length; i++) {
-          const sub = subs[i];
-          const cleanUser = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
-          const checkRes = resultsMap.get(cleanUser);
-          const earlierSubs = subs.slice(i + 1);
-
-          const val = validateFollowerSubmission({
-            normalizedUsername: sub.username,
-            submittedAtIso: sub.submittedAt,
-            followerRecord: checkRes?.exists ? checkRes : null,
-            existingSubmissions: earlierSubs,
-            currentSubmissionId: sub.id
-          });
-
-          if (
-            sub.status !== val.status ||
-            sub.isValid !== val.isValid ||
-            sub.followedAtFormatted !== val.followedAtFormatted ||
-            sub.verificationBadge !== val.verificationBadge
-          ) {
-            sub.status = val.status;
-            sub.isValid = val.isValid;
-            sub.isFollower = val.isFollower;
-            sub.followedAtFormatted = val.followedAtFormatted;
-            sub.followedAtTimestamp = val.followedAtTimestamp;
-            sub.verificationBadge = val.verificationBadge;
-            sub.verificationNote = val.verificationNote;
-            updatedCount++;
-          }
+        if (data && data.results) {
+          data.results.forEach(r => resultsMap.set(r.username, r));
+          usedBackend = true;
         }
       }
-    } catch (err) {
-      console.warn('Batch revalidation fallback to single check:', err.message);
-      for (let i = 0; i < subs.length; i++) {
-        const sub = subs[i];
-        const followerRes = await this.checkInstagramFollower(sub.username);
-        const earlierSubs = subs.slice(i + 1);
-        const val = validateFollowerSubmission({
-          normalizedUsername: sub.username,
-          submittedAtIso: sub.submittedAt,
-          followerRecord: followerRes?.exists ? followerRes : null,
-          existingSubmissions: earlierSubs,
-          currentSubmissionId: sub.id
-        });
+    } catch (_) {}
 
-        if (sub.status !== val.status || sub.isValid !== val.isValid) {
-          sub.status = val.status;
-          sub.isValid = val.isValid;
-          sub.isFollower = val.isFollower;
-          sub.followedAtFormatted = val.followedAtFormatted;
-          sub.followedAtTimestamp = val.followedAtTimestamp;
-          sub.verificationBadge = val.verificationBadge;
-          sub.verificationNote = val.verificationNote;
-          updatedCount++;
-        }
+    // Evaluate each submission (from oldest to newest so duplicate checks work accurately)
+    for (let i = 0; i < subs.length; i++) {
+      const sub = subs[i];
+      const cleanUser = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
+      let checkRes = resultsMap.get(cleanUser);
+
+      // If backend didn't provide checkRes, check client-side followerStorage
+      if (!checkRes) {
+        checkRes = await followerStorage.checkFollower(cleanUser);
+      }
+
+      const earlierSubs = subs.slice(i + 1);
+      const val = validateFollowerSubmission({
+        normalizedUsername: sub.username,
+        submittedAtIso: sub.submittedAt,
+        followerRecord: checkRes?.exists ? checkRes : null,
+        existingSubmissions: earlierSubs,
+        currentSubmissionId: sub.id
+      });
+
+      if (
+        sub.status !== val.status ||
+        sub.isValid !== val.isValid ||
+        sub.followedAtFormatted !== val.followedAtFormatted ||
+        sub.verificationBadge !== val.verificationBadge
+      ) {
+        sub.status = val.status;
+        sub.isValid = val.isValid;
+        sub.isFollower = val.isFollower;
+        sub.followedAtFormatted = val.followedAtFormatted;
+        sub.followedAtTimestamp = val.followedAtTimestamp;
+        sub.verificationBadge = val.verificationBadge;
+        sub.verificationNote = val.verificationNote;
+        updatedCount++;
       }
     }
 
@@ -1256,60 +1243,18 @@ export const dbService = {
   },
 
   async checkInstagramFollower(username) {
-    if (!username) return { exists: false, isFollower: false };
-    const clean = String(username).trim().toLowerCase().replace(/^@+/, '');
-    try {
-      const res = await fetch(`/api/instagram/followers/check/${encodeURIComponent(clean)}`);
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-    } catch (err) {
-      console.warn('Backend follower check unreachable:', err.message);
-    }
-    return { exists: false, isFollower: false, username: clean };
+    return followerStorage.checkFollower(username);
   },
 
-  async uploadInstagramFollowers(followersData) {
-    try {
-      const res = await fetch('/api/instagram/followers/upsert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(followersData)
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to upload followers data');
-    } catch (err) {
-      console.error('Error uploading followers:', err);
-      throw err;
-    }
+  async uploadInstagramFollowers(followersData, onProgress) {
+    return followerStorage.upsertFollowers(followersData, onProgress);
   },
 
   async getInstagramFollowerStats() {
-    try {
-      const res = await fetch('/api/instagram/followers/stats');
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn('Error fetching follower stats:', err.message);
-    }
-    return { success: false, total: 0, latestFollower: null };
+    return followerStorage.getStats();
   },
 
   async getInstagramFollowersList(search = '', page = 1, limit = 50) {
-    try {
-      const params = new URLSearchParams({ search, page, limit });
-      const res = await fetch(`/api/instagram/followers?${params.toString()}`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn('Error fetching followers list:', err.message);
-    }
-    return { success: false, total: 0, followers: [] };
+    return followerStorage.getFollowersList(search, page, limit);
   }
 };

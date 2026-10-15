@@ -4,6 +4,7 @@ import {
   ExternalLink, Calendar, Users, ShieldCheck, Download, Clock, Filter
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
+import { followerStorage, extractItemsFromParsedJson } from '../services/followerStorage.js';
 
 export function InstagramFollowersView() {
   const [stats, setStats] = useState({ total: 0, latestFollower: null, lastUpdated: null });
@@ -25,6 +26,7 @@ export function InstagramFollowersView() {
   // File Upload State
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [uploadToast, setUploadToast] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -49,7 +51,12 @@ export function InstagramFollowersView() {
   const fetchStats = async () => {
     setLoadingStats(true);
     try {
-      const data = await dbService.getInstagramFollowerStats();
+      let data = await dbService.getInstagramFollowerStats();
+      if (!data || !data.total || data.total === 0) {
+        // Initialize followerStorage (which auto-seeds from public static files if empty)
+        await followerStorage.init();
+        data = await dbService.getInstagramFollowerStats();
+      }
       if (data && data.success) {
         setStats(data);
       }
@@ -115,6 +122,7 @@ export function InstagramFollowersView() {
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
+    setUploadProgress('Reading file(s)...');
     setUploadToast(null);
 
     try {
@@ -122,17 +130,16 @@ export function InstagramFollowersView() {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.name.endsWith('.json')) {
-          alert(`File "${file.name}" is not a JSON file. Please upload .json files.`);
-          continue;
+        if (!file.name.toLowerCase().endsWith('.json')) {
+          throw new Error(`File "${file.name}" is not a JSON file. Please upload .json files.`);
         }
 
+        setUploadProgress(`Parsing ${file.name} (${Math.round(file.size / 1024)} KB)...`);
         const text = await file.text();
         const json = JSON.parse(text);
-        if (Array.isArray(json)) {
-          combinedData.push(...json);
-        } else if (json.followers && Array.isArray(json.followers)) {
-          combinedData.push(...json.followers);
+        const items = extractItemsFromParsedJson(json);
+        for (let j = 0; j < items.length; j++) {
+          if (items[j]) combinedData.push(items[j]);
         }
       }
 
@@ -140,28 +147,60 @@ export function InstagramFollowersView() {
         throw new Error('No valid follower entries found in uploaded file(s).');
       }
 
-      // Send to server upsert API
-      const response = await dbService.uploadInstagramFollowers(combinedData);
+      setUploadProgress(`Parsed ${combinedData.length.toLocaleString()} records. Upserting into database...`);
 
+      // Send to server & local IndexedDB upsert API with live progress reporting
+      const response = await dbService.uploadInstagramFollowers(combinedData, (msg) => {
+        setUploadProgress(msg);
+      });
+
+      setUploadProgress('Cross-checking & synchronizing staff submissions...');
       // Automatically cross-check & re-validate all submissions against newly uploaded followers JSON!
       const revalResult = await dbService.revalidateSubmissionsWithFollowers();
 
       setUploadToast({
         type: 'success',
-        message: `Successfully upserted ${response.total} followers (+${response.added} new, +${response.updated} updated). ${revalResult?.updatedCount > 0 ? `Re-validated: ${revalResult.updatedCount} submission statuses updated!` : 'Submissions synchronized.'}`
+        message: `Successfully upserted ${response.total?.toLocaleString()} followers (+${response.added?.toLocaleString()} new, +${response.updated?.toLocaleString()} updated). ${revalResult?.updatedCount > 0 ? `Re-validated: ${revalResult.updatedCount} submission statuses updated!` : 'Submissions synchronized.'}`
       });
 
       // Refresh stats & list
-      fetchStats();
-      fetchFollowers(1, searchQuery);
+      await fetchStats();
+      await fetchFollowers(1, searchQuery);
     } catch (err) {
+      console.error('Upload failed:', err);
       setUploadToast({
         type: 'error',
         message: `Upload failed: ${err.message}`
       });
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAutoSeed = async () => {
+    setIsUploading(true);
+    setUploadProgress('Loading existing followers seed data (followers_1.json & followers_2.json)...');
+    setUploadToast(null);
+    try {
+      await followerStorage.autoSeedFromPublicData((msg) => setUploadProgress(msg));
+      const newStats = await followerStorage.getStats();
+      if (newStats) setStats(newStats);
+      await fetchFollowers(1, searchQuery);
+      const reval = await dbService.revalidateSubmissionsWithFollowers();
+      setUploadToast({
+        type: 'success',
+        message: `Successfully seeded ${newStats.total?.toLocaleString()} followers into database! ${reval?.updatedCount > 0 ? `${reval.updatedCount} submissions synchronized.` : ''}`
+      });
+    } catch (err) {
+      setUploadToast({
+        type: 'error',
+        message: `Seeding failed: ${err.message}`
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress('');
     }
   };
 
@@ -382,10 +421,52 @@ export function InstagramFollowersView() {
               }}
             >
               {isUploading ? <RefreshCw size={14} className="spin" /> : <Upload size={14} />}
-              <span>{isUploading ? 'Upserting Data...' : 'Select JSON Files to Upsert'}</span>
+              <span>{isUploading ? (uploadProgress || 'Upserting Data...') : 'Select JSON Files to Upsert'}</span>
             </button>
             <span style={{ fontSize: '11px', color: '#86868b' }}>or drag and drop files here</span>
+
+            {stats.total === 0 && (
+              <button
+                type="button"
+                onClick={handleAutoSeed}
+                disabled={isUploading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                  color: '#0071e3',
+                  border: '1px solid rgba(0, 113, 227, 0.25)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: isUploading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <RefreshCw size={12} className={isUploading ? 'spin' : ''} />
+                <span>Auto-Seed 19k+ Followers</span>
+              </button>
+            )}
           </div>
+
+          {isUploading && uploadProgress && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11.5px',
+              color: '#0071e3',
+              fontWeight: 500,
+              backgroundColor: 'rgba(0, 113, 227, 0.06)',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              marginTop: '10px'
+            }}>
+              <RefreshCw size={12} className="spin" />
+              <span>{uploadProgress}</span>
+            </div>
+          )}
         </div>
 
         {/* Live Single Profile Follow Date Checker */}
@@ -465,19 +546,23 @@ export function InstagramFollowersView() {
                 </span>
               </div>
 
-              {checkResult.isFollower && checkResult.follower && (
+              {checkResult.isFollower && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
                   <div style={{ fontSize: '12px', color: '#1d1d1f' }}>
-                    Followed on: <strong style={{ color: '#0071e3', fontFamily: 'monospace' }}>{checkResult.follower.followedAtFormatted}</strong>
+                    Followed on: <strong style={{ color: '#0071e3', fontFamily: 'monospace' }}>
+                      {checkResult.follower?.followedAtFormatted || checkResult.followedAtFormatted || 'Recorded'}
+                    </strong>
                   </div>
-                  <a
-                    href={checkResult.follower.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: '11px', color: '#0071e3', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                  >
-                    View Instagram Profile <ExternalLink size={10} />
-                  </a>
+                  {(checkResult.follower?.href || checkResult.href) && (
+                    <a
+                      href={checkResult.follower?.href || checkResult.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '11px', color: '#0071e3', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                    >
+                      View Instagram Profile <ExternalLink size={10} />
+                    </a>
+                  )}
                 </div>
               )}
 
