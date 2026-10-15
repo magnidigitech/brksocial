@@ -38,7 +38,7 @@ export function LoginPage({ onLoginSuccess }) {
           } else {
             webauthnService.clearEnrolledUser();
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }, []);
@@ -54,7 +54,7 @@ export function LoginPage({ onLoginSuccess }) {
     const timer = setTimeout(() => {
       webauthnService.checkUserHasPasskey(inputIdentifier).then((hasKey) => {
         setHasPasskeyForInput(hasKey);
-      }).catch(() => {});
+      }).catch(() => { });
     }, 350);
 
     return () => clearTimeout(timer);
@@ -305,7 +305,7 @@ export function LoginPage({ onLoginSuccess }) {
         {/* Bottom Left Info Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#78716c', marginTop: '16px' }}>
           <span>25 Parliament • 175 Assembly Constituencies</span>
-          <span>v1.2 Enterprise</span>
+          <span>Powered by Magni Digitech</span>
         </div>
       </div>
 
@@ -379,11 +379,7 @@ export function LoginPage({ onLoginSuccess }) {
           <h2 className="login-form-title" style={{ textAlign: 'center' }}>
             {isAdminMode ? 'Admin Portal Sign In' : 'Employee Sign In'}
           </h2>
-          <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', marginBottom: '24px', textAlign: 'center' }}>
-            {isAdminMode
-              ? 'Enter administrator credentials to proceed to Admin Page.'
-              : 'Sign in with your Support Code, Staff ID, Personal Mobile, or Office Mobile.'}
-          </p>
+
 
           {/* Biometric / Passkey Login Option (Displayed only when registered credential exists on device or user) */}
           {webauthnSupported && (enrolledUser || hasPasskeyForInput) && (
@@ -498,13 +494,8 @@ export function LoginPage({ onLoginSuccess }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {isAdminMode ? 'Admin Username' : 'Staff Identifier'}
+                  {isAdminMode ? 'Admin Username' : 'Staff ID / Mobile / Support Code'}
                 </label>
-                {!isAdminMode && (
-                  <span style={{ fontSize: '11px', color: '#0369a1', fontWeight: 600 }}>
-                    Support Code / Staff ID / Mobile
-                  </span>
-                )}
               </div>
               <input
                 type="text"
@@ -525,11 +516,6 @@ export function LoginPage({ onLoginSuccess }) {
                   boxSizing: 'border-box'
                 }}
               />
-              {!isAdminMode && (
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', paddingLeft: '8px' }}>
-                  💡 <strong>Parliament Staff:</strong> Use Support Code (APP01-APP25) or Personal Mobile
-                </div>
-              )}
             </div>
 
             <div>
