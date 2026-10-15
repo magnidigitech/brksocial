@@ -1,19 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut, MousePointerClick, Instagram } from 'lucide-react';
+import { LayoutDashboard, Users, Sliders, ShieldAlert, FileSpreadsheet, LogOut, MousePointerClick, Instagram, Fingerprint } from 'lucide-react';
 import { StaffDirectoryView } from '../components/StaffDirectoryView.jsx';
 import { TaskManagementView } from '../components/TaskManagementView.jsx';
 import { AdminMetricsDashboardView } from '../components/AdminMetricsDashboardView.jsx';
 import { LinkAnalyticsView } from '../components/LinkAnalyticsView.jsx';
 import { InstagramFollowersView } from '../components/InstagramFollowersView.jsx';
+import { BiometricSecurityModal } from '../components/BiometricSecurityModal.jsx';
+import { webauthnService } from '../services/webauthnService.js';
 
 export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false);
+  const [hasPasskey, setHasPasskey] = useState(false);
 
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  useEffect(() => {
+    const adminId = session?.username || 'admin';
+    if (webauthnService.isSupported()) {
+      webauthnService.checkUserHasPasskey(adminId).then(hasKey => {
+        setHasPasskey(hasKey);
+      }).catch(() => {});
+    }
+  }, [session]);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -96,6 +109,31 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
                   {session?.name || session?.username || 'Admin'}
                 </span>
               </div>
+
+              {/* Biometric / Passkey Security Settings */}
+              <button
+                type="button"
+                onClick={() => setIsBiometricModalOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 13px',
+                  borderRadius: '980px',
+                  backgroundColor: hasPasskey ? 'rgba(52, 199, 89, 0.1)' : '#ffffff',
+                  color: hasPasskey ? '#248a3d' : '#1d1d1f',
+                  border: hasPasskey ? '1px solid rgba(52, 199, 89, 0.25)' : '1px solid rgba(0, 0, 0, 0.08)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Biometric Login & Passkey Settings"
+              >
+                <Fingerprint size={13} style={{ color: hasPasskey ? '#34c759' : '#ff4d00' }} />
+                <span>{hasPasskey ? 'Biometric: Active' : 'Biometrics'}</span>
+              </button>
 
               <button
                 onClick={onLogout}
@@ -298,6 +336,14 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
           )}
         </div>
       </div>
+
+      {/* Biometric & Passkey Security Modal */}
+      <BiometricSecurityModal
+        isOpen={isBiometricModalOpen}
+        onClose={() => setIsBiometricModalOpen(false)}
+        session={session}
+        onStatusChanged={(active) => setHasPasskey(active)}
+      />
     </div>
   );
 }

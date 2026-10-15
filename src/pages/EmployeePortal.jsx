@@ -28,11 +28,14 @@ import {
   XCircle,
   QrCode,
   Download,
-  X
+  X,
+  Fingerprint
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
 import { formatIST, validateFollowerSubmission, getTodayISTDateString } from '../services/istUtils.js';
+import { BiometricSecurityModal } from '../components/BiometricSecurityModal.jsx';
+import { webauthnService } from '../services/webauthnService.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -59,6 +62,9 @@ export function EmployeePortal({ session, onLogout }) {
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false);
+  const [hasPasskey, setHasPasskey] = useState(false);
+  const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -201,6 +207,17 @@ export function EmployeePortal({ session, onLogout }) {
       const selected = activeTask ? (tasks.find(t => t.id === activeTask.id) || tasks[0]) : tasks[0];
       setActiveTask(selected);
       updateStats(empId, selected.id);
+    }
+
+    // Check passkey status for user
+    const targetUserId = empId || session?.supportCode;
+    if (webauthnService.isSupported() && targetUserId) {
+      webauthnService.checkUserHasPasskey(targetUserId).then(hasKey => {
+        setHasPasskey(hasKey);
+        if (!hasKey) {
+          setShowPasskeyPrompt(true);
+        }
+      }).catch(() => {});
     }
   };
 
@@ -444,27 +461,132 @@ export function EmployeePortal({ session, onLogout }) {
             </div>
           </div>
 
-          {/* Sign Out */}
-          <button
-            onClick={onLogout}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Biometric Security Settings Button */}
+            <button
+              type="button"
+              onClick={() => setIsBiometricModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                borderRadius: '9999px',
+                backgroundColor: hasPasskey ? '#f0fdf4' : '#f8fafc',
+                color: hasPasskey ? '#166534' : '#334155',
+                border: hasPasskey ? '1px solid #bbf7d0' : '1px solid #cbd5e1',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+              title="Biometric Login & Passkey Settings"
+            >
+              <Fingerprint size={16} style={{ color: hasPasskey ? '#16a34a' : '#ff4d00' }} />
+              <span>{hasPasskey ? 'Biometric: Active' : 'Enable Biometrics'}</span>
+            </button>
+
+            {/* Sign Out */}
+            <button
+              onClick={onLogout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 18px',
+                borderRadius: '9999px',
+                backgroundColor: '#fff1f2',
+                color: '#e11d48',
+                border: '1px solid #fecdd3',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut size={15} />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Passkey Onboarding Banner */}
+        {showPasskeyPrompt && !hasPasskey && (
+          <div
             style={{
+              marginBottom: '20px',
+              padding: '14px 18px',
+              borderRadius: '16px',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              backgroundColor: '#fff1f2',
-              color: '#e11d48',
-              border: '1px solid #fecdd3',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer'
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
             }}
           >
-            <LogOut size={15} />
-            <span>Sign Out</span>
-          </button>
-        </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  flexShrink: 0
+                }}
+              >
+                <Fingerprint size={20} />
+              </div>
+              <div>
+                <strong style={{ fontSize: '13px', color: '#1e3a8a', display: 'block' }}>
+                  Enable One-Touch Biometric Sign In
+                </strong>
+                <span style={{ fontSize: '12px', color: '#1e40af' }}>
+                  Sign in next time instantly using your fingerprint, Touch ID, or Face ID.
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsBiometricModalOpen(true)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#1d4ed8',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Enable Passkey →
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPasskeyPrompt(false)}
+                style={{
+                  padding: '6px',
+                  borderRadius: '50%',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6b7280',
+                  cursor: 'pointer'
+                }}
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ASSIGNED TASKS SELECTOR (If Multiple Tasks exist) */}
         {assignedTasks.length > 1 && (
@@ -1267,6 +1389,17 @@ export function EmployeePortal({ session, onLogout }) {
           </div>
         </div>
       )}
+
+      {/* Biometric & Passkey Security Modal */}
+      <BiometricSecurityModal
+        isOpen={isBiometricModalOpen}
+        onClose={() => setIsBiometricModalOpen(false)}
+        session={session}
+        onStatusChanged={(active) => {
+          setHasPasskey(active);
+          if (active) setShowPasskeyPrompt(false);
+        }}
+      />
     </div>
   );
 }

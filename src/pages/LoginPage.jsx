@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, ShieldCheck, UserCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, ShieldCheck, UserCheck, Fingerprint, Loader2 } from 'lucide-react';
 import { authService } from '../services/auth.js';
+import { webauthnService, getBiometricMethodName } from '../services/webauthnService.js';
 
 export function LoginPage({ onLoginSuccess }) {
   const [isAdminMode, setIsAdminMode] = useState(false); // Default: Employee Sign-In (false)
@@ -15,6 +16,49 @@ export function LoginPage({ onLoginSuccess }) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Biometric / WebAuthn Passkeys State
+  const [webauthnSupported, setWebauthnSupported] = useState(false);
+  const [enrolledUser, setEnrolledUser] = useState(null);
+  const [hasPasskeyForInput, setHasPasskeyForInput] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+
+  useEffect(() => {
+    // Check WebAuthn support
+    const supported = webauthnService.isSupported();
+    setWebauthnSupported(supported);
+
+    if (supported) {
+      const enrolled = webauthnService.getEnrolledUser();
+      if (enrolled?.userId) {
+        // Verify with server that passkey is still valid
+        webauthnService.checkUserHasPasskey(enrolled.userId).then((hasKey) => {
+          if (hasKey) {
+            setEnrolledUser(enrolled);
+          } else {
+            webauthnService.clearEnrolledUser();
+          }
+        }).catch(() => {});
+      }
+    }
+  }, []);
+
+  // Check if typed identifier has a registered passkey
+  useEffect(() => {
+    const inputIdentifier = (isAdminMode ? adminUser : empId).trim();
+    if (!webauthnSupported || !inputIdentifier) {
+      setHasPasskeyForInput(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      webauthnService.checkUserHasPasskey(inputIdentifier).then((hasKey) => {
+        setHasPasskeyForInput(hasKey);
+      }).catch(() => {});
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [isAdminMode, adminUser, empId, webauthnSupported]);
 
   // 3D Cursor Tilt & Multi-Layer Depth Parallax State
   const [tilt, setTilt] = useState({ rotateX: 0, rotateY: 0, layerX: 0, layerY: 0 });
@@ -70,6 +114,40 @@ export function LoginPage({ onLoginSuccess }) {
       onLoginSuccess(res.session);
     } else {
       setErrorMsg(res.error);
+    }
+  };
+
+  // Biometric / Passkey Login Trigger
+  const handleBiometricLogin = async () => {
+    if (!webauthnSupported) {
+      setErrorMsg('Biometric authentication is not supported by your browser.');
+      return;
+    }
+
+    setErrorMsg('');
+    setIsBiometricLoading(true);
+
+    try {
+      // Determine user identifier hint if available
+      const inputIdentifier = (isAdminMode ? adminUser : empId).trim();
+      const targetId = inputIdentifier || enrolledUser?.userId || null;
+
+      const res = await webauthnService.authenticateWithPasskey(targetId);
+
+      if (res.success && res.session) {
+        authService.setSession(res.session);
+        onLoginSuccess(res.session);
+      } else {
+        if (!res.cancelled) {
+          setErrorMsg(res.error || 'Biometric authentication failed. Please enter your password.');
+        } else {
+          setErrorMsg('Biometric prompt was cancelled. Click again or use password to sign in.');
+        }
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Biometric sign in error.');
+    } finally {
+      setIsBiometricLoading(false);
     }
   };
 
@@ -306,6 +384,97 @@ export function LoginPage({ onLoginSuccess }) {
               ? 'Enter administrator credentials to proceed to Admin Page.'
               : 'Sign in with your Support Code, Staff ID, Personal Mobile, or Office Mobile.'}
           </p>
+
+          {/* Biometric / Passkey Login Option (Displayed only when registered credential exists on device or user) */}
+          {webauthnSupported && (enrolledUser || hasPasskeyForInput) && (
+            <div style={{ marginBottom: '24px' }}>
+              <button
+                type="button"
+                onClick={handleBiometricLogin}
+                disabled={isBiometricLoading}
+                style={{
+                  width: '100%',
+                  padding: '16px 20px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 77, 0, 0.35)',
+                  boxShadow: '0 8px 20px rgba(15, 23, 42, 0.16)',
+                  cursor: isBiometricLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  textAlign: 'left',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #ff4d00 0%, #ff1a40 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px rgba(255, 77, 0, 0.35)'
+                  }}
+                >
+                  {isBiometricLoading ? (
+                    <Loader2 size={22} className="animate-spin" />
+                  ) : (
+                    <Fingerprint size={24} strokeWidth={2.2} />
+                  )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                    {isBiometricLoading ? 'Verifying Identity...' : `Login with ${getBiometricMethodName()}`}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {enrolledUser?.userName
+                      ? `Passkey ready for ${enrolledUser.userName}`
+                      : 'Fast, secure one-touch authentication'}
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    backgroundColor: 'rgba(255, 77, 0, 0.18)',
+                    color: '#ff6633',
+                    padding: '4px 10px',
+                    borderRadius: '9999px',
+                    border: '1px solid rgba(255, 77, 0, 0.3)',
+                    flexShrink: 0
+                  }}
+                >
+                  PASSKEY
+                </span>
+              </button>
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginTop: '20px',
+                  marginBottom: '6px',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  fontWeight: 500
+                }}
+              >
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                <span>or use password</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {errorMsg && (
