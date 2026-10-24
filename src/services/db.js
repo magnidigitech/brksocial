@@ -1065,33 +1065,29 @@ export const dbService = {
   },
 
   async syncClicksWithServer() {
-    if (typeof fetch === 'undefined') return;
+    if (typeof fetch === 'undefined') return [];
     try {
-      const res = await fetch('/api/links/analytics');
+      const res = await fetch('/api/links/analytics?_t=' + Date.now(), {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) return;
+        if (!contentType.includes('application/json')) return [];
 
         const data = await res.json();
-        if (data.success && Array.isArray(data.clicks) && data.clicks.length > 0) {
-          const localClicks = this.getLinkClicks();
-          const localIds = new Set(localClicks.map(c => c.id));
-          let added = 0;
-          data.clicks.forEach(serverClick => {
-            if (!localIds.has(serverClick.id)) {
-              localClicks.unshift(serverClick);
-              added++;
-            }
-          });
-          if (added > 0) {
-            localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(localClicks));
-            broadcastSyncEvent('brk_link_click_event', { added });
-          }
+        if (data.success && Array.isArray(data.clicks)) {
+          localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(data.clicks));
+          broadcastSyncEvent('brk_link_click_event', { clicks: data.clicks });
+          return data.clicks;
         }
       }
     } catch (e) {
       // Offline / standalone mode - ignore
     }
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
   },
 
   getLinkAnalytics(filter = {}) {
@@ -1102,7 +1098,9 @@ export const dbService = {
     const parliamentCode = filter.parliamentCode;
     const assemblyCode = filter.assemblyCode;
 
-    const allClicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
+    const allClicks = Array.isArray(filter.allClicks)
+      ? filter.allClicks
+      : (JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || []);
     const employees = this.getEmployees();
     const tasks = this.getTasks();
     const targetTask = taskId && taskId !== 'ALL' ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
@@ -1217,11 +1215,13 @@ export const dbService = {
     };
   },
 
-  getEmployeeTaskClicks(employeeId, taskId, dateStr) {
+  getEmployeeTaskClicks(employeeId, taskId, dateStr, customClicks = null) {
     this.init();
     if (!employeeId) return { totalClicks: 0, validClicks: 0, uniqueIps: 0, botClicks: 0, valueOf() { return 0; } };
     const effectiveDate = dateStr || getTodayISTDateString();
-    const allClicks = JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || [];
+    const allClicks = Array.isArray(customClicks)
+      ? customClicks
+      : (JSON.parse(localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) || []);
     const empClicks = allClicks.filter(c => 
       c.employeeId && c.employeeId.toUpperCase() === employeeId.toUpperCase() &&
       (!taskId || c.taskId === taskId) &&

@@ -44,33 +44,59 @@ export function LinkAnalyticsView() {
   const [inspectStaff, setInspectStaff] = useState(null);
   const [copiedToken, setCopiedToken] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [serverClicks, setServerClicks] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const list = dbService.getTasks();
     setTasks(list);
   }, []);
 
+  const fetchLiveClicks = async () => {
+    setIsRefreshing(true);
+    try {
+      const clicks = await dbService.syncClicksWithServer();
+      if (Array.isArray(clicks)) {
+        setServerClicks(clicks);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch live clicks:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Real-time live update & server sync
   useEffect(() => {
-    const handleUpdate = () => setRefreshKey(prev => prev + 1);
+    fetchLiveClicks();
+
+    const handleUpdate = () => fetchLiveClicks();
     window.addEventListener('brk_link_click_event', handleUpdate);
     window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLiveClicks();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     const interval = setInterval(() => {
-      dbService.syncClicksWithServer().then(() => {
-        setRefreshKey(prev => prev + 1);
-      }).catch(() => {});
+      fetchLiveClicks();
     }, 2500);
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };
   }, []);
 
   const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
+    fetchLiveClicks();
   };
 
   // Compute analytics based on current filters
@@ -93,11 +119,12 @@ export function LinkAnalyticsView() {
     const data = dbService.getLinkAnalytics({
       taskId: selectedTaskId !== 'ALL' ? selectedTaskId : null,
       date: targetDate,
-      startDate: startDate
+      startDate: startDate,
+      allClicks: serverClicks
     });
 
     return data;
-  }, [selectedTaskId, dateFilter, refreshKey]);
+  }, [selectedTaskId, dateFilter, serverClicks, refreshKey]);
 
   // Flattened assemblies list
   const assembliesForSelection = useMemo(() => {
@@ -294,23 +321,30 @@ export function LinkAnalyticsView() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               onClick={handleRefresh}
+              disabled={isRefreshing}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '8px 16px',
                 borderRadius: '980px',
-                backgroundColor: '#ffffff',
+                backgroundColor: isRefreshing ? '#f5f5f7' : '#ffffff',
                 color: '#1d1d1f',
                 border: '1px solid rgba(0, 0, 0, 0.12)',
                 fontSize: '12px',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: isRefreshing ? 'default' : 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              <RefreshCw size={13} style={{ color: '#86868b' }} />
-              <span>Refresh</span>
+              <RefreshCw 
+                size={13} 
+                style={{ 
+                  color: isRefreshing ? '#0071e3' : '#86868b',
+                  animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none'
+                }} 
+              />
+              <span>{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
             </button>
 
             <button
