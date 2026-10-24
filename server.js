@@ -25,6 +25,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+app.use(express.text({ type: ['text/*', 'application/json'], limit: '100mb' }));
 
 // Local persistent file storage fallback
 const DATA_DIR = path.join(__dirname, 'data');
@@ -1241,7 +1242,11 @@ app.get('/track/:slug/:token', handleTrackingRedirect);
 
 // API: Record Client-Side Click (Beacon / AJAX)
 app.post('/api/links/click', async (req, res) => {
-  const { token, taskId, employeeId, ip, userAgent, referrer } = req.body;
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (_) {}
+  }
+  const { token, taskId, employeeId, ip, userAgent, referrer } = body || {};
   const clientIp = ip || (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
   const ua = userAgent || req.headers['user-agent'] || '';
   const ref = referrer || req.headers['referer'] || 'Direct';
@@ -1259,7 +1264,7 @@ app.post('/api/links/click', async (req, res) => {
     res.json({
       success: true,
       clickRecord: result.clickRecord,
-      isValid: result.clickRecord.isValid
+      isValid: result.clickRecord?.isValid ?? false
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1269,8 +1274,43 @@ app.post('/api/links/click', async (req, res) => {
 // API: Query Live Link Clicks & Analytics
 async function handleAnalytics(req, res) {
   try {
-    // Prefer stored clicks (includes real clicks regardless of database status)
-    const clicks = getStoredClicks();
+    let clicks = [];
+    if (isDbConnected) {
+      try {
+        const result = await pool.query(`
+          SELECT 
+            id, token, task_id as "taskId", employee_id as "employeeId",
+            parliament_code as "parliamentCode", assembly_code as "assemblyCode",
+            ip_address as "ip", user_agent as "userAgent", referrer,
+            device_type as "deviceType", is_bot as "isBot", bot_name as "botName",
+            is_duplicate as "isDuplicate", is_valid as "isValid",
+            created_at as "timestamp"
+          FROM link_clicks 
+          ORDER BY created_at DESC 
+          LIMIT 10000
+        `);
+
+        clicks = result.rows.map(r => {
+          const emp = resolveStaff(r.employeeId) || resolveStaff(r.token);
+          return {
+            ...r,
+            taskName: 'Sri Bhashyam Ramakrishna — Instagram Follower Outreach',
+            employeeName: emp?.name || 'General Visitor',
+            supportCode: emp?.supportCode || r.employeeId,
+            staffId: emp?.staffId || '',
+            parliamentName: emp?.parliamentName || '',
+            assemblyName: emp?.assemblyName || '',
+            targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/'
+          };
+        });
+      } catch (dbErr) {
+        console.warn('PostgreSQL fetch link_clicks error, using file fallback:', dbErr.message);
+        clicks = getStoredClicks();
+      }
+    } else {
+      clicks = getStoredClicks();
+    }
+
     return res.json({
       success: true,
       clicks,

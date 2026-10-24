@@ -1,0 +1,14 @@
+# Nixpacks Configuration for Hostinger VPS Deployment
+# Forces Node.js fullstack environment (Express backend + Vite production build)
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node server.js"

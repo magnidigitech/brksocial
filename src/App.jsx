@@ -67,10 +67,10 @@ function TrackingRedirectHandler({ pathname }) {
 
       setTargetUrl(dest);
 
-      // Smooth 200ms transition so UI is visible before leaving
+      // Smooth 400ms transition so UI is visible and beacon has flushed before leaving
       const timer = setTimeout(() => {
         window.location.href = dest;
-      }, 200);
+      }, 400);
 
       return () => clearTimeout(timer);
     } catch (e) {

@@ -1027,19 +1027,31 @@ export const dbService = {
     broadcastSyncEvent('brk_link_click_event', clickRecord);
 
     // Also dispatch to backend server if reachable (ensures global sync across devices)
-    if (typeof fetch !== 'undefined') {
+    const payload = JSON.stringify({
+      token: clickRecord.token,
+      taskId: clickRecord.taskId,
+      employeeId: clickRecord.employeeId,
+      ip: clientIp,
+      userAgent: ua,
+      referrer: ref
+    });
+
+    let beaconSent = false;
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      try {
+        const blob = new Blob([payload], { type: 'application/json' });
+        beaconSent = navigator.sendBeacon('/api/links/click', blob);
+      } catch (e) {
+        beaconSent = false;
+      }
+    }
+
+    if (!beaconSent && typeof fetch !== 'undefined') {
       try {
         fetch('/api/links/click', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: clickRecord.token,
-            taskId: clickRecord.taskId,
-            employeeId: clickRecord.employeeId,
-            ip: clientIp,
-            userAgent: ua,
-            referrer: ref
-          }),
+          body: payload,
           keepalive: true
         }).catch(() => {});
       } catch (e) {}
@@ -1057,6 +1069,9 @@ export const dbService = {
     try {
       const res = await fetch('/api/links/analytics');
       if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) return;
+
         const data = await res.json();
         if (data.success && Array.isArray(data.clicks) && data.clicks.length > 0) {
           const localClicks = this.getLinkClicks();
