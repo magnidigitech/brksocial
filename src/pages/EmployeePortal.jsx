@@ -101,20 +101,29 @@ export function EmployeePortal({ session, onLogout }) {
       setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
     };
 
-    window.addEventListener('brk_link_click_event', handleLiveRefresh);
-    window.addEventListener('storage', handleLiveRefresh);
-    window.addEventListener('brk_submission_event', handleLiveRefresh);
-
-    const interval = setInterval(() => {
+    const triggerSync = () => {
       dbService.syncClicksWithServer().then(() => {
         handleLiveRefresh();
       }).catch(() => {});
-    }, 2500);
+    };
+
+    // Immediate sync on load
+    triggerSync();
+
+    window.addEventListener('brk_link_click_event', handleLiveRefresh);
+    window.addEventListener('storage', handleLiveRefresh);
+    window.addEventListener('brk_submission_event', handleLiveRefresh);
+    window.addEventListener('focus', triggerSync);
+    document.addEventListener('visibilitychange', triggerSync);
+
+    const interval = setInterval(triggerSync, 2000);
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleLiveRefresh);
       window.removeEventListener('storage', handleLiveRefresh);
       window.removeEventListener('brk_submission_event', handleLiveRefresh);
+      window.removeEventListener('focus', triggerSync);
+      document.removeEventListener('visibilitychange', triggerSync);
       clearInterval(interval);
     };
   }, [employee, session, activeTask]);
@@ -760,18 +769,43 @@ export function EmployeePortal({ session, onLogout }) {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dbService.syncClicksWithServer().then(() => {
+                          const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+                          const taskId = activeTask?.id || 'TASK-INSTA-001';
+                          const today = getTodayISTDateString();
+                          const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
+                          setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+                        }).catch(() => {});
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#0284c7',
+                        backgroundColor: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RefreshCw size={12} />
+                      Sync Clicks
+                    </button>
                     <span style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
+                      fontSize: '9.5px',
+                      fontWeight: 600,
                       color: '#059669',
-                      backgroundColor: '#ecfdf5',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid #d1fae5',
                       textAlign: 'center'
                     }}>
-                      ✓ WhatsApp Preview Bots Filtered
+                      ✓ WhatsApp Bots Filtered
                     </span>
                   </div>
                 </div>

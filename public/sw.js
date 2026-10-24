@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brk-taskhub-pwa-v1';
+const CACHE_NAME = 'brk-taskhub-pwa-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -46,8 +46,15 @@ self.addEventListener('fetch', (event) => {
   // Skip external APIs or non-http protocols
   if (!url.protocol.startsWith('http')) return;
 
-  // Skip backend API calls or database sync
-  if (url.pathname.startsWith('/api') || url.pathname.includes('socket')) {
+  // Skip backend API calls and redirect tracking routes completely from cache
+  if (
+    url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/instagram') ||
+    url.pathname.startsWith('/go') ||
+    url.pathname.startsWith('/track') ||
+    url.pathname.startsWith('/whatsapp') ||
+    url.pathname.includes('socket')
+  ) {
     return;
   }
 
