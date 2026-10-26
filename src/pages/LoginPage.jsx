@@ -433,17 +433,48 @@ export function LoginPage({ onLoginSuccess }) {
         {/* Footer */}
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px',
           width: '100%',
           maxWidth: '420px',
           margin: '24px auto 0 auto',
-          fontSize: '12px',
-          color: '#94a3b8',
           paddingTop: '16px',
           borderTop: '1px solid #f1f5f9'
         }}>
-          <span>© 2026 BRK Social • Bhashyam Ramakrishna</span>
-          <span>Contact Support</span>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#0f172a',
+            padding: '6px 14px',
+            borderRadius: '9999px',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.12)'
+          }}>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+              Developed by
+            </span>
+            <img
+              src="/images/magnidigi-logo-full.png"
+              alt="MAGNIDIGI TECH"
+              style={{
+                height: '16px',
+                width: 'auto',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            width: '100%',
+            fontSize: '11.5px',
+            color: '#94a3b8'
+          }}>
+            <span>© {new Date().getFullYear()} BRK Social • Bhashyam Ramakrishna</span>
+            <span>Contact Support</span>
+          </div>
         </div>
       </div>
     </div>

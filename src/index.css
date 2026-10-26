@@ -816,6 +816,31 @@ input::-ms-clear {
   }
 }
 
+/* MagniDigi Preloader Animations */
+@keyframes mdLogoSpin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes mdHaloPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.25);
+  }
+}
+
+
 
 
 

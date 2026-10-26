@@ -38,6 +38,7 @@ import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
 import { formatIST, validateFollowerSubmission, getTodayISTDateString, getISTDateFromISO } from '../services/istUtils.js';
 import VerificationBottomSheet from '../components/VerificationBottomSheet.jsx';
+import PullToRefreshPreloader from '../components/PullToRefreshPreloader.jsx';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -388,6 +389,12 @@ export function EmployeePortal({ session, onLogout }) {
 
   return (
     <div className="dashboard-page-wrapper" style={{ padding: 0 }}>
+      {/* Pull-down to refresh preloader with animated MD logo mark */}
+      <PullToRefreshPreloader
+        isRefreshing={isSyncingFollowers}
+        onRefresh={handleSyncFollowers}
+      />
+
       {/* Background Soft Glow */}
       <div style={{
         position: 'absolute',
@@ -1436,6 +1443,46 @@ export function EmployeePortal({ session, onLogout }) {
             </p>
           </div>
         )}
+
+        {/* Footer: Developed by MAGNIDIGI TECH */}
+        <footer style={{
+          marginTop: '40px',
+          padding: '24px 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px',
+          borderTop: '1px solid #f1f5f9',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '10px',
+            backgroundColor: '#0f172a',
+            padding: '8px 18px',
+            borderRadius: '9999px',
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.02em' }}>
+              Developed by
+            </span>
+            <img
+              src="/images/magnidigi-logo-full.png"
+              alt="MAGNIDIGI TECH"
+              style={{
+                height: '18px',
+                width: 'auto',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
+          <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>
+            BRK Social TaskHub • Attribution & Outreach Portal
+          </p>
+        </footer>
       </div>
 
       {/* Citizen Scan & Follow QR Code Modal */}
