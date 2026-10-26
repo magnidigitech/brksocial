@@ -143,6 +143,7 @@ export function EmployeePortal({ session, onLogout }) {
 
   const handleSyncFollowers = async () => {
     setIsSyncingFollowers(true);
+    const startMs = Date.now();
     try {
       await dbService.syncSubmissionsWithServer();
       const res = await dbService.revalidateSubmissionsWithFollowers();
@@ -153,13 +154,17 @@ export function EmployeePortal({ session, onLogout }) {
       setTaskStats(stats);
       setFeedback({
         type: 'success',
-        message: `Follower synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All submissions are currently up to date.'}`
+        message: `Synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All data is currently up to date.'}`
       });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
       console.warn('Sync followers error:', err);
     } finally {
-      setIsSyncingFollowers(false);
+      const elapsed = Date.now() - startMs;
+      const remainingDelay = Math.max(0, 1500 - elapsed);
+      setTimeout(() => {
+        setIsSyncingFollowers(false);
+      }, remainingDelay);
     }
   };
 

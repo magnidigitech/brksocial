@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * PullToRefreshPreloader
- * Handles native mobile touch pull-down, trackpad wheel, and mouse drag to trigger data refresh.
- * Features animated MagniDigi (MD) logo mark with dynamic rotation and pulsing halo.
+ * Circular spinner loader with MagniDigi (MD) logo in the center.
+ * Features smooth swipe-down animation with 1.5 second refresh delay and orbital SVG ring spinner.
  */
 export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
   const [pullY, setPullY] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshingInternal, setIsRefreshingInternal] = useState(false);
+
   const startYRef = useRef(0);
   const isPullingRef = useRef(false);
   const pullYRef = useRef(0);
@@ -15,14 +17,37 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
   const wheelTimerRef = useRef(null);
   const isMousePullingRef = useRef(false);
 
-  const THRESHOLD = 65; // px distance to trigger sync
-  const MAX_PULL = 95;
+  const THRESHOLD = 60; // px pull distance to trigger refresh
+  const MAX_PULL = 90;
+
+  const activeRefreshing = isRefreshing || isRefreshingInternal;
+
+  const triggerRefreshWithDelay = () => {
+    setIsRefreshingInternal(true);
+    setPullY(THRESHOLD);
+
+    const startMs = Date.now();
+    const handleDone = () => {
+      const elapsed = Date.now() - startMs;
+      const remainingDelay = Math.max(0, 1500 - elapsed);
+      setTimeout(() => {
+        setIsRefreshingInternal(false);
+        setPullY(0);
+      }, remainingDelay);
+    };
+
+    if (onRefresh) {
+      Promise.resolve(onRefresh()).finally(handleDone);
+    } else {
+      handleDone();
+    }
+  };
 
   useEffect(() => {
-    // TOUCH EVENTS (Mobile)
+    // TOUCH GESTURES (Mobile)
     const handleTouchStart = (e) => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 5 && !isRefreshing) {
+      if (scrollTop <= 5 && !activeRefreshing) {
         startYRef.current = e.touches[0].clientY;
         isPullingRef.current = true;
       } else {
@@ -31,12 +56,11 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     };
 
     const handleTouchMove = (e) => {
-      if (!isPullingRef.current || isRefreshing) return;
+      if (!isPullingRef.current || activeRefreshing) return;
       const currentY = e.touches[0].clientY;
       const rawDelta = currentY - startYRef.current;
 
       if (rawDelta > 0) {
-        // Linear damped pull
         const distance = Math.min(rawDelta * 0.55, MAX_PULL);
         pullYRef.current = distance;
         setPullY(distance);
@@ -52,7 +76,7 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     };
 
     const handleTouchEnd = () => {
-      if (!isPullingRef.current || isRefreshing) {
+      if (!isPullingRef.current || activeRefreshing) {
         isPullingRef.current = false;
         return;
       }
@@ -60,27 +84,24 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       setIsPulling(false);
 
       if (pullYRef.current >= THRESHOLD) {
-        setPullY(THRESHOLD);
-        if (onRefresh) {
-          onRefresh();
-        }
+        triggerRefreshWithDelay();
       } else {
         setPullY(0);
       }
       pullYRef.current = 0;
     };
 
-    // MOUSE DRAG EVENTS (Desktop / Responsive Simulator)
+    // MOUSE DRAG GESTURES (Desktop / DevTools Simulator)
     const handleMouseDown = (e) => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 5 && !isRefreshing && e.button === 0 && e.clientY < 200) {
+      if (scrollTop <= 5 && !activeRefreshing && e.button === 0 && e.clientY < 180) {
         startYRef.current = e.clientY;
         isMousePullingRef.current = true;
       }
     };
 
     const handleMouseMove = (e) => {
-      if (!isMousePullingRef.current || isRefreshing) return;
+      if (!isMousePullingRef.current || activeRefreshing) return;
       const rawDelta = e.clientY - startYRef.current;
       if (rawDelta > 0) {
         const distance = Math.min(rawDelta * 0.5, MAX_PULL);
@@ -93,7 +114,7 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     };
 
     const handleMouseUp = () => {
-      if (!isMousePullingRef.current || isRefreshing) {
+      if (!isMousePullingRef.current || activeRefreshing) {
         isMousePullingRef.current = false;
         return;
       }
@@ -101,20 +122,17 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       setIsPulling(false);
 
       if (pullYRef.current >= THRESHOLD) {
-        setPullY(THRESHOLD);
-        if (onRefresh) {
-          onRefresh();
-        }
+        triggerRefreshWithDelay();
       } else {
         setPullY(0);
       }
       pullYRef.current = 0;
     };
 
-    // TRACKPAD / MOUSE WHEEL SCROLL AT TOP
+    // TRACKPAD WHEEL PULL-DOWN AT TOP
     const handleWheel = (e) => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 2 && e.deltaY < -8 && !isRefreshing) {
+      if (scrollTop <= 2 && e.deltaY < -8 && !activeRefreshing) {
         wheelDeltaRef.current += Math.abs(e.deltaY) * 0.35;
         const distance = Math.min(wheelDeltaRef.current, MAX_PULL);
         pullYRef.current = distance;
@@ -124,8 +142,7 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
         clearTimeout(wheelTimerRef.current);
         if (distance >= THRESHOLD) {
           wheelDeltaRef.current = 0;
-          setPullY(THRESHOLD);
-          if (onRefresh) onRefresh();
+          triggerRefreshWithDelay();
         } else {
           wheelTimerRef.current = setTimeout(() => {
             wheelDeltaRef.current = 0;
@@ -158,29 +175,22 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       window.removeEventListener('wheel', handleWheel);
       clearTimeout(wheelTimerRef.current);
     };
-  }, [onRefresh, isRefreshing]);
+  }, [onRefresh, activeRefreshing]);
 
-  // Reset pull offset when refreshing concludes
-  useEffect(() => {
-    if (!isRefreshing && !isPulling) {
-      setPullY(0);
-    }
-  }, [isRefreshing, isPulling]);
-
+  // SVG circle circumference for r = 24 is 2 * PI * 24 ≈ 150.8
+  const CIRCUMFERENCE = 150.8;
   const pullProgress = Math.min(pullY / THRESHOLD, 1);
-  const isTriggered = pullY >= THRESHOLD || isRefreshing;
-  const rotation = isRefreshing ? 0 : pullY * 6;
-  const scale = isRefreshing ? 1 : Math.min(0.55 + pullProgress * 0.45, 1);
 
   // Position calculation:
-  // Starts offscreen at -80px
-  // As user pulls, smoothly drops down into view below safe area
-  // When refreshing, rests stably at +18px
-  const targetY = isRefreshing
-    ? 18
+  // Starts offscreen above viewport at -85px
+  // As user pulls down, smoothly glides down into center
+  // While refreshing, rests comfortably at +22px below safe area
+  const isVisible = pullY > 0 || activeRefreshing;
+  const targetY = activeRefreshing
+    ? 22
     : (isPulling || pullY > 0
-      ? (-75 + Math.min(pullY * 1.35, 95))
-      : -110);
+      ? (-80 + Math.min(pullY * 1.5, 102))
+      : -95);
 
   return (
     <div
@@ -195,87 +205,85 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
         zIndex: 9999,
         pointerEvents: 'none',
         transform: `translateY(${targetY}px)`,
-        transition: isPulling ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-        willChange: 'transform'
+        transition: isPulling ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
+        opacity: isVisible ? 1 : 0,
+        willChange: 'transform, opacity'
       }}
     >
+      {/* Top Center Circular Badge with Orbital Spinner */}
       <div
         style={{
+          position: 'relative',
+          width: '52px',
+          height: '52px',
+          borderRadius: '50%',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(255, 77, 0, 0.22)',
+          border: '1px solid rgba(0, 0, 0, 0.05)',
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.98)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          padding: '8px 18px 8px 10px',
-          borderRadius: '9999px',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.14), 0 2px 10px rgba(255, 77, 0, 0.22)',
-          border: '1.5px solid rgba(255, 77, 0, 0.3)',
+          justifyContent: 'center',
           pointerEvents: 'auto'
         }}
       >
-        {/* Animated MD Logo Mark */}
-        <div
+        {/* Orbital SVG Circular Spinner Ring */}
+        <svg
           style={{
-            position: 'relative',
-            width: '34px',
-            height: '34px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
+            position: 'absolute',
+            inset: -4,
+            width: '60px',
+            height: '60px',
+            transform: activeRefreshing ? 'none' : `rotate(${pullY * 4.5 - 90}deg)`,
+            transformOrigin: 'center center',
+            pointerEvents: 'none'
           }}
+          viewBox="0 0 60 60"
         >
-          {/* Pulsing Aura Halo */}
-          {isRefreshing && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: -5,
-                borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(255, 77, 0, 0.45) 0%, transparent 70%)',
-                animation: 'mdHaloPulse 1.2s ease-in-out infinite'
-              }}
-            />
-          )}
-
-          <img
-            src="/images/magnidigi-logo-mark.png"
-            alt="Loading"
-            style={{
-              width: '32px',
-              height: '32px',
-              objectFit: 'contain',
-              display: 'block',
-              borderRadius: '50%',
-              transform: isRefreshing ? 'none' : `rotate(${rotation}deg) scale(${scale})`,
-              animation: isRefreshing ? 'mdLogoSpin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none',
-              transition: isPulling ? 'none' : 'transform 0.18s ease'
-            }}
+          {/* Subtle background track */}
+          <circle
+            cx="30"
+            cy="30"
+            r="24"
+            fill="none"
+            stroke="rgba(255, 77, 0, 0.15)"
+            strokeWidth="3"
           />
-        </div>
 
-        {/* Status Text & Indicator */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span
+          {/* Active orange spinner ring */}
+          <circle
+            cx="30"
+            cy="30"
+            r="24"
+            fill="none"
+            stroke="#ff4d00"
+            strokeWidth="3"
+            strokeLinecap="round"
             style={{
-              fontSize: '12.5px',
-              fontWeight: 800,
-              color: isTriggered ? '#ff4d00' : '#0f172a',
-              letterSpacing: '-0.01em',
-              lineHeight: 1.2
+              transformOrigin: 'center center',
+              animation: activeRefreshing ? 'mdCircleSpinner 0.9s linear infinite' : 'none',
+              transition: isPulling ? 'none' : 'stroke-dashoffset 0.2s ease'
             }}
-          >
-            {isRefreshing
-              ? 'Syncing with Server...'
-              : isTriggered
-              ? 'Release to Refresh'
-              : 'Pull Down to Refresh'}
-          </span>
-          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-            {isRefreshing ? 'Checking latest submissions' : 'BRK Social TaskHub'}
-          </span>
-        </div>
+            strokeDasharray={activeRefreshing ? '95 55' : `${CIRCUMFERENCE}`}
+            strokeDashoffset={activeRefreshing ? '0' : `${CIRCUMFERENCE * (1 - pullProgress)}`}
+          />
+        </svg>
+
+        {/* MagniDigi (MD) Logo Mark in Middle */}
+        <img
+          src="/images/magnidigi-logo-mark.png"
+          alt="MagniDigi"
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            objectFit: 'contain',
+            display: 'block',
+            position: 'relative',
+            zIndex: 2,
+            transform: `scale(${activeRefreshing ? 1 : Math.min(0.8 + pullProgress * 0.2, 1)})`,
+            transition: 'transform 0.2s ease'
+          }}
+        />
       </div>
     </div>
   );
