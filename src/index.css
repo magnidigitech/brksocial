@@ -922,6 +922,114 @@ input::-ms-clear {
   }
 }
 
+/* Single-row responsive KPI cards for Employee Portal Landing Page */
+.portal-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-grid {
+    gap: 14px;
+    margin-top: 22px;
+  }
+}
+
+.portal-kpi-card {
+  border-radius: 14px;
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-card {
+    padding: 14px 16px;
+  }
+}
+
+.portal-kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.portal-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+}
+
+.portal-kpi-value {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-value {
+    font-size: 24px;
+  }
+}
+
+.portal-kpi-sub {
+  font-size: 9.5px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .portal-kpi-sub {
+    display: block;
+  }
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-sub {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 500px) {
+  .kpi-label-full {
+    display: none !important;
+  }
+  .kpi-label-short {
+    display: inline !important;
+  }
+}
+
+@media (min-width: 501px) {
+  .kpi-label-full {
+    display: inline !important;
+  }
+  .kpi-label-short {
+    display: none !important;
+  }
+}
+
 
 
 

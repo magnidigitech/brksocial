@@ -1594,55 +1594,53 @@ export function EmployeePortal({ session, onLogout }) {
                 </div>
               </div>
 
-              {/* 3 Metric Cards for Today */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '14px',
-                marginTop: '22px'
-              }}>
-                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Assigned Campaigns
+              {/* 3 Metric Cards for Today: Strictly single row on all devices */}
+              <div className="portal-kpi-grid">
+                <div className="portal-kpi-card" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#64748b' }}>
+                      <span className="kpi-label-short">Assigned</span>
+                      <span className="kpi-label-full">Assigned Tasks</span>
                     </span>
-                    <Layers size={16} style={{ color: '#ff4d00' }} />
+                    <Layers size={14} style={{ color: '#ff4d00', flexShrink: 0 }} />
                   </div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>
+                  <div className="portal-kpi-value" style={{ color: '#0f172a' }}>
                     {assignedTasks.length}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                    Active field tasks
+                  <div className="portal-kpi-sub" style={{ color: '#94a3b8' }}>
+                    Active campaigns
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Today's Submissions
+                <div className="portal-kpi-card" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#15803d' }}>
+                      <span className="kpi-label-short">Today</span>
+                      <span className="kpi-label-full">Today's Entries</span>
                     </span>
-                    <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+                    <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0 }} />
                   </div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#14532d' }}>
+                  <div className="portal-kpi-value" style={{ color: '#14532d' }}>
                     {totalValidToday}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>
-                    Verified entries today
+                  <div className="portal-kpi-sub" style={{ color: '#16a34a' }}>
+                    Verified today
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Targets Achieved
+                <div className="portal-kpi-card" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#1d4ed8' }}>
+                      <span className="kpi-label-short">Targets</span>
+                      <span className="kpi-label-full">Targets Met</span>
                     </span>
-                    <Award size={16} style={{ color: '#2563eb' }} />
+                    <Award size={14} style={{ color: '#2563eb', flexShrink: 0 }} />
                   </div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#1e3a8a' }}>
-                    {targetsMetCount} <span style={{ fontSize: '15px', fontWeight: 600, color: '#64748b' }}>/ {assignedTasks.length}</span>
+                  <div className="portal-kpi-value" style={{ color: '#1e3a8a' }}>
+                    {targetsMetCount} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>/ {assignedTasks.length}</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#2563eb', marginTop: '2px' }}>
-                    Campaigns completed today
+                  <div className="portal-kpi-sub" style={{ color: '#2563eb' }}>
+                    Completed today
                   </div>
                 </div>
               </div>
