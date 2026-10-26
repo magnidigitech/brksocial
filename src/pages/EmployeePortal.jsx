@@ -927,51 +927,35 @@ export function EmployeePortal({ session, onLogout }) {
                 border: '1.5px solid #ffedd5',
                 boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
               }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {/* Perfectly Round Share Icon */}
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
-                      minWidth: '42px',
-                      minHeight: '42px',
-                      borderRadius: '50%',
-                      aspectRatio: '1 / 1',
-                      background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      flexShrink: 0,
-                      boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
-                    }}>
-                      <Share2 size={20} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                        Your Citizen Outreach Tracking Link
-                      </h3>
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                        Redirects visitors to official Instagram while recording your staff attribution.
-                      </p>
-                    </div>
-                  </div>
-
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#ecfdf5',
-                    color: '#059669',
-                    border: '1px solid #a7f3d0',
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                  {/* Perfectly Round Share Icon */}
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    minWidth: '38px',
+                    minHeight: '38px',
+                    borderRadius: '50%',
+                    aspectRatio: '1 / 1',
+                    background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
                   }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                    Live Active Link
-                  </span>
+                    <Share2 size={18} />
+                  </div>
+                  <h3 style={{
+                    fontSize: '15px',
+                    fontWeight: 800,
+                    color: '#0f172a',
+                    margin: 0,
+                    letterSpacing: '-0.02em',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    Your Citizen Outreach Tracking Link
+                  </h3>
                 </div>
 
                 {/* Tracking URL Box with Multiline Full Link Wrap */}
