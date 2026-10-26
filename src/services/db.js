@@ -1584,6 +1584,7 @@ export const dbService = {
     const targetTask = taskId && taskId !== 'ALL' ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
 
     const endDate = filter.endDate;
+    let filteredClicks = allClicks;
 
     // Filter by date range (startDate & endDate, startDate, endDate, or exact date)
     if (startDate && endDate) {
