@@ -29,7 +29,7 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getDefaultSamplePatterns, patternsToString, stringToPatterns } from '../services/normalization.js';
-import { getMondayOfCurrentWeekIST } from '../services/istUtils.js';
+import { getMondayOfCurrentWeekIST, getTodayISTDateString, getTaskCycleInfo, addDaysToDateStr } from '../services/istUtils.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -77,7 +77,10 @@ export function TaskManagementView() {
     urlSlug: 'instagram',
     dailyTarget: 10,
     frequency: 'Daily',
+    startDate: getTodayISTDateString(),
     weekStartDate: getMondayOfCurrentWeekIST(),
+    endDate: '',
+    cycleDays: 10,
     scopeType: 'ALL_STAFF',
     duplicateScope: 'Entire Campaign',
     allowExtraSubmissions: true,
@@ -122,7 +125,10 @@ export function TaskManagementView() {
       urlSlug: 'instagram',
       dailyTarget: 10,
       frequency: 'Daily',
+      startDate: getTodayISTDateString(),
       weekStartDate: getMondayOfCurrentWeekIST(),
+      endDate: '',
+      cycleDays: 10,
       scopeType: 'ALL_STAFF',
       duplicateScope: 'Entire Campaign',
       allowExtraSubmissions: true,
@@ -162,9 +168,12 @@ export function TaskManagementView() {
       submissionType: task.submissionType || 'Instagram Handle',
       targetUrl: task.targetUrl || (task.platform === 'Instagram' ? 'https://www.instagram.com/ramakrishnabhashyam/' : ''),
       urlSlug: task.urlSlug || (task.platform === 'Instagram' ? 'instagram' : 'go'),
-      dailyTarget: task.dailyTarget || task.weeklyTarget || 10,
+      dailyTarget: task.dailyTarget || task.weeklyTarget || task.cycleTarget || task.campaignTarget || 10,
       frequency: task.frequency || 'Daily',
-      weekStartDate: task.weekStartDate || getMondayOfCurrentWeekIST(),
+      startDate: task.startDate || task.weekStartDate || getTodayISTDateString(),
+      weekStartDate: task.startDate || task.weekStartDate || getMondayOfCurrentWeekIST(),
+      endDate: task.endDate || '',
+      cycleDays: task.cycleDays || 10,
       scopeType: scope.scopeType || 'ALL_STAFF',
       duplicateScope: task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: task.rules?.allowExtraSubmissions ?? task.allowExtraSubmissions ?? true,
@@ -303,8 +312,13 @@ export function TaskManagementView() {
         urlSlug: cleanSlug,
         dailyTarget: Number(formData.dailyTarget) || 10,
         frequency: formData.frequency || 'Daily',
-        weekStartDate: formData.frequency === 'Weekly' ? (formData.weekStartDate || getMondayOfCurrentWeekIST()) : null,
+        startDate: formData.startDate || formData.weekStartDate || getTodayISTDateString(),
+        weekStartDate: formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST(),
+        endDate: formData.endDate ? formData.endDate : null,
+        cycleDays: formData.frequency === 'Weekly' ? 7 : (formData.frequency === 'Custom' ? Math.max(1, Number(formData.cycleDays) || 10) : 1),
         weeklyTarget: formData.frequency === 'Weekly' ? (Number(formData.dailyTarget) || 10) : (editingTask?.weeklyTarget || null),
+        cycleTarget: formData.frequency === 'Custom' ? (Number(formData.dailyTarget) || 10) : (editingTask?.cycleTarget || null),
+        campaignTarget: formData.frequency === 'Campaign Total' ? (Number(formData.dailyTarget) || 100) : (editingTask?.campaignTarget || null),
         assignmentScope: {
           scopeType: normalizedScopeType,
           targetCodes,
@@ -553,29 +567,39 @@ export function TaskManagementView() {
                     </span>
                   </div>
 
-                  {/* Daily / Weekly Target */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    color: '#1d1d1f',
-                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                    padding: '5px 8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0, 0, 0, 0.04)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Target size={12} style={{ color: '#0071e3' }} />
-                      <span>{task.frequency === 'Weekly' ? 'Weekly Target:' : 'Daily Target:'}</span>
-                    </div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
-                      {task.frequency === 'Weekly'
-                        ? `${task.weeklyTarget || task.dailyTarget} ${task.submissionType || 'entries'} / week${task.weekStartDate ? ` (From ${task.weekStartDate})` : ''}`
-                        : `${task.dailyTarget} ${task.submissionType || 'entries'} / day`}
-                    </span>
-                  </div>
+                  {/* Target & Cycle details */}
+                  {(() => {
+                    const cycle = getTaskCycleInfo(task);
+                    return (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: '#1d1d1f',
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        padding: '5px 8px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(0, 0, 0, 0.04)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Target size={12} style={{ color: '#0071e3' }} />
+                          <span>
+                            {task.frequency === 'Weekly' ? 'Weekly Target:' : 
+                             task.frequency === 'Custom' ? `Cycle (${task.cycleDays || 10}d) Target:` :
+                             task.frequency === 'Campaign Total' ? 'Campaign Total:' : 'Daily Target:'}
+                          </span>
+                        </div>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
+                          {task.dailyTarget || cycle.target} {task.submissionType || 'entries'}
+                          {task.frequency === 'Weekly' ? ` / week (${cycle.shortLabel})` :
+                           task.frequency === 'Custom' ? ` / ${task.cycleDays || 10} days (${cycle.shortLabel})` :
+                           task.frequency === 'Campaign Total' ? ' (Entire Duration)' : ' / day'}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Outreach Tracking Target Link */}
                   {task.targetUrl && (
@@ -1033,16 +1057,19 @@ export function TaskManagementView() {
                 </div>
               </div>
 
-              {/* Daily / Weekly Target & Frequency */}
+              {/* Target & Frequency */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
-                    {formData.frequency === 'Weekly' ? 'Weekly Target (per employee)' : 'Daily Target (per employee)'}
+                    {formData.frequency === 'Weekly' ? 'Weekly Target (per employee)' :
+                     formData.frequency === 'Custom' ? `Cycle Target (per ${formData.cycleDays || 10} days)` :
+                     formData.frequency === 'Campaign Total' ? 'Campaign Total Target (per employee)' :
+                     'Daily Target (per employee)'}
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max="5000"
+                    max="10000"
                     required
                     value={formData.dailyTarget}
                     onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
@@ -1070,7 +1097,9 @@ export function TaskManagementView() {
                       setFormData({
                         ...formData,
                         frequency: newFreq,
-                        weekStartDate: newFreq === 'Weekly' ? (formData.weekStartDate || getMondayOfCurrentWeekIST()) : formData.weekStartDate
+                        startDate: formData.startDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
+                        weekStartDate: formData.weekStartDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
+                        cycleDays: newFreq === 'Weekly' ? 7 : (formData.cycleDays || 10)
                       });
                     }}
                     style={{
@@ -1084,55 +1113,290 @@ export function TaskManagementView() {
                       backgroundColor: '#ffffff'
                     }}
                   >
-                    <option value="Daily">Daily Target</option>
-                    <option value="Weekly">Weekly Target</option>
-                    <option value="Campaign Total">Campaign Total Target</option>
+                    <option value="Daily">Daily Target (Resets Every Day)</option>
+                    <option value="Weekly">Weekly Target (7-Day Recurring Cycles: Week 1, Week 2...)</option>
+                    <option value="Custom">Custom Days Cycle (Repeat Every N Days: 1st, 11th, 21st...)</option>
+                    <option value="Campaign Total">Campaign Duration (Start Date to Today - Entire Duration)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Conditional Week Start Date picker when Weekly Target is selected */}
-              {formData.frequency === 'Weekly' && (
-                <div style={{
-                  backgroundColor: 'rgba(0, 113, 227, 0.05)',
-                  border: '1px solid rgba(0, 113, 227, 0.2)',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      📅 Week Start Date
-                    </label>
-                    <span style={{ fontSize: '11px', color: '#0071e3', fontWeight: 600 }}>
-                      Counts progress: <strong>{formData.weekStartDate || getMondayOfCurrentWeekIST()}</strong> → Today
-                    </span>
-                  </div>
-                  <input
-                    type="date"
-                    required
-                    value={formData.weekStartDate || getMondayOfCurrentWeekIST()}
-                    onChange={(e) => setFormData({ ...formData, weekStartDate: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(0, 113, 227, 0.3)',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: '#1d1d1f',
+              {/* Conditional Configuration for Weekly */}
+              {formData.frequency === 'Weekly' && (() => {
+                const start = formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST();
+                const week1End = addDaysToDateStr(start, 6);
+                const week2Start = addDaysToDateStr(start, 7);
+                const week2End = addDaysToDateStr(start, 13);
+                const week3Start = addDaysToDateStr(start, 14);
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(0, 113, 227, 0.05)',
+                    border: '1px solid rgba(0, 113, 227, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Week 1 Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 113, 227, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 Campaign End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
                       backgroundColor: '#ffffff',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: '#555' }}>
-                    Select week start date. Staff submissions logged from this date till today count towards the weekly goal.
-                  </span>
-                </div>
-              )}
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(0, 113, 227, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#334155',
+                      lineHeight: 1.5
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#0071e3', marginBottom: '3px' }}>
+                        ⚡ Automatic 7-Day Cycle Sequence:
+                      </div>
+                      <div>• <strong>Week 1:</strong> {start} → {week1End}</div>
+                      <div>• <strong>Week 2:</strong> {week2Start} → {week2End} (auto-starts after Week 1 ends)</div>
+                      <div>• <strong>Week 3:</strong> {week3Start} → ...</div>
+                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '11px' }}>
+                        When Week 1 reaches its end date, the system seamlessly transitions to Week 2 and tracks new progress!
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Conditional Configuration for Custom Cycle Days */}
+              {formData.frequency === 'Custom' && (() => {
+                const start = formData.startDate || getTodayISTDateString();
+                const cycleDays = Math.max(1, Number(formData.cycleDays) || 10);
+                const c1End = addDaysToDateStr(start, cycleDays - 1);
+                const c2Start = addDaysToDateStr(start, cycleDays);
+                const c2End = addDaysToDateStr(c2Start, cycleDays - 1);
+                const c3Start = addDaysToDateStr(start, cycleDays * 2);
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(147, 51, 234, 0.05)',
+                    border: '1px solid rgba(147, 51, 234, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#9333ea', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(147, 51, 234, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#9333ea', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🔄 Repeat For (N Days)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="90"
+                          required
+                          value={formData.cycleDays || 10}
+                          onChange={(e) => setFormData({ ...formData, cycleDays: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(147, 51, 234, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(147, 51, 234, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#334155',
+                      lineHeight: 1.5
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#9333ea', marginBottom: '3px' }}>
+                        ⚡ Recurring {cycleDays}-Day Cycles Preview:
+                      </div>
+                      <div>• <strong>Cycle 1:</strong> {start} → {c1End}</div>
+                      <div>• <strong>Cycle 2:</strong> {c2Start} → {c2End} (repeats automatically)</div>
+                      <div>• <strong>Cycle 3:</strong> {c3Start} → ...</div>
+                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '11px' }}>
+                        Cycles repeat on 1st, {c2Start.split('-')[2] || '11'}th, {c3Start.split('-')[2] || '21'}st! Once a cycle ends, the next cycle automatically begins.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Conditional Configuration for Campaign Duration */}
+              {formData.frequency === 'Campaign Total' && (() => {
+                const start = formData.startDate || getTodayISTDateString();
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Campaign Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 Campaign End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(16, 185, 129, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#047857'
+                    }}>
+                      ⚡ <strong>Entire Duration Mode:</strong> Progress counts continuously from <strong>{start}</strong> to today without any weekly limits across the entire duration.
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* GEOGRAPHIC ASSIGNMENT SCOPE WITH MULTI-SELECT CHECKBOXES */}
               <div style={{

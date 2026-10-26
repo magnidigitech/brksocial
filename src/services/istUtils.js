@@ -145,6 +145,186 @@ export function getISTDateFromISO(isoString) {
 }
 
 /**
+ * Add or subtract days from an ISO date string (YYYY-MM-DD)
+ */
+export function addDaysToDateStr(dateStr, days) {
+  if (!dateStr) return getTodayISTDateString();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const ms = Date.UTC(y, m - 1, d) + days * 86400000;
+  const dt = new Date(ms);
+  const resY = dt.getUTCFullYear();
+  const resM = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const resD = String(dt.getUTCDate()).padStart(2, '0');
+  return `${resY}-${resM}-${resD}`;
+}
+
+/**
+ * Difference in days between two ISO date strings (dateStr2 - dateStr1)
+ */
+export function diffDaysBetweenDateStr(dateStr1, dateStr2) {
+  if (!dateStr1 || !dateStr2) return 0;
+  const [y1, m1, d1] = dateStr1.split('-').map(Number);
+  const [y2, m2, d2] = dateStr2.split('-').map(Number);
+  const ms1 = Date.UTC(y1, m1 - 1, d1);
+  const ms2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.floor((ms2 - ms1) / 86400000);
+}
+
+/**
+ * Resolves the active cycle for a task on any reference date (defaulting to today in IST).
+ * Supports:
+ * - 'Daily': Resets daily.
+ * - 'Weekly': 7-day recurring cycles (Week 1, Week 2, Week 3, ...).
+ * - 'Custom': Custom N-day recurring cycles (e.g. 10 days: 1st, 11th, 21st, ...).
+ * - 'Campaign Total': Entire duration from startDate to today/endDate without week limits.
+ */
+export function getTaskCycleInfo(task, referenceDateStr = null) {
+  const refDate = referenceDateStr || getTodayISTDateString();
+  const frequency = task?.frequency || 'Daily';
+  
+  if (frequency === 'Daily') {
+    return {
+      frequency: 'Daily',
+      cycleNumber: null,
+      cycleIndex: 0,
+      cycleLabel: `Daily (${refDate})`,
+      shortLabel: 'Daily Target',
+      startDate: refDate,
+      endDate: refDate,
+      target: Number(task?.dailyTarget) || 10,
+      isWeekly: false,
+      isCustom: false,
+      isCampaignTotal: false,
+      isDaily: true,
+      isOngoing: true
+    };
+  }
+
+  const baseStart = task?.startDate || task?.weekStartDate || task?.createdDate || refDate;
+  const taskEnd = task?.endDate || null;
+
+  if (frequency === 'Campaign Total') {
+    const end = taskEnd ? (refDate < taskEnd ? refDate : taskEnd) : refDate;
+    const target = Number(task?.campaignTarget || task?.dailyTarget || task?.weeklyTarget) || 100;
+    return {
+      frequency: 'Campaign Total',
+      cycleNumber: 1,
+      cycleIndex: 0,
+      cycleLabel: `Campaign Duration (${baseStart} → ${taskEnd ? taskEnd : 'Today'})`,
+      shortLabel: 'Campaign Duration',
+      startDate: baseStart,
+      endDate: end,
+      taskStartDate: baseStart,
+      taskEndDate: taskEnd,
+      target,
+      isWeekly: false,
+      isCustom: false,
+      isCampaignTotal: true,
+      isDaily: false,
+      isOngoing: !taskEnd || refDate <= taskEnd
+    };
+  }
+
+  // Frequency is 'Weekly' or 'Custom'
+  const isWeekly = frequency === 'Weekly';
+  const repeatDays = isWeekly ? 7 : Math.max(1, Number(task?.cycleDays) || 7);
+  const diffDays = diffDaysBetweenDateStr(baseStart, refDate);
+  
+  let cycleIdx = 0;
+  if (diffDays >= 0) {
+    cycleIdx = Math.floor(diffDays / repeatDays);
+  } else {
+    cycleIdx = 0; // if before baseStart, lock to cycle 1
+  }
+
+  const cycleStartDate = addDaysToDateStr(baseStart, cycleIdx * repeatDays);
+  let cycleEndDate = addDaysToDateStr(cycleStartDate, repeatDays - 1);
+  if (taskEnd && cycleEndDate > taskEnd) {
+    cycleEndDate = taskEnd;
+  }
+
+  const cycleNumber = cycleIdx + 1;
+  const shortLabel = isWeekly ? `Week ${cycleNumber}` : `Cycle ${cycleNumber}`;
+  const cycleLabel = isWeekly 
+    ? `Week ${cycleNumber} (${cycleStartDate} to ${cycleEndDate})`
+    : `Cycle ${cycleNumber} (${repeatDays} Days: ${cycleStartDate} to ${cycleEndDate})`;
+
+  const target = isWeekly 
+    ? Number(task?.weeklyTarget || task?.cycleTarget || task?.dailyTarget) || 10
+    : Number(task?.cycleTarget || task?.weeklyTarget || task?.dailyTarget) || 10;
+
+  return {
+    frequency,
+    cycleNumber,
+    cycleIndex: cycleIdx,
+    repeatDays,
+    cycleLabel,
+    shortLabel,
+    startDate: cycleStartDate,
+    endDate: cycleEndDate,
+    taskStartDate: baseStart,
+    taskEndDate: taskEnd,
+    target,
+    isWeekly,
+    isCustom: !isWeekly,
+    isCampaignTotal: false,
+    isDaily: false,
+    isCurrent: refDate >= cycleStartDate && refDate <= cycleEndDate,
+    isPast: refDate > cycleEndDate,
+    isFuture: refDate < cycleStartDate
+  };
+}
+
+/**
+ * Returns an array of all cycles from task start date up to current reference date (or task end date)
+ */
+export function getAllTaskCycles(task, referenceDateStr = null) {
+  const frequency = task?.frequency || 'Daily';
+  if (frequency === 'Daily' || frequency === 'Campaign Total') {
+    return [getTaskCycleInfo(task, referenceDateStr)];
+  }
+
+  const refDate = referenceDateStr || getTodayISTDateString();
+  const baseStart = task?.startDate || task?.weekStartDate || task?.createdDate || refDate;
+  const isWeekly = frequency === 'Weekly';
+  const repeatDays = isWeekly ? 7 : Math.max(1, Number(task?.cycleDays) || 7);
+  const taskEnd = task?.endDate || null;
+
+  const maxLimitDate = taskEnd && taskEnd < refDate ? taskEnd : refDate;
+  const diffDays = Math.max(0, diffDaysBetweenDateStr(baseStart, maxLimitDate));
+  const totalCycles = Math.min(52, Math.floor(diffDays / repeatDays) + 1);
+
+  const cycles = [];
+  for (let i = 0; i < totalCycles; i++) {
+    const cycleStart = addDaysToDateStr(baseStart, i * repeatDays);
+    let cycleEnd = addDaysToDateStr(cycleStart, repeatDays - 1);
+    if (taskEnd && cycleEnd > taskEnd) {
+      cycleEnd = taskEnd;
+    }
+    const cycleNum = i + 1;
+    const isCurrent = refDate >= cycleStart && refDate <= cycleEnd;
+    const target = isWeekly 
+      ? Number(task?.weeklyTarget || task?.cycleTarget || task?.dailyTarget) || 10
+      : Number(task?.cycleTarget || task?.weeklyTarget || task?.dailyTarget) || 10;
+
+    cycles.push({
+      cycleNumber: cycleNum,
+      cycleIndex: i,
+      startDate: cycleStart,
+      endDate: cycleEnd,
+      isCurrent,
+      isWeekly,
+      shortLabel: isWeekly ? `Week ${cycleNum}` : `Cycle ${cycleNum}`,
+      label: isWeekly 
+        ? `Week ${cycleNum} (${cycleStart} - ${cycleEnd})`
+        : `Cycle ${cycleNum} (${cycleStart} - ${cycleEnd})`,
+      target
+    });
+  }
+  return cycles;
+}
+
+/**
  * Validates an Instagram follower submission based on the strict business logic:
  * - 24-hour window: [submittedAt - 24h, submittedAt + 24h]
  * - Followed earlier than window -> 'Already Followed'

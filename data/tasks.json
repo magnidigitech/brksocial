@@ -24,14 +24,14 @@
     "submissionType": "Instagram Handle",
     "targetUrl": "https://www.instagram.com/ramakrishnabhashyam/",
     "urlSlug": "instagram",
-    "dailyTarget": 10,
-    "targetPerStaff": 10,
+    "dailyTarget": 12,
+    "targetPerStaff": 12,
     "frequency": "Daily",
     "status": "Active",
     "createdDate": "2026-09-17",
     "targetDate": "2026-10-26",
     "campaignName": "Individual Staff Outreach",
-    "createdAt": "2026-10-26T19:51:03.255Z"
+    "createdAt": "2026-10-26T19:55:59.874Z"
   },
   {
     "id": "TASK-WA-002",

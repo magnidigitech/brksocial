@@ -125,6 +125,7 @@ export function EmployeePortal({ session, onLogout }) {
   const [submissionTab, setSubmissionTab] = useState('today'); // 'today' | 'previous'
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
   const [showPatternHelp, setShowPatternHelp] = useState(false);
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -318,9 +319,9 @@ export function EmployeePortal({ session, onLogout }) {
     }
   };
 
-  const updateStats = (empId, taskId) => {
+  const updateStats = (empId, taskId, cycleIdx = selectedCycleIndex) => {
     const today = getTodayISTDateString();
-    const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+    const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, cycleIdx);
     setTaskStats(stats);
 
     // Fetch employee tracking link & live clicks
@@ -341,8 +342,9 @@ export function EmployeePortal({ session, onLogout }) {
     setInputVal('');
     setFeedback(null);
     setShowPatternHelp(false);
+    setSelectedCycleIndex(null);
     const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-    updateStats(empId, task.id);
+    updateStats(empId, task.id, null);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -706,21 +708,71 @@ export function EmployeePortal({ session, onLogout }) {
                       fontWeight: 700,
                       color: '#334155'
                     }}>
-                      Target: <strong>{activeTask.frequency === 'Weekly' ? (activeTask.weeklyTarget || activeTask.dailyTarget) : activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'} {activeTask.frequency === 'Weekly' ? (activeTask.weekStartDate ? `/ week (From ${activeTask.weekStartDate})` : '/ week') : '/ day'}
+                      Target: <strong>{taskStats?.target || activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'}
+                      {taskStats?.isWeekly 
+                        ? ` / week (${taskStats.cycleInfo?.shortLabel || 'Week'})` 
+                        : taskStats?.isCustom 
+                          ? ` / cycle (${taskStats.cycleInfo?.shortLabel || 'Cycle'})` 
+                          : taskStats?.isCampaignTotal 
+                            ? ' (Entire Duration)' 
+                            : ' / day'}
                     </div>
                   </div>
+
+                  {/* Multi-Cycle Tabs if more than 1 cycle exists */}
+                  {taskStats?.allCycles && taskStats.allCycles.length > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      overflowX: 'auto',
+                      padding: '8px 0 2px 0',
+                      borderTop: '1px solid #f1f5f9',
+                      marginTop: '10px'
+                    }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Cycle View:
+                      </span>
+                      {taskStats.allCycles.map((c, cIdx) => {
+                        const isSelected = (selectedCycleIndex === null && c.isCurrent) || selectedCycleIndex === cIdx;
+                        return (
+                          <button
+                            key={c.cycleNumber}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCycleIndex(cIdx);
+                              const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+                              updateStats(empId, activeTask.id, cIdx);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '980px',
+                              fontSize: '11px',
+                              fontWeight: isSelected ? 700 : 500,
+                              backgroundColor: isSelected ? '#0071e3' : '#f1f5f9',
+                              color: isSelected ? '#ffffff' : '#475569',
+                              border: isSelected ? '1px solid #0071e3' : '1px solid #e2e8f0',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {c.shortLabel} {c.isCurrent ? '(Active)' : `(${c.startDate})`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Progress Bar */}
                   {taskStats && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155', flexWrap: 'wrap', gap: '4px' }}>
                         <span>
-                          {activeTask.frequency === 'Weekly' 
-                            ? `Weekly Completion (${taskStats.weekStartDate || activeTask.weekStartDate || 'Start'} to Today)` 
-                            : 'Daily Completion Progress'}
+                          {taskStats.periodLabel || 'Completion Progress'}
                         </span>
                         <span style={{ color: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget) ? '#16a34a' : '#ea580c' }}>
-                          {taskStats.validCount} / {taskStats.target || (activeTask.frequency === 'Weekly' ? (activeTask.weeklyTarget || activeTask.dailyTarget) : activeTask.dailyTarget)} Valid ({taskStats.progressPercent}%)
+                          {taskStats.validCount} / {taskStats.target || activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
                         </span>
                       </div>
 
@@ -1703,7 +1755,8 @@ export function EmployeePortal({ session, onLogout }) {
                     const Icon = PLATFORM_ICONS[task.platform] || Share2;
                     const theme = PLATFORM_THEMES[task.platform] || PLATFORM_THEMES['Custom'];
                     const item = allTasksSummary.find(s => s.task.id === task.id);
-                    const target = task.frequency === 'Weekly' ? (task.weeklyTarget || task.dailyTarget || 10) : (task.dailyTarget || 10);
+                    const cycleInfo = item?.stats?.cycleInfo;
+                    const target = item?.target || 10;
                     const valid = item?.valid || 0;
                     const pct = Math.min(100, Math.round((valid / target) * 100));
                     const isMet = valid >= target;
@@ -1821,9 +1874,11 @@ export function EmployeePortal({ session, onLogout }) {
                           <div style={{ marginBottom: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '5px' }}>
                               <span style={{ fontWeight: 600, color: '#64748b' }}>
-                                {task.frequency === 'Weekly'
-                                  ? `Weekly (${task.weekStartDate || 'Start'} → Today): `
-                                  : 'Daily Progress: '}
+                                {cycleInfo?.shortLabel 
+                                  ? `${cycleInfo.shortLabel} (${cycleInfo.startDate} → ${cycleInfo.endDate}): ` 
+                                  : (task.frequency === 'Campaign Total' 
+                                      ? `Campaign (${task.startDate || 'Start'} → Today): `
+                                      : 'Daily Progress: ')}
                                 <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
                               </span>
                               <span style={{ fontWeight: 800, color: isMet ? '#16a34a' : '#ff4d00' }}>

@@ -81,6 +81,7 @@ export function AdminMetricsDashboardView() {
 
   // Selected Task Campaign Filter State
   const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
   const [copiedStaffToken, setCopiedStaffToken] = useState(null);
 
   const staffClickMap = useMemo(() => {
@@ -246,8 +247,8 @@ export function AdminMetricsDashboardView() {
 
   // Fetch Raw Dashboard Stats from dbService across all staff
   const rawStats = useMemo(() => {
-    return dbService.getAdminDashboardOverview(selectedDate, effectiveTaskId);
-  }, [selectedDate, effectiveTaskId, isRefreshing, refreshTrigger]);
+    return dbService.getAdminDashboardOverview(selectedDate, effectiveTaskId, null, selectedCycleIndex);
+  }, [selectedDate, effectiveTaskId, selectedCycleIndex, isRefreshing, refreshTrigger]);
 
   // Dynamically compute Filtered KPI Stats based on Parliament Selection
   const stats = useMemo(() => {
@@ -265,10 +266,7 @@ export function AdminMetricsDashboardView() {
     });
 
     const activeEmployees = filteredStaff.length;
-    const isWeekly = rawStats.selectedTask?.frequency === 'Weekly';
-    const taskTarget = isWeekly
-      ? (rawStats.selectedTask?.weeklyTarget || rawStats.selectedTask?.dailyTarget || 10)
-      : (rawStats.selectedTask?.dailyTarget || 10);
+    const taskTarget = rawStats.cycleInfo?.target || rawStats.selectedTask?.dailyTarget || 10;
     const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || taskTarget), 0);
     const validSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
     const duplicates = filteredStaff.reduce((acc, curr) => acc + (curr.duplicate || 0), 0);
@@ -564,8 +562,44 @@ export function AdminMetricsDashboardView() {
             />
           </div>
 
-          {/* Weekly Window Indicator if Selected Task is Weekly */}
-          {stats.isWeekly && (
+          {/* Cycle / Week Indicator & Switcher */}
+          {stats.allCyclesList && stats.allCyclesList.length > 1 ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              border: '1px solid rgba(0, 113, 227, 0.2)',
+              borderRadius: '980px',
+              padding: '4px 10px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#0071e3',
+              flexShrink: 0
+            }}>
+              <span>Cycle:</span>
+              <select
+                value={selectedCycleIndex === null ? 'current' : selectedCycleIndex}
+                onChange={(e) => setSelectedCycleIndex(e.target.value === 'current' ? null : Number(e.target.value))}
+                style={{
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#0071e3',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="current">Current Cycle ({stats.cycleInfo?.shortLabel})</option>
+                {stats.allCyclesList.map((c, idx) => (
+                  <option key={c.cycleNumber} value={idx}>
+                    {c.label} {c.isCurrent ? '★ (Active)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (stats.isWeekly || stats.isCustom) ? (
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -578,9 +612,24 @@ export function AdminMetricsDashboardView() {
               fontWeight: 600,
               color: '#0071e3'
             }}>
-              <span>Weekly Window: {stats.weekStartDate} → {selectedDate}</span>
+              <span>{stats.cycleInfo?.shortLabel || 'Cycle'}: {stats.cycleStartDate} → {stats.cycleEndDate}</span>
             </div>
-          )}
+          ) : stats.isCampaignTotal ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: '980px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#059669'
+            }}>
+              <span>Campaign Duration: {stats.cycleStartDate} → Today</span>
+            </div>
+          ) : null}
 
           {/* Task Selector Filter */}
           <div style={{
@@ -597,7 +646,10 @@ export function AdminMetricsDashboardView() {
             <Target size={14} style={{ color: '#86868b', flexShrink: 0 }} />
             <select
               value={effectiveTaskId}
-              onChange={(e) => setSelectedTaskId(e.target.value)}
+              onChange={(e) => {
+                setSelectedTaskId(e.target.value);
+                setSelectedCycleIndex(null);
+              }}
               style={{
                 border: 'none',
                 backgroundColor: 'transparent',
@@ -1094,7 +1146,11 @@ export function AdminMetricsDashboardView() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
-              {stats.isWeekly ? `Verified (${stats.weekStartDate || 'Start'} → Today)` : 'Verified Submissions'}
+              {stats.cycleInfo?.shortLabel 
+                ? `Verified (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                : (stats.isCampaignTotal 
+                    ? `Verified (${stats.cycleStartDate} → Today)`
+                    : 'Verified Submissions')}
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
               <CheckCircle2 size={16} />
@@ -1228,9 +1284,13 @@ export function AdminMetricsDashboardView() {
               {activeTask?.platform || 'Instagram'}
             </span>
             <span style={{ fontSize: '11.5px', fontWeight: 500, color: '#86868b' }}>
-              {activeTask?.frequency === 'Weekly'
-                ? `Weekly Target: ${activeTask?.weeklyTarget || activeTask?.dailyTarget || 10} / Staff${activeTask?.weekStartDate ? ` (From ${activeTask.weekStartDate} to Today)` : ''}`
-                : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
+              {stats.cycleInfo?.isWeekly 
+                ? `Weekly Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                : stats.cycleInfo?.isCustom
+                  ? `Cycle Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                  : stats.cycleInfo?.isCampaignTotal
+                    ? `Campaign Total: ${stats.cycleInfo.target} / Staff (From ${stats.cycleStartDate} to Today)`
+                    : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
             </span>
           </div>
         </div>

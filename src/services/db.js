@@ -10,6 +10,10 @@ import {
   getTodayISTDateString,
   getISTDateFromISO,
   getMondayOfCurrentWeekIST,
+  addDaysToDateStr,
+  diffDaysBetweenDateStr,
+  getTaskCycleInfo,
+  getAllTaskCycles,
   validateFollowerSubmission,
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
@@ -627,11 +631,20 @@ export const dbService = {
 
   addTask(taskData) {
     const tasks = this.getTasks();
-    const isWeekly = taskData.frequency === 'Weekly';
-    const weeklyTarget = isWeekly 
-      ? Number(taskData.weeklyTarget || taskData.dailyTarget) || 10 
-      : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null);
-    const dailyTarget = Number(taskData.dailyTarget || taskData.weeklyTarget) || 10;
+    const freq = taskData.frequency || 'Daily';
+    const isWeekly = freq === 'Weekly';
+    const isCustom = freq === 'Custom';
+    const isCampaignTotal = freq === 'Campaign Total';
+
+    const cycleDays = isWeekly ? 7 : (isCustom ? Math.max(1, Number(taskData.cycleDays) || 10) : 1);
+    const startDate = taskData.startDate || taskData.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+    const endDate = taskData.endDate || null;
+
+    const rawTarget = Number(taskData.dailyTarget || taskData.weeklyTarget || taskData.cycleTarget || taskData.campaignTarget) || 10;
+    const weeklyTarget = isWeekly ? rawTarget : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null);
+    const cycleTarget = isCustom ? rawTarget : (taskData.cycleTarget ? Number(taskData.cycleTarget) : null);
+    const campaignTarget = isCampaignTotal ? rawTarget : (taskData.campaignTarget ? Number(taskData.campaignTarget) : null);
+
     const newTask = {
       id: taskData.id || `TASK-${Date.now()}`,
       name: taskData.name || 'New Task',
@@ -640,10 +653,15 @@ export const dbService = {
       submissionType: taskData.submissionType || 'Instagram Handle',
       targetUrl: taskData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
       urlSlug: taskData.urlSlug || 'go',
-      dailyTarget: isWeekly ? weeklyTarget : dailyTarget,
-      weeklyTarget: isWeekly ? weeklyTarget : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null),
-      frequency: taskData.frequency || 'Daily',
-      weekStartDate: isWeekly ? (taskData.weekStartDate || getMondayOfCurrentWeekIST()) : (taskData.weekStartDate || null),
+      dailyTarget: rawTarget,
+      weeklyTarget: weeklyTarget || rawTarget,
+      cycleTarget: cycleTarget || rawTarget,
+      campaignTarget: campaignTarget || rawTarget,
+      frequency: freq,
+      startDate,
+      weekStartDate: startDate,
+      endDate,
+      cycleDays,
       assignmentScope: taskData.assignmentScope || {
         scopeType: 'ALL_STAFF',
         targetCode: null,
@@ -659,7 +677,7 @@ export const dbService = {
       requireProof: taskData.rules?.requireProof ?? false,
       samplePatterns: taskData.samplePatterns || null,
       status: taskData.status || 'Active',
-      createdDate: taskData.createdDate || new Date().toISOString().split('T')[0]
+      createdDate: taskData.createdDate || getTodayISTDateString()
     };
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
@@ -680,22 +698,33 @@ export const dbService = {
     const tasks = this.getTasks();
     const idx = tasks.findIndex(t => t.id === updatedTask.id);
     if (idx !== -1) {
-      const isWeekly = updatedTask.frequency === 'Weekly' || (updatedTask.frequency === undefined && tasks[idx].frequency === 'Weekly');
-      const weeklyTarget = isWeekly
-        ? Number(updatedTask.weeklyTarget || updatedTask.dailyTarget || tasks[idx].weeklyTarget || tasks[idx].dailyTarget) || 10
-        : (updatedTask.weeklyTarget !== undefined ? updatedTask.weeklyTarget : (tasks[idx].weeklyTarget || null));
-      const dailyTarget = Number(updatedTask.dailyTarget || updatedTask.weeklyTarget || tasks[idx].dailyTarget) || 10;
-      const weekStartDate = isWeekly 
-        ? (updatedTask.weekStartDate || tasks[idx].weekStartDate || getMondayOfCurrentWeekIST()) 
-        : (updatedTask.weekStartDate || null);
+      const existing = tasks[idx];
+      const freq = updatedTask.frequency || existing.frequency || 'Daily';
+      const isWeekly = freq === 'Weekly';
+      const isCustom = freq === 'Custom';
+      const isCampaignTotal = freq === 'Campaign Total';
+
+      const cycleDays = isWeekly ? 7 : (isCustom ? Math.max(1, Number(updatedTask.cycleDays || existing.cycleDays) || 10) : 1);
+      const startDate = updatedTask.startDate || updatedTask.weekStartDate || existing.startDate || existing.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+      const endDate = updatedTask.endDate !== undefined ? updatedTask.endDate : (existing.endDate || null);
+
+      const rawTarget = Number(updatedTask.dailyTarget || updatedTask.weeklyTarget || updatedTask.cycleTarget || updatedTask.campaignTarget || existing.dailyTarget) || 10;
+      const weeklyTarget = isWeekly ? rawTarget : (updatedTask.weeklyTarget || existing.weeklyTarget || rawTarget);
+      const cycleTarget = isCustom ? rawTarget : (updatedTask.cycleTarget || existing.cycleTarget || rawTarget);
+      const campaignTarget = isCampaignTotal ? rawTarget : (updatedTask.campaignTarget || existing.campaignTarget || rawTarget);
 
       tasks[idx] = { 
-        ...tasks[idx], 
+        ...existing, 
         ...updatedTask,
-        dailyTarget: isWeekly ? weeklyTarget : dailyTarget,
-        weeklyTarget: isWeekly ? weeklyTarget : tasks[idx].weeklyTarget,
-        frequency: updatedTask.frequency || tasks[idx].frequency || 'Daily',
-        weekStartDate
+        dailyTarget: rawTarget,
+        weeklyTarget,
+        cycleTarget,
+        campaignTarget,
+        frequency: freq,
+        startDate,
+        weekStartDate: startDate,
+        endDate,
+        cycleDays
       };
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
 
@@ -905,27 +934,28 @@ export const dbService = {
     return { updatedCount, subs };
   },
 
-  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null, customSubs = null) {
+  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null, customSubs = null, targetCycleIndex = null) {
     const task = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
     const allSubs = this.getSubmissions(null, customSubs);
 
-    const isWeekly = task?.frequency === 'Weekly';
-    const isCampaignTotal = task?.frequency === 'Campaign Total';
-    const weekStart = task?.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST(dateStr) : null);
+    const cycleInfo = getTaskCycleInfo(task, dateStr);
+    const allCycles = getAllTaskCycles(task, dateStr);
+    const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
 
     const subs = allSubs.filter(s => {
       if (!s.employeeId || s.employeeId.toUpperCase() !== employeeId.toUpperCase()) return false;
       if (task && s.taskId !== task.id) return false;
 
       const subDate = s.date || getISTDateFromISO(s.submittedAt);
-      if (isWeekly && weekStart) {
-        // Count the progress from week start date to till date (dateStr)
-        return subDate >= weekStart && subDate <= dateStr;
-      } else if (isCampaignTotal) {
-        return subDate <= dateStr;
-      } else {
-        // Daily target count
+      if (activeCycle.isDaily) {
+        // Daily target count for dateStr
         return subDate === dateStr;
+      } else if (activeCycle.isCampaignTotal) {
+        // Entire campaign duration from start date to till date (no week limit!)
+        return subDate >= activeCycle.startDate && subDate <= dateStr;
+      } else {
+        // Weekly or Custom cycle: submissions within [cycle.startDate, cycle.endDate]
+        return subDate >= activeCycle.startDate && subDate <= activeCycle.endDate;
       }
     });
     
@@ -937,9 +967,7 @@ export const dbService = {
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
 
     const validCount = validSubs.length;
-    const target = isWeekly 
-      ? (task?.weeklyTarget || task?.dailyTarget || 10) 
-      : (task?.dailyTarget || 10);
+    const target = activeCycle.target || 10;
     const remaining = Math.max(0, target - validCount);
     const progressPercent = Math.min(100, Math.round((validCount / target) * 100));
 
@@ -962,9 +990,16 @@ export const dbService = {
       progressPercent,
       duplicateCount: alreadyFollowedSubs.length,
       status,
-      isWeekly,
-      weekStartDate: weekStart,
-      periodLabel: isWeekly ? `Weekly (From ${weekStart} to ${dateStr})` : `Daily (${dateStr})`,
+      isWeekly: activeCycle.isWeekly,
+      isCustom: activeCycle.isCustom,
+      isCampaignTotal: activeCycle.isCampaignTotal,
+      isDaily: activeCycle.isDaily,
+      cycleInfo: activeCycle,
+      allCycles,
+      weekStartDate: activeCycle.startDate,
+      cycleStartDate: activeCycle.startDate,
+      cycleEndDate: activeCycle.endDate,
+      periodLabel: activeCycle.cycleLabel || activeCycle.label,
       todaySubmissions: subs,
       periodSubmissions: subs,
       validSubs,
@@ -974,7 +1009,7 @@ export const dbService = {
     };
   },
 
-  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null, customSubs = null) {
+  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null, customSubs = null, targetCycleIndex = null) {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
@@ -986,24 +1021,25 @@ export const dbService = {
       taskSubs = taskSubs.filter(s => s.taskId === targetTask.id);
     }
 
-    const isWeekly = targetTask?.frequency === 'Weekly';
-    const isCampaignTotal = targetTask?.frequency === 'Campaign Total';
-    const weekStart = targetTask?.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST(dateStr) : null);
+    const cycleInfo = getTaskCycleInfo(targetTask, dateStr);
+    const allCycles = getAllTaskCycles(targetTask, dateStr);
+    const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
 
     let periodSubs = [];
-    if (isWeekly && weekStart) {
-      // Count submissions from week start date to till date (dateStr)
+    if (activeCycle.isDaily) {
+      periodSubs = taskSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+    } else if (activeCycle.isCampaignTotal) {
+      // Entire campaign duration from start date to till date (no week limit!)
       periodSubs = taskSubs.filter(s => {
         const d = s.date || getISTDateFromISO(s.submittedAt);
-        return d >= weekStart && d <= dateStr;
-      });
-    } else if (isCampaignTotal) {
-      periodSubs = taskSubs.filter(s => {
-        const d = s.date || getISTDateFromISO(s.submittedAt);
-        return d <= dateStr;
+        return d >= activeCycle.startDate && d <= dateStr;
       });
     } else {
-      periodSubs = taskSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+      // Weekly or Custom cycle: submissions within [cycle.startDate, cycle.endDate]
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        return d >= activeCycle.startDate && d <= activeCycle.endDate;
+      });
     }
 
     const validSubs = periodSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
@@ -1011,9 +1047,7 @@ export const dbService = {
     const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = periodSubs.filter(s => s.status === 'Invalid Submission');
 
-    const targetPerEmp = isWeekly 
-      ? (targetTask?.weeklyTarget || targetTask?.dailyTarget || 10) 
-      : (targetTask?.dailyTarget || 10);
+    const targetPerEmp = activeCycle.target || 10;
     const totalTarget = activeEmployees.length * targetPerEmp;
     const validCount = validSubs.length;
     const remainingCount = Math.max(0, totalTarget - validCount);
@@ -1058,10 +1092,17 @@ export const dbService = {
     return {
       date: dateStr,
       selectedTask: targetTask,
-      isWeekly,
+      isWeekly: activeCycle.isWeekly,
+      isCustom: activeCycle.isCustom,
+      isCampaignTotal: activeCycle.isCampaignTotal,
+      isDaily: activeCycle.isDaily,
+      cycleInfo: activeCycle,
+      allCyclesList: allCycles,
       frequency: targetTask?.frequency || 'Daily',
-      weekStartDate: weekStart,
-      periodLabel: isWeekly ? `Weekly (From ${weekStart} to ${dateStr})` : `Daily (${dateStr})`,
+      weekStartDate: activeCycle.startDate,
+      cycleStartDate: activeCycle.startDate,
+      cycleEndDate: activeCycle.endDate,
+      periodLabel: activeCycle.cycleLabel || activeCycle.label,
       totalEmployees: employees.length,
       activeEmployees: activeEmployees.length,
       tasksToday: tasks.length,
