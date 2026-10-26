@@ -73,6 +73,15 @@ export function EmployeePortal({ session, onLogout }) {
     dbService.revalidateSubmissionsWithFollowers().catch(() => { });
   }, [session]);
 
+  // Auto-dismiss accepted / submission feedback notifications after 5 seconds
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
   const handleSyncFollowers = async () => {
     setIsSyncingFollowers(true);
     try {
@@ -601,6 +610,7 @@ export function EmployeePortal({ session, onLogout }) {
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'space-between',
                   gap: '8px',
                   backgroundColor: feedback.type === 'success'
                     ? '#ecfdf5'
@@ -619,16 +629,39 @@ export function EmployeePortal({ session, onLogout }) {
                       : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
                     }`
                 }}>
-                  {feedback.type === 'success' ? (
-                    <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
-                  ) : feedback.type === 'pending' ? (
-                    <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
-                  ) : feedback.type === 'warning' ? (
-                    <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                  ) : (
-                    <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  )}
-                  <span>{feedback.message}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    {feedback.type === 'success' ? (
+                      <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                    ) : feedback.type === 'pending' ? (
+                      <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                    ) : feedback.type === 'warning' ? (
+                      <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    ) : (
+                      <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    )}
+                    <span style={{ lineHeight: 1.4 }}>{feedback.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFeedback(null)}
+                    aria-label="Dismiss notification"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '3px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'inherit',
+                      opacity: 0.65,
+                      borderRadius: '6px',
+                      flexShrink: 0
+                    }}
+                    title="Dismiss"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               )}
 
