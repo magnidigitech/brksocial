@@ -130,6 +130,17 @@ export function EmployeePortal({ session, onLogout }) {
     loadData();
     // Auto-revalidate existing submissions against follower DB on mount
     dbService.revalidateSubmissionsWithFollowers().catch(() => { });
+
+    const handleStaffUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('brk_staff_updated', handleStaffUpdate);
+    window.addEventListener('storage', handleStaffUpdate);
+
+    return () => {
+      window.removeEventListener('brk_staff_updated', handleStaffUpdate);
+      window.removeEventListener('storage', handleStaffUpdate);
+    };
   }, [session]);
 
   // Auto-dismiss accepted / submission feedback notifications after 5 seconds

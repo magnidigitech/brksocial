@@ -37,9 +37,10 @@ export const authService = {
 
     const emp = emps.find(e => {
       if (!e) return false;
-      // 1. Support Code / ID (e.g. APP01, APP01A01)
+      // 1. Support Code / ID / Assembly Code (e.g. APP01, APP01A01)
       if (e.id && e.id.toUpperCase() === upperId) return true;
       if (e.supportCode && e.supportCode.toUpperCase() === upperId) return true;
+      if (e.assemblyCode && e.assemblyCode.toUpperCase() === upperId) return true;
 
       // 2. Staff ID (e.g. Palakonda_010)
       if (e.staffId && e.staffId.toUpperCase() === upperId) return true;
@@ -138,5 +139,27 @@ export const authService = {
       success: true,
       session
     };
+  },
+
+  // Refresh active employee session with latest credentials
+  refreshSession() {
+    const currentSession = this.getSession();
+    if (!currentSession || currentSession.role !== 'Employee') return currentSession;
+    const empId = currentSession.employeeId || currentSession.supportCode || currentSession.id;
+    const emp = dbService.getEmployeeById(empId);
+    if (emp) {
+      const updated = {
+        ...currentSession,
+        name: emp.name,
+        staffId: emp.staffId || '',
+        supportCode: emp.supportCode || emp.id,
+        mobilePersonal: emp.mobilePersonal || emp.mobile,
+        mobileOffice: emp.mobileOffice || '',
+        mobile: emp.mobilePersonal || emp.mobileOffice || emp.mobile
+      };
+      this.setSession(updated);
+      return updated;
+    }
+    return currentSession;
   }
 };

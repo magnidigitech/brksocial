@@ -153,6 +153,7 @@ export function AdminMetricsDashboardView() {
 
     window.addEventListener('brk_submission_event', handleUpdate);
     window.addEventListener('brk_link_click_event', handleUpdate);
+    window.addEventListener('brk_staff_updated', handleUpdate);
     window.addEventListener('storage', handleStorageEvent);
     window.addEventListener('focus', fetchLiveData);
     document.addEventListener('visibilitychange', handleVisibility);
@@ -170,6 +171,7 @@ export function AdminMetricsDashboardView() {
     return () => {
       window.removeEventListener('brk_submission_event', handleUpdate);
       window.removeEventListener('brk_link_click_event', handleUpdate);
+      window.removeEventListener('brk_staff_updated', handleUpdate);
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('focus', fetchLiveData);
       document.removeEventListener('visibilitychange', handleVisibility);

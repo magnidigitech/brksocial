@@ -27,9 +27,17 @@ const CLICKS_FILE = path.join(DATA_DIR, 'link_clicks.json');
 const FOLLOWERS_FILE = path.join(DATA_DIR, 'instagram_followers.json');
 const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
+const EMPLOYEES_FILE = path.join(DATA_DIR, 'employees.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(EMPLOYEES_FILE)) {
+  try {
+    fs.writeFileSync(EMPLOYEES_FILE, JSON.stringify(PAT_STAFF_OCTOBER_2026, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not initialize EMPLOYEES_FILE:', err.message);
+  }
 }
 if (!fs.existsSync(CLICKS_FILE)) {
   fs.writeFileSync(CLICKS_FILE, JSON.stringify([]), 'utf8');
@@ -315,19 +323,58 @@ function generateLinkToken(taskId, employeeId) {
   return `${str}${empSuffix}`.slice(0, 10);
 }
 
-// Build Fast O(1) Staff Token & ID Lookup Map
+// Build Fast O(1) Staff Token & ID Lookup Map (Dynamic & Persisted)
 const STAFF_LOOKUP = new Map();
-PAT_STAFF_OCTOBER_2026.forEach(staff => {
-  const token = generateLinkToken('TASK-INSTA-001', staff.id);
-  const staffObj = { ...staff, token };
-  
-  STAFF_LOOKUP.set(token.toLowerCase(), staffObj);
-  if (staff.id) STAFF_LOOKUP.set(staff.id.toLowerCase(), staffObj);
-  if (staff.supportCode) STAFF_LOOKUP.set(staff.supportCode.toLowerCase(), staffObj);
-  if (staff.staffId) STAFF_LOOKUP.set(staff.staffId.toLowerCase(), staffObj);
-  if (staff.mobilePersonal) STAFF_LOOKUP.set(staff.mobilePersonal, staffObj);
-  if (staff.mobileOffice) STAFF_LOOKUP.set(staff.mobileOffice, staffObj);
-});
+let CURRENT_STAFF_LIST = [];
+
+function loadStaffFromDisk() {
+  try {
+    if (fs.existsSync(EMPLOYEES_FILE)) {
+      const raw = fs.readFileSync(EMPLOYEES_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed reading EMPLOYEES_FILE, using PAT_STAFF_OCTOBER_2026 seed:', err.message);
+  }
+  return [...PAT_STAFF_OCTOBER_2026];
+}
+
+function refreshStaffLookup(staffList) {
+  CURRENT_STAFF_LIST = staffList;
+  STAFF_LOOKUP.clear();
+  staffList.forEach(staff => {
+    const mainId = staff.id || staff.supportCode || staff.assemblyCode;
+    const token = generateLinkToken('TASK-INSTA-001', mainId);
+    const staffObj = { ...staff, token };
+    
+    STAFF_LOOKUP.set(token.toLowerCase(), staffObj);
+    if (staff.id) STAFF_LOOKUP.set(String(staff.id).toLowerCase(), staffObj);
+    if (staff.supportCode) STAFF_LOOKUP.set(String(staff.supportCode).toLowerCase(), staffObj);
+    if (staff.staffId) STAFF_LOOKUP.set(String(staff.staffId).toLowerCase(), staffObj);
+    if (staff.assemblyCode) STAFF_LOOKUP.set(String(staff.assemblyCode).toLowerCase(), staffObj);
+    if (staff.mobilePersonal) STAFF_LOOKUP.set(String(staff.mobilePersonal).trim(), staffObj);
+    if (staff.mobileOffice) STAFF_LOOKUP.set(String(staff.mobileOffice).trim(), staffObj);
+    if (staff.mobile) STAFF_LOOKUP.set(String(staff.mobile).trim(), staffObj);
+  });
+}
+
+function saveStaffToDisk(staffList) {
+  try {
+    fs.writeFileSync(EMPLOYEES_FILE, JSON.stringify(staffList, null, 2), 'utf8');
+    refreshStaffLookup(staffList);
+    return true;
+  } catch (err) {
+    console.error('Error writing employees to disk:', err);
+    return false;
+  }
+}
+
+// Initial boot load
+CURRENT_STAFF_LIST = loadStaffFromDisk();
+refreshStaffLookup(CURRENT_STAFF_LIST);
 
 function resolveStaff(tokenOrId) {
   if (!tokenOrId) return null;
@@ -812,9 +859,11 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-// GET All Employees
+// GET All Employees (Live, disk-backed & synced)
 app.get('/api/employees', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   try {
     if (isDbConnected) {
       try {
@@ -823,12 +872,138 @@ app.get('/api/employees', async (req, res) => {
           return res.json(result.rows);
         }
       } catch (dbErr) {
-        console.warn('PostgreSQL employees fetch error, using staff seed:', dbErr.message);
+        console.warn('PostgreSQL employees fetch error, using disk staff:', dbErr.message);
       }
     }
-    res.json(PAT_STAFF_OCTOBER_2026);
+    // Return live list from disk
+    if (!CURRENT_STAFF_LIST || CURRENT_STAFF_LIST.length === 0) {
+      CURRENT_STAFF_LIST = loadStaffFromDisk();
+    }
+    res.json(CURRENT_STAFF_LIST);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/employees - Update or batch override employees
+app.post('/api/employees', async (req, res) => {
+  try {
+    let payload = req.body;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch (_) {}
+    }
+    const incoming = Array.isArray(payload) ? payload : [payload];
+    if (!incoming.length) {
+      return res.status(400).json({ success: false, error: 'No employee data provided' });
+    }
+
+    const currentList = CURRENT_STAFF_LIST.length > 0 ? [...CURRENT_STAFF_LIST] : loadStaffFromDisk();
+    let updatedCount = 0;
+
+    incoming.forEach(newItem => {
+      if (!newItem) return;
+      const targetId = String(newItem.id || newItem.supportCode || newItem.code || '').trim().toUpperCase();
+      const targetAsm = String(newItem.assemblyCode || '').trim().toUpperCase();
+
+      const idx = currentList.findIndex(e => {
+        if (!e) return false;
+        const eId = String(e.id || '').toUpperCase();
+        const eSupp = String(e.supportCode || '').toUpperCase();
+        const eAsm = String(e.assemblyCode || '').toUpperCase();
+        if (targetId && (eId === targetId || eSupp === targetId)) return true;
+        if (targetAsm && eAsm === targetAsm) return true;
+        return false;
+      });
+
+      if (idx !== -1) {
+        currentList[idx] = { ...currentList[idx], ...newItem };
+        updatedCount++;
+      } else {
+        currentList.push({
+          id: targetId || `EMP-${Date.now()}`,
+          supportCode: targetId,
+          name: newItem.name || 'Staff Member',
+          level: newItem.level || 'Assembly',
+          parliamentCode: newItem.parliamentCode || 'APP13',
+          parliamentName: newItem.parliamentName || 'Guntur',
+          assemblyCode: newItem.assemblyCode || null,
+          assemblyName: newItem.assemblyName || null,
+          department: newItem.department || 'Outreach Staff',
+          mobilePersonal: newItem.mobilePersonal || newItem.mobile || '',
+          mobileOffice: newItem.mobileOffice || '',
+          mobile: newItem.mobilePersonal || newItem.mobileOffice || newItem.mobile || '',
+          password: newItem.password || 'password123',
+          status: newItem.status || 'Active',
+          ...newItem
+        });
+        updatedCount++;
+      }
+    });
+
+    saveStaffToDisk(currentList);
+
+    // If PostgreSQL connected, sync into DB table
+    if (isDbConnected) {
+      for (const emp of incoming) {
+        try {
+          const empId = emp.id || emp.supportCode;
+          await pool.query(`
+            INSERT INTO employees (id, name, level, parliament_code, parliament_name, assembly_code, assembly_name, mobile, password, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (id) DO UPDATE SET
+              name = EXCLUDED.name,
+              mobile = EXCLUDED.mobile,
+              password = EXCLUDED.password,
+              status = EXCLUDED.status
+          `, [
+            empId,
+            emp.name,
+            emp.level || 'Assembly',
+            emp.parliamentCode || 'APP13',
+            emp.parliamentName || 'Guntur',
+            emp.assemblyCode || null,
+            emp.assemblyName || null,
+            emp.mobilePersonal || emp.mobile || '9999999999',
+            emp.password || 'password123',
+            emp.status || 'Active'
+          ]);
+        } catch (dbErr) {
+          console.warn('PostgreSQL employee upsert error:', dbErr.message);
+        }
+      }
+    }
+
+    res.json({ success: true, count: updatedCount, totalEmployees: currentList.length });
+  } catch (err) {
+    console.error('Error saving employees:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/employees/:id - Update specific employee by ID or support code
+app.put('/api/employees/:id', async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const targetId = String(rawId || '').trim().toUpperCase();
+    const updateData = req.body;
+
+    const currentList = CURRENT_STAFF_LIST.length > 0 ? [...CURRENT_STAFF_LIST] : loadStaffFromDisk();
+    const idx = currentList.findIndex(e => {
+      if (!e) return false;
+      return (e.id && e.id.toUpperCase() === targetId) || 
+             (e.supportCode && e.supportCode.toUpperCase() === targetId);
+    });
+
+    if (idx === -1) {
+      return res.status(404).json({ success: false, error: `Employee ${rawId} not found` });
+    }
+
+    currentList[idx] = { ...currentList[idx], ...updateData };
+    saveStaffToDisk(currentList);
+
+    res.json({ success: true, employee: currentList[idx] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

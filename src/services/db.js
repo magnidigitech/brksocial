@@ -278,15 +278,57 @@ export const dbService = {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES)) || [];
   },
 
+  async syncEmployeesWithServer() {
+    try {
+      const res = await fetch('/api/employees?_t=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
+      if (res.ok) {
+        const serverEmps = await res.json();
+        if (Array.isArray(serverEmps) && serverEmps.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(serverEmps));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: serverEmps }));
+          }
+          return serverEmps;
+        }
+      }
+    } catch (err) {
+      console.warn('Background sync with /api/employees skipped:', err.message);
+    }
+    return this.getEmployees();
+  },
+
   getEmployeeById(id) {
+    if (!id) return null;
     const emps = this.getEmployees();
-    return emps.find(e => e.id.toLowerCase() === id.toLowerCase()) || null;
+    const clean = String(id).trim().toUpperCase();
+    const digitsOnly = clean.replace(/\D/g, '');
+
+    return emps.find(e => {
+      if (!e) return false;
+      const eId = String(e.id || '').toUpperCase();
+      const eSupp = String(e.supportCode || '').toUpperCase();
+      const eStaffId = String(e.staffId || '').toUpperCase();
+      const eAsm = String(e.assemblyCode || '').toUpperCase();
+
+      if (eId === clean || eSupp === clean || eStaffId === clean || eAsm === clean) return true;
+      if (digitsOnly && digitsOnly.length >= 10) {
+        const pMob = String(e.mobilePersonal || '').replace(/\D/g, '');
+        const oMob = String(e.mobileOffice || '').replace(/\D/g, '');
+        const mob = String(e.mobile || '').replace(/\D/g, '');
+        if (pMob === digitsOnly || oMob === digitsOnly || mob === digitsOnly) return true;
+      }
+      return false;
+    }) || null;
   },
 
   addEmployee(empData) {
     const emps = this.getEmployees();
     const newEmp = {
       id: empData.id ? empData.id.toUpperCase() : `APP${String(emps.length + 1).padStart(2, '0')}`,
+      supportCode: empData.supportCode || empData.id || `APP${String(emps.length + 1).padStart(2, '0')}`,
       name: empData.name,
       level: empData.level || (empData.assemblyCode ? 'Assembly' : 'Parliament'),
       parliamentCode: empData.parliamentCode || 'APP13',
@@ -294,7 +336,9 @@ export const dbService = {
       assemblyCode: empData.assemblyCode || null,
       assemblyName: empData.assemblyName || null,
       department: empData.department || 'Outreach Staff',
-      mobile: empData.mobile || '9999999999',
+      mobilePersonal: empData.mobilePersonal || empData.mobile || '9999999999',
+      mobileOffice: empData.mobileOffice || '',
+      mobile: empData.mobilePersonal || empData.mobileOffice || empData.mobile || '9999999999',
       email: empData.email || `${(empData.id || 'emp').toLowerCase()}@bhashyam.in`,
       status: empData.status || 'Active',
       joinedDate: new Date().toISOString().split('T')[0],
@@ -302,43 +346,195 @@ export const dbService = {
     };
     emps.unshift(newEmp);
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: newEmp }));
+    }
+
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEmp)
+      }).catch(() => {});
+    } catch (_) {}
+
     return newEmp;
   },
 
   updateEmployee(updatedEmp) {
+    if (!updatedEmp) return null;
     const emps = this.getEmployees();
-    const idx = emps.findIndex(e => e.id.toUpperCase() === updatedEmp.id.toUpperCase());
+    const targetId = String(updatedEmp.id || updatedEmp.supportCode || updatedEmp.code || '').trim().toUpperCase();
+    const targetAsm = String(updatedEmp.assemblyCode || '').trim().toUpperCase();
+
+    const idx = emps.findIndex(e => {
+      if (!e) return false;
+      const eId = String(e.id || '').toUpperCase();
+      const eSupp = String(e.supportCode || '').toUpperCase();
+      const eAsm = String(e.assemblyCode || '').toUpperCase();
+      if (targetId && (eId === targetId || eSupp === targetId)) return true;
+      if (targetAsm && eAsm === targetAsm) return true;
+      return false;
+    });
+
+    let savedItem = null;
     if (idx !== -1) {
-      emps[idx] = { ...emps[idx], ...updatedEmp };
-      localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
-      return emps[idx];
+      emps[idx] = { 
+        ...emps[idx], 
+        ...updatedEmp,
+        supportCode: updatedEmp.supportCode || emps[idx].supportCode || emps[idx].id,
+        mobilePersonal: updatedEmp.mobilePersonal || updatedEmp.mobile || emps[idx].mobilePersonal,
+        mobileOffice: updatedEmp.mobileOffice !== undefined ? updatedEmp.mobileOffice : emps[idx].mobileOffice,
+        mobile: updatedEmp.mobilePersonal || updatedEmp.mobile || emps[idx].mobile
+      };
+      savedItem = emps[idx];
+    } else {
+      savedItem = {
+        id: targetId || `EMP-${Date.now()}`,
+        supportCode: targetId,
+        name: updatedEmp.name || 'Staff Member',
+        level: updatedEmp.level || 'Assembly',
+        parliamentCode: updatedEmp.parliamentCode || 'APP13',
+        parliamentName: updatedEmp.parliamentName || 'Guntur',
+        assemblyCode: updatedEmp.assemblyCode || null,
+        assemblyName: updatedEmp.assemblyName || null,
+        department: updatedEmp.department || 'Outreach Staff',
+        mobilePersonal: updatedEmp.mobilePersonal || updatedEmp.mobile || '',
+        mobileOffice: updatedEmp.mobileOffice || '',
+        mobile: updatedEmp.mobilePersonal || updatedEmp.mobileOffice || updatedEmp.mobile || '',
+        password: updatedEmp.password || 'password123',
+        status: updatedEmp.status || 'Active',
+        ...updatedEmp
+      };
+      emps.push(savedItem);
     }
-    return null;
+
+    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    // Update active session if currently logged in as this staff member
+    try {
+      const activeSession = JSON.parse(localStorage.getItem('brk_auth_session_v1'));
+      if (activeSession && (
+        (activeSession.employeeId && activeSession.employeeId.toUpperCase() === targetId) ||
+        (activeSession.supportCode && activeSession.supportCode.toUpperCase() === targetId)
+      )) {
+        const refreshedSession = {
+          ...activeSession,
+          name: savedItem.name,
+          mobilePersonal: savedItem.mobilePersonal || savedItem.mobile,
+          mobileOffice: savedItem.mobileOffice || '',
+          mobile: savedItem.mobilePersonal || savedItem.mobileOffice || savedItem.mobile,
+          staffId: savedItem.staffId || ''
+        };
+        localStorage.setItem('brk_auth_session_v1', JSON.stringify(refreshedSession));
+      }
+    } catch (_) {}
+
+    // Dispatch real-time event for UI reactivity
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: savedItem }));
+    }
+
+    // Sync to server API
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(savedItem)
+      }).catch(err => console.warn('Server employees sync warning:', err.message));
+    } catch (_) {}
+
+    return savedItem;
   },
 
   batchUpdateEmployees(updatedArray) {
+    if (!Array.isArray(updatedArray) || updatedArray.length === 0) return 0;
     const emps = this.getEmployees();
     let count = 0;
+
     updatedArray.forEach(item => {
-      const idx = emps.findIndex(e => e.id.toUpperCase() === item.id.toUpperCase());
+      if (!item) return;
+      const targetId = String(item.id || item.supportCode || item.code || '').trim().toUpperCase();
+      const targetAsm = String(item.assemblyCode || '').trim().toUpperCase();
+
+      const idx = emps.findIndex(e => {
+        if (!e) return false;
+        const eId = String(e.id || '').toUpperCase();
+        const eSupp = String(e.supportCode || '').toUpperCase();
+        const eAsm = String(e.assemblyCode || '').toUpperCase();
+        if (targetId && (eId === targetId || eSupp === targetId)) return true;
+        if (targetAsm && eAsm === targetAsm) return true;
+        return false;
+      });
+
       if (idx !== -1) {
-        emps[idx] = { ...emps[idx], ...item };
+        emps[idx] = { 
+          ...emps[idx], 
+          ...item,
+          supportCode: item.supportCode || emps[idx].supportCode || emps[idx].id,
+          mobilePersonal: item.mobilePersonal || item.mobile || emps[idx].mobilePersonal,
+          mobileOffice: item.mobileOffice !== undefined ? item.mobileOffice : emps[idx].mobileOffice,
+          mobile: item.mobilePersonal || item.mobile || emps[idx].mobile
+        };
         count++;
       } else {
-        emps.push(item);
+        emps.push({
+          id: targetId || `EMP-${Date.now()}`,
+          supportCode: targetId,
+          name: item.name || 'Staff Member',
+          level: item.level || 'Assembly',
+          parliamentCode: item.parliamentCode || 'APP13',
+          parliamentName: item.parliamentName || 'Guntur',
+          assemblyCode: item.assemblyCode || null,
+          assemblyName: item.assemblyName || null,
+          department: item.department || 'Outreach Staff',
+          mobilePersonal: item.mobilePersonal || item.mobile || '',
+          mobileOffice: item.mobileOffice || '',
+          mobile: item.mobilePersonal || item.mobileOffice || item.mobile || '',
+          password: item.password || 'password123',
+          status: item.status || 'Active',
+          ...item
+        });
         count++;
       }
     });
+
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: { count } }));
+    }
+
+    // Sync batch to server API
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedArray)
+      }).catch(err => console.warn('Server batch employees sync warning:', err.message));
+    } catch (_) {}
+
     return count;
   },
 
   updateEmployeePassword(employeeId, newPassword) {
     const emps = this.getEmployees();
-    const emp = emps.find(e => e.id.toUpperCase() === employeeId.toUpperCase());
+    const clean = String(employeeId || '').toUpperCase();
+    const emp = emps.find(e => (e.id && e.id.toUpperCase() === clean) || (e.supportCode && e.supportCode.toUpperCase() === clean));
     if (emp) {
       emp.password = newPassword;
       localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: emp }));
+      }
+      try {
+        fetch('/api/employees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(emp)
+        }).catch(() => {});
+      } catch (_) {}
       return true;
     }
     return false;
