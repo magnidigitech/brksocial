@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * PullToRefreshPreloader
- * Handles native mobile touch pull-down gesture to trigger data refresh.
+ * Handles native mobile touch pull-down, trackpad wheel, and mouse drag to trigger data refresh.
  * Features animated MagniDigi (MD) logo mark with dynamic rotation and pulsing halo.
  */
 export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
@@ -11,14 +11,18 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
   const startYRef = useRef(0);
   const isPullingRef = useRef(false);
   const pullYRef = useRef(0);
+  const wheelDeltaRef = useRef(0);
+  const wheelTimerRef = useRef(null);
+  const isMousePullingRef = useRef(false);
 
   const THRESHOLD = 65; // px distance to trigger sync
-  const MAX_PULL = 100;
+  const MAX_PULL = 95;
 
   useEffect(() => {
+    // TOUCH EVENTS (Mobile)
     const handleTouchStart = (e) => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-      if (scrollTop <= 2 && !isRefreshing) {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (scrollTop <= 5 && !isRefreshing) {
         startYRef.current = e.touches[0].clientY;
         isPullingRef.current = true;
       } else {
@@ -30,26 +34,28 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       if (!isPullingRef.current || isRefreshing) return;
       const currentY = e.touches[0].clientY;
       const rawDelta = currentY - startYRef.current;
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
 
-      if (rawDelta > 0 && scrollTop <= 2) {
-        const distance = Math.min(Math.pow(rawDelta, 0.82), MAX_PULL);
+      if (rawDelta > 0) {
+        // Linear damped pull
+        const distance = Math.min(rawDelta * 0.55, MAX_PULL);
         pullYRef.current = distance;
         setPullY(distance);
         setIsPulling(true);
 
-        if (e.cancelable && distance > 12) {
+        if (e.cancelable && distance > 10) {
           e.preventDefault();
         }
       } else {
         pullYRef.current = 0;
         setPullY(0);
-        setIsPulling(false);
       }
     };
 
     const handleTouchEnd = () => {
-      if (!isPullingRef.current || isRefreshing) return;
+      if (!isPullingRef.current || isRefreshing) {
+        isPullingRef.current = false;
+        return;
+      }
       isPullingRef.current = false;
       setIsPulling(false);
 
@@ -64,14 +70,93 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       pullYRef.current = 0;
     };
 
+    // MOUSE DRAG EVENTS (Desktop / Responsive Simulator)
+    const handleMouseDown = (e) => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (scrollTop <= 5 && !isRefreshing && e.button === 0 && e.clientY < 200) {
+        startYRef.current = e.clientY;
+        isMousePullingRef.current = true;
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isMousePullingRef.current || isRefreshing) return;
+      const rawDelta = e.clientY - startYRef.current;
+      if (rawDelta > 0) {
+        const distance = Math.min(rawDelta * 0.5, MAX_PULL);
+        pullYRef.current = distance;
+        setPullY(distance);
+        setIsPulling(true);
+      } else {
+        setPullY(0);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!isMousePullingRef.current || isRefreshing) {
+        isMousePullingRef.current = false;
+        return;
+      }
+      isMousePullingRef.current = false;
+      setIsPulling(false);
+
+      if (pullYRef.current >= THRESHOLD) {
+        setPullY(THRESHOLD);
+        if (onRefresh) {
+          onRefresh();
+        }
+      } else {
+        setPullY(0);
+      }
+      pullYRef.current = 0;
+    };
+
+    // TRACKPAD / MOUSE WHEEL SCROLL AT TOP
+    const handleWheel = (e) => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (scrollTop <= 2 && e.deltaY < -8 && !isRefreshing) {
+        wheelDeltaRef.current += Math.abs(e.deltaY) * 0.35;
+        const distance = Math.min(wheelDeltaRef.current, MAX_PULL);
+        pullYRef.current = distance;
+        setPullY(distance);
+        setIsPulling(true);
+
+        clearTimeout(wheelTimerRef.current);
+        if (distance >= THRESHOLD) {
+          wheelDeltaRef.current = 0;
+          setPullY(THRESHOLD);
+          if (onRefresh) onRefresh();
+        } else {
+          wheelTimerRef.current = setTimeout(() => {
+            wheelDeltaRef.current = 0;
+            setPullY(0);
+            setIsPulling(false);
+          }, 350);
+        }
+      }
+    };
+
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('wheel', handleWheel, { passive: true });
 
     return () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('wheel', handleWheel);
+      clearTimeout(wheelTimerRef.current);
     };
   }, [onRefresh, isRefreshing]);
 
@@ -82,27 +167,35 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     }
   }, [isRefreshing, isPulling]);
 
-  const activeY = isRefreshing ? 60 : pullY;
+  const pullProgress = Math.min(pullY / THRESHOLD, 1);
   const isTriggered = pullY >= THRESHOLD || isRefreshing;
-  const rotation = isRefreshing ? 0 : pullY * 5;
-  const scale = Math.min(Math.max(pullY / THRESHOLD, 0.45), 1);
+  const rotation = isRefreshing ? 0 : pullY * 6;
+  const scale = isRefreshing ? 1 : Math.min(0.55 + pullProgress * 0.45, 1);
 
-  if (activeY <= 0 && !isRefreshing) return null;
+  // Position calculation:
+  // Starts offscreen at -80px
+  // As user pulls, smoothly drops down into view below safe area
+  // When refreshing, rests stably at +18px
+  const targetY = isRefreshing
+    ? 18
+    : (isPulling || pullY > 0
+      ? (-75 + Math.min(pullY * 1.35, 95))
+      : -110);
 
   return (
     <div
       style={{
         position: 'fixed',
-        top: 0,
+        top: 'max(14px, env(safe-area-inset-top, 14px))',
         left: 0,
         right: 0,
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'flex-start',
-        zIndex: 9990,
+        zIndex: 9999,
         pointerEvents: 'none',
-        transform: `translateY(${activeY - 56}px)`,
-        transition: isPulling ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        transform: `translateY(${targetY}px)`,
+        transition: isPulling ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         willChange: 'transform'
       }}
     >
@@ -111,13 +204,13 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.96)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           padding: '8px 18px 8px 10px',
           borderRadius: '9999px',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(234, 88, 12, 0.2)',
-          border: '1.5px solid rgba(234, 88, 12, 0.25)',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.14), 0 2px 10px rgba(255, 77, 0, 0.22)',
+          border: '1.5px solid rgba(255, 77, 0, 0.3)',
           pointerEvents: 'auto'
         }}
       >
@@ -138,9 +231,9 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
             <div
               style={{
                 position: 'absolute',
-                inset: -4,
+                inset: -5,
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(234, 88, 12, 0.4) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(255, 77, 0, 0.45) 0%, transparent 70%)',
                 animation: 'mdHaloPulse 1.2s ease-in-out infinite'
               }}
             />
@@ -166,9 +259,9 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span
             style={{
-              fontSize: '12px',
+              fontSize: '12.5px',
               fontWeight: 800,
-              color: isTriggered ? '#ea580c' : '#0f172a',
+              color: isTriggered ? '#ff4d00' : '#0f172a',
               letterSpacing: '-0.01em',
               lineHeight: 1.2
             }}
@@ -179,8 +272,8 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
               ? 'Release to Refresh'
               : 'Pull Down to Refresh'}
           </span>
-          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
-            {isRefreshing ? 'Checking official followers' : 'BRK Social TaskHub'}
+          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
+            {isRefreshing ? 'Checking latest submissions' : 'BRK Social TaskHub'}
           </span>
         </div>
       </div>
