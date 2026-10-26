@@ -28,11 +28,14 @@ import {
   XCircle,
   QrCode,
   Download,
-  X
+  X,
+  Menu,
+  Info,
+  Phone
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
-import { formatIST, validateFollowerSubmission, getTodayISTDateString } from '../services/istUtils.js';
+import { formatIST, validateFollowerSubmission, getTodayISTDateString, getISTDateFromISO } from '../services/istUtils.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -59,6 +62,9 @@ export function EmployeePortal({ session, onLogout }) {
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [submissionTab, setSubmissionTab] = useState('today'); // 'today' | 'previous'
+  const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -355,6 +361,17 @@ export function EmployeePortal({ session, onLogout }) {
     setIsSubmitting(false);
   };
 
+  const todayStr = getTodayISTDateString();
+  const allLocalSubs = dbService.getSubmissions();
+  const currentEmpId = employee?.id || session?.employeeId || session?.id || '';
+  const previousSubmissions = allLocalSubs.filter(s => 
+    s && s.employeeId &&
+    s.employeeId.toUpperCase() === currentEmpId.toUpperCase() &&
+    (!activeTask || s.taskId === activeTask.id) &&
+    s.date !== todayStr &&
+    getISTDateFromISO(s.submittedAt) !== todayStr
+  );
+
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
   return (
@@ -375,22 +392,25 @@ export function EmployeePortal({ session, onLogout }) {
 
       {/* Main Container Frame */}
       <div className="dashboard-main-frame" style={{ maxWidth: '1000px' }}>
-        {/* Top Header & Staff Info */}
+        {/* Compact Top Header Bar */}
         <div style={{
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '12px',
-          paddingBottom: '16px',
-          borderBottom: '1px solid #e5e7eb',
-          marginBottom: '20px'
+          padding: '12px 16px',
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          marginBottom: '18px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
         }}>
-          {/* Staff Badge & Name */}
+          {/* Staff Badge & Name Only */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div style={{
-              width: '42px',
-              height: '42px',
+              width: '38px',
+              height: '38px',
+              minWidth: '38px',
+              minHeight: '38px',
               borderRadius: '50%',
               backgroundColor: '#fff7ed',
               border: '1.5px solid #ffedd5',
@@ -400,86 +420,50 @@ export function EmployeePortal({ session, onLogout }) {
               color: '#ea580c',
               flexShrink: 0
             }}>
-              <UserCheck size={20} />
+              <UserCheck size={18} />
             </div>
 
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                  {employee?.name || session?.name || 'Field Staff'}
-                </h1>
-                <span style={{
-                  fontFamily: 'monospace',
-                  fontWeight: 800,
-                  fontSize: '11px',
-                  padding: '3px 10px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1'
-                }}>
-                  Code: {employee?.supportCode || employee?.id || session?.employeeId}
-                </span>
-
-                {(employee?.staffId || session?.staffId) && (
-                  <span style={{
-                    fontFamily: 'monospace',
-                    fontWeight: 800,
-                    fontSize: '11px',
-                    padding: '3px 10px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#eff6ff',
-                    color: '#1d4ed8',
-                    border: '1px solid #bfdbfe'
-                  }}>
-                    ID: {employee?.staffId || session?.staffId}
-                  </span>
-                )}
+              <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Field Outreach Staff
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Building2 size={13} style={{ color: '#ff4d00' }} />
-                  {employee?.parliamentName} Parliament
-                </span>
-                {employee?.assemblyName && (
-                  <>
-                    <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={13} style={{ color: '#0284c7' }} />
-                      {employee?.assemblyName} Segment
-                    </span>
-                  </>
-                )}
-                {(employee?.mobilePersonal || session?.mobilePersonal) && (
-                  <>
-                    <span>•</span>
-                    <span>Mob: <strong style={{ color: '#0f172a' }}>{employee?.mobilePersonal || session?.mobilePersonal}</strong></span>
-                  </>
-                )}
-              </div>
+              <h1 style={{
+                fontSize: '16px',
+                fontWeight: 800,
+                color: '#0f172a',
+                margin: 0,
+                letterSpacing: '-0.02em',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {employee?.name || session?.name || 'Field Staff'}
+              </h1>
             </div>
           </div>
 
-          {/* Sign Out */}
+          {/* Hamburger Menu Toggle Button */}
           <button
-            onClick={onLogout}
+            type="button"
+            onClick={() => setShowMenu(true)}
+            aria-label="Open staff details menu"
             style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              backgroundColor: '#fff1f2',
-              color: '#e11d48',
-              border: '1px solid #fecdd3',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer'
+              justifyContent: 'center',
+              color: '#334155',
+              cursor: 'pointer',
+              flexShrink: 0,
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              transition: 'all 0.15s ease'
             }}
           >
-            <LogOut size={15} />
-            <span>Sign Out</span>
+            <Menu size={20} />
           </button>
         </div>
 
@@ -524,22 +508,28 @@ export function EmployeePortal({ session, onLogout }) {
 
         {/* ACTIVE TASK CARD & PROGRESS BAR */}
         {activeTask ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Task Overview Box */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* 1. Task Overview Box with Daily Completion Progress */}
             <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* Perfectly Round Platform Icon */}
                   <div style={{
-                    width: '36px',
-                    height: '36px',
+                    width: '42px',
+                    height: '42px',
+                    minWidth: '42px',
+                    minHeight: '42px',
                     borderRadius: '50%',
+                    aspectRatio: '1 / 1',
                     backgroundColor: '#ff4d00',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 10px rgba(255, 77, 0, 0.25)'
                   }}>
-                    <PlatformIcon size={20} />
+                    <PlatformIcon size={22} />
                   </div>
                   <div>
                     <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
@@ -595,231 +585,7 @@ export function EmployeePortal({ session, onLogout }) {
               )}
             </div>
 
-            {/* YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
-            {effectiveLink && (
-              <div className="dashboard-section-card" style={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
-                border: '1.5px solid #ffedd5',
-                boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
-              }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
-                    }}>
-                      <Share2 size={20} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                        Your Citizen Outreach Tracking Link
-                      </h3>
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                        Redirects visitors to official Instagram while recording your staff attribution.
-                      </p>
-                    </div>
-                  </div>
-
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#ecfdf5',
-                    color: '#059669',
-                    border: '1px solid #a7f3d0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                    Live Active Link
-                  </span>
-                </div>
-
-                {/* Tracking URL Container */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '14px',
-                  padding: '8px 14px',
-                  marginBottom: '14px',
-                  overflow: 'hidden',
-                  gap: '10px',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ flex: 1, minWidth: '220px', overflow: 'hidden' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Exclusive Tracking URL
-                    </div>
-                    <div style={{
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: '#0f172a',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                      overflow: 'hidden'
-                    }}>
-                      {getFullTrackingUrl()}
-                    </div>
-                  </div>
-
-                  {/* 1-Tap Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleCopyLink}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: copied ? '#ecfdf5' : '#f1f5f9',
-                        color: copied ? '#059669' : '#334155',
-                        border: copied ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copied ? 'Copied!' : 'Copy Link'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleWhatsAppShare}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 18px',
-                        borderRadius: '10px',
-                        backgroundColor: '#25D366',
-                        color: '#ffffff',
-                        border: 'none',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <MessageSquare size={14} />
-                      <span>Share on WhatsApp</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowQrModal(true)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <QrCode size={14} style={{ color: '#ff4d00' }} />
-                      <span>QR Code</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Real-time Click Metrics Bar */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                  gap: '10px',
-                  backgroundColor: '#ffffff',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  border: '1px solid #fed7aa'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks Today</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c' }}>
-                      {linkClicks.validClicks || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Visitors</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>
-                      {linkClicks.uniqueIps || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Link Hits</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#334155' }}>
-                      {linkClicks.totalClicks || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        dbService.syncClicksWithServer().then(() => {
-                          const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-                          const taskId = activeTask?.id || 'TASK-INSTA-001';
-                          const today = getTodayISTDateString();
-                          const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
-                          setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
-                        }).catch(() => {});
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '5px',
-                        padding: '5px 10px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        color: '#0284c7',
-                        backgroundColor: '#f0f9ff',
-                        border: '1px solid #bae6fd',
-                        borderRadius: '6px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <RefreshCw size={12} />
-                      Sync Clicks
-                    </button>
-                    <span style={{
-                      fontSize: '9.5px',
-                      fontWeight: 600,
-                      color: '#059669',
-                      textAlign: 'center'
-                    }}>
-                      ✓ WhatsApp Bots Filtered
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Submission Form */}
+            {/* 2. SUBMISSION ENTRY FORM (MOVED HERE DIRECTLY BELOW DAILY PROGRESS) */}
             <div className="dashboard-section-card">
               <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
                 New Submission Entry ({activeTask.submissionType || 'Input'})
@@ -958,7 +724,7 @@ export function EmployeePortal({ session, onLogout }) {
                       <>
                         <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
                         <span>
-                          <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST (Inside eligible 24h window • Will be counted as Valid Submission).
+                          <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST.
                         </span>
                       </>
                     ) : liveCheck.status === 'Already Followed' ? (
@@ -972,7 +738,7 @@ export function EmployeePortal({ session, onLogout }) {
                       <>
                         <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
                         <span>
-                          <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' is not in current followers database yet. Submission will be saved as <strong>Pending Submission</strong> and verified upon next follower JSON sync.
+                          <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' will be saved as <strong>Pending Submission</strong>.
                         </span>
                       </>
                     ) : (
@@ -988,11 +754,254 @@ export function EmployeePortal({ session, onLogout }) {
               </form>
             </div>
 
-            {/* Today's Submissions Log Table */}
+            {/* 3. YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
+            {effectiveLink && (
+              <div className="dashboard-section-card" style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
+                border: '1.5px solid #ffedd5',
+                boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
+              }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {/* Perfectly Round Share Icon */}
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      minWidth: '42px',
+                      minHeight: '42px',
+                      borderRadius: '50%',
+                      aspectRatio: '1 / 1',
+                      background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
+                    }}>
+                      <Share2 size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                        Your Citizen Outreach Tracking Link
+                      </h3>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                        Redirects visitors to official Instagram while recording your staff attribution.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ecfdf5',
+                    color: '#059669',
+                    border: '1px solid #a7f3d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Live Active Link
+                  </span>
+                </div>
+
+                {/* Tracking URL Box with Multiline Full Link Wrap */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '14px',
+                  padding: '12px 14px',
+                  marginBottom: '14px'
+                }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                    Exclusive Tracking URL
+                  </div>
+                  <div style={{
+                    fontFamily: 'monospace',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    wordBreak: 'break-all',
+                    overflowWrap: 'anywhere',
+                    whiteSpace: 'normal',
+                    lineHeight: 1.45,
+                    padding: '8px 10px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    {getFullTrackingUrl()}
+                  </div>
+
+                  {/* 1-Line Actions: WhatsApp (1st), Copy (2nd), QR Code (3rd) */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginTop: '10px',
+                    width: '100%'
+                  }}>
+                    {/* 1. Share on WhatsApp (FIRST) */}
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppShare}
+                      title="Share on WhatsApp"
+                      style={{
+                        flex: 1,
+                        height: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        borderRadius: '10px',
+                        backgroundColor: '#25D366',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <MessageSquare size={16} />
+                      <span>WhatsApp</span>
+                    </button>
+
+                    {/* 2. Copy Link (SECOND) */}
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      title="Copy Link"
+                      style={{
+                        flex: 1,
+                        height: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        borderRadius: '10px',
+                        backgroundColor: copied ? '#ecfdf5' : '#f1f5f9',
+                        color: copied ? '#059669' : '#334155',
+                        border: copied ? '1.5px solid #a7f3d0' : '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      <span>{copied ? 'Copied!' : 'Copy'}</span>
+                    </button>
+
+                    {/* 3. QR Code (THIRD) */}
+                    <button
+                      type="button"
+                      onClick={() => setShowQrModal(true)}
+                      title="View QR Code"
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        minWidth: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '10px',
+                        backgroundColor: '#fff7ed',
+                        color: '#ea580c',
+                        border: '1px solid #ffedd5',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <QrCode size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real-time Click Metrics Bar */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gap: '10px',
+                  backgroundColor: '#ffffff',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #fed7aa'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks Today</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c' }}>
+                      {linkClicks.validClicks || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Visitors</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>
+                      {linkClicks.uniqueIps || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Link Hits</span>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#334155' }}>
+                      {linkClicks.totalClicks || 0}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dbService.syncClicksWithServer().then(() => {
+                          const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+                          const taskId = activeTask?.id || 'TASK-INSTA-001';
+                          const today = getTodayISTDateString();
+                          const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
+                          setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+                        }).catch(() => {});
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#0284c7',
+                        backgroundColor: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RefreshCw size={12} />
+                      Sync Clicks
+                    </button>
+                    <span style={{
+                      fontSize: '9.5px',
+                      fontWeight: 600,
+                      color: '#059669',
+                      textAlign: 'center'
+                    }}>
+                      ✓ WhatsApp Bots Filtered
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. SUBMISSIONS LOG (WITH TABS FOR TODAY & PREVIOUS SUBMISSIONS) */}
             <div className="dashboard-section-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-                  Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
+                  Submissions History
                 </h3>
 
                 <button
@@ -1016,130 +1025,255 @@ export function EmployeePortal({ session, onLogout }) {
                   }}
                 >
                   <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
-                  <span>{isSyncingFollowers ? 'Syncing Follower DB...' : 'Sync Follower Status'}</span>
+                  <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Follower Status'}</span>
                 </button>
               </div>
 
-              {taskStats?.todaySubmissions?.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', color: '#86868b' }}>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Entry Input</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time (IST)</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Follower Verification (dd/mm/yyyy hh:mm)</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {taskStats.todaySubmissions.map((sub) => {
+              {/* Submissions Navigation Tabs */}
+              <div style={{
+                display: 'flex',
+                gap: '6px',
+                backgroundColor: '#f1f5f9',
+                padding: '4px',
+                borderRadius: '12px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '14px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setSubmissionTab('today')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '9px',
+                    fontSize: '12px',
+                    fontWeight: submissionTab === 'today' ? 700 : 500,
+                    backgroundColor: submissionTab === 'today' ? '#ffffff' : 'transparent',
+                    color: submissionTab === 'today' ? '#0f172a' : '#64748b',
+                    border: 'none',
+                    boxShadow: submissionTab === 'today' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  Today's Submissions ({taskStats?.todaySubmissions?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubmissionTab('previous')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '9px',
+                    fontSize: '12px',
+                    fontWeight: submissionTab === 'previous' ? 700 : 500,
+                    backgroundColor: submissionTab === 'previous' ? '#ffffff' : 'transparent',
+                    color: submissionTab === 'previous' ? '#0f172a' : '#64748b',
+                    border: 'none',
+                    boxShadow: submissionTab === 'previous' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  Previous Submissions ({previousSubmissions.length})
+                </button>
+              </div>
+
+              {/* TAB 1: TODAY'S SUBMISSIONS */}
+              {submissionTab === 'today' && (
+                <div>
+                  {taskStats?.todaySubmissions?.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {taskStats.todaySubmissions.map((sub, idx) => {
                         const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
                         const isStatusPending = sub.status === 'Pending Submission';
-                        const isStatusAlready = sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Repeated';
-                        const isStatusInvalid = sub.status === 'Invalid Submission';
+                        const isStatusDuplicateOrInvalid = sub.isDuplicate || sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Invalid Submission';
 
                         return (
-                          <tr key={sub.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
-                            <td style={{ padding: '10px', fontWeight: 600, color: '#1d1d1f', fontFamily: 'monospace' }}>
-                              {sub.username || sub.rawInput}
-                            </td>
-                            <td style={{ padding: '10px', color: '#64748b', fontSize: '12px' }}>
-                              {formatIST(sub.submittedAt, { timeOnly: true }) || '08:21'}
-                            </td>
-                            <td style={{ padding: '10px' }}>
-                              {isStatusValid ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                                  color: '#15803d',
-                                  border: '1px solid rgba(52, 199, 89, 0.25)'
-                                }}>
-                                  ✓ Followed: {sub.followedAtFormatted || 'Within 24h Window'}
-                                </span>
-                              ) : isStatusAlready ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(255, 149, 0, 0.1)',
-                                  color: '#c2410c',
-                                  border: '1px solid rgba(255, 149, 0, 0.25)'
-                                }}>
-                                  {sub.verificationBadge || (sub.followedAtFormatted ? `✓ Existing Follower: ${sub.followedAtFormatted}` : 'Duplicate Submission')}
-                                </span>
-                              ) : isStatusInvalid ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  color: '#dc2626',
-                                  border: '1px solid rgba(239, 68, 68, 0.2)'
-                                }}>
-                                  Outside 24h Window: {sub.followedAtFormatted}
-                                </span>
-                              ) : (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
-                                  color: '#64748b',
-                                  border: '1px solid rgba(118, 118, 128, 0.15)'
-                                }}>
-                                  Pending Follow Sync
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: '10px', textAlign: 'right' }}>
+                          <div
+                            key={sub.id || idx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                              borderRadius: '12px',
+                              border: '1px solid #e2e8f0',
+                              gap: '10px'
+                            }}
+                          >
+                            {/* Single Line: Entry / Name */}
+                            <div style={{
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '13.5px',
+                              color: '#0f172a',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              minWidth: 0,
+                              flex: 1
+                            }}>
+                              @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                            </div>
+
+                            {/* Color-Coded Status Badge (Valid: Green+White, Invalid/Dup: Red+White, Pending: Orange+White) + Info Icon */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                               <span style={{
-                                padding: '4px 10px',
-                                borderRadius: '980px',
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
                                 fontSize: '11px',
                                 fontWeight: 700,
-                                backgroundColor: isStatusValid
-                                  ? 'rgba(52, 199, 89, 0.12)'
-                                  : (isStatusPending
-                                    ? 'rgba(255, 149, 0, 0.12)'
-                                    : (isStatusAlready
-                                      ? 'rgba(239, 68, 68, 0.10)'
-                                      : 'rgba(107, 114, 128, 0.10)')),
-                                color: isStatusValid
-                                  ? '#15803d'
-                                  : (isStatusPending
-                                    ? '#b45309'
-                                    : (isStatusAlready
-                                      ? '#b91c1c'
-                                      : '#4b5563')),
-                                border: `1px solid ${
-                                  isStatusValid
-                                    ? 'rgba(52, 199, 89, 0.3)'
-                                    : (isStatusPending
-                                      ? 'rgba(255, 149, 0, 0.3)'
-                                      : (isStatusAlready
-                                        ? 'rgba(239, 68, 68, 0.25)'
-                                        : 'rgba(107, 114, 128, 0.25)'))
-                                }`
+                                backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
+                                color: '#ffffff',
+                                whiteSpace: 'nowrap',
+                                boxShadow: isStatusValid 
+                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)' 
+                                  : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
                               }}>
-                                {sub.status || 'Pending Submission'}
+                                {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
                               </span>
-                            </td>
-                          </tr>
+
+                              {/* Tooltip / Info Popover Button */}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSubForInfo(sub)}
+                                title="Click to view follower verification status & time details"
+                                aria-label="View details"
+                                style={{
+                                  width: '28px',
+                                  height: '28px',
+                                  borderRadius: '50%',
+                                  backgroundColor: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#475569',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  flexShrink: 0,
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Info size={15} />
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
+                      <p style={{ fontSize: '13px', margin: 0, fontWeight: 500 }}>
+                        No entries submitted yet today for this task.
+                      </p>
+                      <p style={{ fontSize: '11.5px', marginTop: '4px', color: '#94a3b8' }}>
+                        Use the submission entry box above to record your first entry.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <p style={{ fontSize: '12.5px', color: '#86868b', margin: 0, fontStyle: 'italic' }}>
-                  No entries submitted yet today for this task. Use the box above to record your first entry.
-                </p>
+              )}
+
+              {/* TAB 2: PREVIOUS SUBMISSIONS (ALL TIME EXCLUDING TODAY) */}
+              {submissionTab === 'previous' && (
+                <div>
+                  {previousSubmissions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {previousSubmissions.map((sub, idx) => {
+                        const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                        const isStatusPending = sub.status === 'Pending Submission';
+
+                        return (
+                          <div
+                            key={sub.id || idx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                              borderRadius: '12px',
+                              border: '1px solid #e2e8f0',
+                              gap: '10px'
+                            }}
+                          >
+                            {/* Single Line: Entry + Date */}
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                              <span style={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                fontSize: '13.5px',
+                                color: '#0f172a',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                                {sub.date || formatIST(sub.submittedAt, { dateOnly: true })} • {formatIST(sub.submittedAt, { timeOnly: true })} IST
+                              </span>
+                            </div>
+
+                            {/* Color-Coded Status Badge + Info Button */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                              <span style={{
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
+                                color: '#ffffff',
+                                whiteSpace: 'nowrap',
+                                boxShadow: isStatusValid 
+                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)' 
+                                  : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
+                              }}>
+                                {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSubForInfo(sub)}
+                                title="Click to view follower verification status & time details"
+                                aria-label="View details"
+                                style={{
+                                  width: '28px',
+                                  height: '28px',
+                                  borderRadius: '50%',
+                                  backgroundColor: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#475569',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  flexShrink: 0,
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Info size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
+                      <p style={{ fontSize: '13px', margin: 0, fontWeight: 500 }}>
+                        No previous submissions recorded prior to today.
+                      </p>
+                      <p style={{ fontSize: '11.5px', marginTop: '4px', color: '#94a3b8' }}>
+                        All previous completed submissions will appear in this history tab.
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1306,6 +1440,295 @@ export function EmployeePortal({ session, onLogout }) {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hamburger Drawer Menu */}
+      {showMenu && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            zIndex: 9999,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => setShowMenu(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              height: '100%',
+              backgroundColor: '#ffffff',
+              boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              padding: '24px 20px',
+              overflowY: 'auto'
+            }}
+          >
+            <div>
+              {/* Drawer Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UserCheck size={20} style={{ color: '#ff4d00' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Staff Details</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMenu(false)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#f8fafc',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Staff Profile Card inside Drawer */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '18px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px 0' }}>
+                  {employee?.name || session?.name}
+                </h2>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  <span style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    Code: {employee?.supportCode || employee?.id || session?.employeeId}
+                  </span>
+                  {(employee?.staffId || session?.staffId) && (
+                    <span style={{
+                      fontFamily: 'monospace',
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #bfdbfe'
+                    }}>
+                      ID: {employee?.staffId || session?.staffId}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', color: '#475569' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Building2 size={15} style={{ color: '#ff4d00', flexShrink: 0 }} />
+                    <span><strong>Parliament:</strong> {employee?.parliamentName || 'All'}</span>
+                  </div>
+                  {employee?.assemblyName && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <MapPin size={15} style={{ color: '#0284c7', flexShrink: 0 }} />
+                      <span><strong>Segment:</strong> {employee?.assemblyName}</span>
+                    </div>
+                  )}
+                  {(employee?.mobilePersonal || session?.mobilePersonal) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Phone size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                      <span><strong>Mobile:</strong> {employee?.mobilePersonal || session?.mobilePersonal}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sign Out at bottom of menu */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onLogout();
+              }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 18px',
+                borderRadius: '12px',
+                backgroundColor: '#fff1f2',
+                color: '#e11d48',
+                border: '1.5px solid #fecdd3',
+                fontSize: '14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginTop: '20px',
+                boxShadow: '0 2px 8px rgba(225, 29, 72, 0.12)'
+              }}
+            >
+              <LogOut size={17} />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Follower Verification Status & Detail Tooltip Modal */}
+      {selectedSubForInfo && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.70)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px'
+          }}
+          onClick={() => setSelectedSubForInfo(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '380px',
+              width: '100%',
+              padding: '22px 20px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+              position: 'relative'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Info size={19} style={{ color: '#0284c7' }} />
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Verification Details
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSubForInfo(null)}
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748b'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Handle / Entry:</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', fontSize: '14px' }}>
+                  @{String(selectedSubForInfo.username || selectedSubForInfo.rawInput || '').replace(/^@+/, '')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  backgroundColor: selectedSubForInfo.status === 'Valid Submission' || selectedSubForInfo.status === 'Valid'
+                    ? '#16a34a'
+                    : (selectedSubForInfo.status === 'Pending Submission' ? '#ea580c' : '#dc2626'),
+                  color: '#ffffff'
+                }}>
+                  {selectedSubForInfo.status}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Submission Time:</span>
+                <span style={{ fontWeight: 600, color: '#334155' }}>
+                  {formatIST(selectedSubForInfo.submittedAt) || selectedSubForInfo.timeFormattedIST || 'Today'} IST
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Follower Timestamp:</span>
+                <span style={{ fontWeight: 600, color: '#334155', textAlign: 'right' }}>
+                  {selectedSubForInfo.followedAtFormatted || (selectedSubForInfo.isFollower ? 'Verified' : 'Pending JSON Sync')}
+                </span>
+              </div>
+
+              {selectedSubForInfo.verificationBadge && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                  <span style={{ color: '#64748b', fontWeight: 600 }}>Verification Info:</span>
+                  <div style={{
+                    fontSize: '12px',
+                    backgroundColor: '#f8fafc',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    color: '#334155',
+                    fontWeight: 500,
+                    lineHeight: 1.4
+                  }}>
+                    {selectedSubForInfo.verificationBadge}
+                    {selectedSubForInfo.verificationNote ? ` • ${selectedSubForInfo.verificationNote}` : ''}
+                  </div>
+                </div>
+              )}
+
+              {selectedSubForInfo.isDuplicate && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                  <span style={{ color: '#dc2626', fontWeight: 700 }}>Duplicate Flag:</span>
+                  <span style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600 }}>
+                    {selectedSubForInfo.duplicateOf ? `Duplicate of ${selectedSubForInfo.duplicateOf}` : 'Duplicate attempt flagged'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSubForInfo(null)}
+              style={{
+                width: '100%',
+                marginTop: '18px',
+                padding: '10px',
+                borderRadius: '10px',
+                backgroundColor: '#0f172a',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
