@@ -31,7 +31,24 @@ export function InstagramFollowersView() {
   const [isDragging, setIsDragging] = useState(false);
 
   // Submissions Map for cross-referencing outreach staff
-  const submissions = useMemo(() => dbService.getSubmissions(), []);
+  const [submissions, setSubmissions] = useState(() => dbService.getSubmissions());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setSubmissions(dbService.getSubmissions());
+    };
+    dbService.syncSubmissionsWithServer().then(subs => {
+      if (Array.isArray(subs)) setSubmissions(subs);
+    }).catch(() => {});
+
+    window.addEventListener('brk_submission_event', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('brk_submission_event', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const staffByUsername = useMemo(() => {
     const map = new Map();
     submissions.forEach(s => {

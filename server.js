@@ -32,6 +32,8 @@ const DATA_DIR = path.join(__dirname, 'data');
 const CLICKS_FILE = path.join(DATA_DIR, 'link_clicks.json');
 const FOLLOWERS_FILE = path.join(DATA_DIR, 'instagram_followers.json');
 const WEBAUTHN_FILE = path.join(DATA_DIR, 'webauthn_credentials.json');
+const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
+const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -41,6 +43,83 @@ if (!fs.existsSync(CLICKS_FILE)) {
 }
 if (!fs.existsSync(WEBAUTHN_FILE)) {
   fs.writeFileSync(WEBAUTHN_FILE, JSON.stringify([]), 'utf8');
+}
+if (!fs.existsSync(SUBMISSIONS_FILE)) {
+  fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([]), 'utf8');
+}
+if (!fs.existsSync(TASKS_FILE)) {
+  fs.writeFileSync(TASKS_FILE, JSON.stringify([
+    {
+      id: 'TASK-INSTA-001',
+      name: 'Instagram Follower Outreach',
+      title: 'Instagram Follower Outreach',
+      description: 'Connect with local youth and active social media users via Instagram outreach.',
+      platform: 'Instagram',
+      submissionType: 'Instagram Handle',
+      targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/',
+      urlSlug: 'instagram',
+      dailyTarget: 10,
+      targetPerStaff: 10,
+      frequency: 'Daily',
+      status: 'Active',
+      createdDate: '2026-09-17'
+    },
+    {
+      id: 'TASK-WA-002',
+      name: 'WhatsApp Voter Connect',
+      title: 'WhatsApp Voter Connect',
+      description: 'Gather verified WhatsApp contact numbers of constituency booth leads.',
+      platform: 'WhatsApp',
+      submissionType: 'Mobile Number',
+      targetUrl: 'https://chat.whatsapp.com/',
+      urlSlug: 'whatsapp',
+      dailyTarget: 15,
+      targetPerStaff: 15,
+      frequency: 'Daily',
+      status: 'Active',
+      createdDate: '2026-09-18'
+    }
+  ], null, 2), 'utf8');
+}
+
+function getStoredSubmissions() {
+  try {
+    if (fs.existsSync(SUBMISSIONS_FILE)) {
+      const data = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
+      return JSON.parse(data) || [];
+    }
+  } catch (err) {
+    console.error('Error reading submissions file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredSubmissions(submissions) {
+  try {
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions.slice(0, 50000), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing submissions file:', err.message);
+  }
+}
+
+function getStoredTasks() {
+  try {
+    if (fs.existsSync(TASKS_FILE)) {
+      const data = fs.readFileSync(TASKS_FILE, 'utf8');
+      return JSON.parse(data) || [];
+    }
+  } catch (err) {
+    console.error('Error reading tasks file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredTasks(tasks) {
+  try {
+    fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing tasks file:', err.message);
+  }
 }
 
 function getStoredWebAuthnCredentials() {
@@ -522,18 +601,58 @@ async function initDb() {
       );
 
       CREATE TABLE IF NOT EXISTS submissions (
-        id VARCHAR(50) PRIMARY KEY,
-        task_id VARCHAR(50) REFERENCES tasks(id) ON DELETE CASCADE,
-        employee_id VARCHAR(50) REFERENCES employees(id) ON DELETE CASCADE,
-        parliament_code VARCHAR(20) NOT NULL,
+        id VARCHAR(100) PRIMARY KEY,
+        task_id VARCHAR(50),
+        employee_id VARCHAR(50),
+        employee_name VARCHAR(150),
+        support_code VARCHAR(50),
+        staff_id VARCHAR(50),
+        parliament_code VARCHAR(20),
+        parliament_name VARCHAR(100),
         assembly_code VARCHAR(20),
-        full_name VARCHAR(150) NOT NULL,
-        mobile_number VARCHAR(20) NOT NULL,
-        voter_id VARCHAR(50),
-        status VARCHAR(30) DEFAULT 'Valid',
-        photo_url TEXT,
+        assembly_name VARCHAR(100),
+        platform VARCHAR(50) DEFAULT 'Instagram',
+        username VARCHAR(150) NOT NULL,
+        raw_input TEXT,
+        status VARCHAR(50) DEFAULT 'Valid Submission',
+        is_valid BOOLEAN DEFAULT TRUE,
+        is_follower BOOLEAN DEFAULT FALSE,
+        is_duplicate BOOLEAN DEFAULT FALSE,
+        duplicate_of VARCHAR(100),
+        followed_at_formatted VARCHAR(50),
+        followed_at_timestamp BIGINT,
+        verification_badge TEXT,
+        verification_note TEXT,
+        submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        date VARCHAR(20),
+        time_formatted_ist VARCHAR(20),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS task_id VARCHAR(50);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS employee_name VARCHAR(150);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS support_code VARCHAR(50);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS staff_id VARCHAR(50);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS parliament_code VARCHAR(20);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS parliament_name VARCHAR(100);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS assembly_code VARCHAR(20);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS assembly_name VARCHAR(100);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'Instagram';
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS username VARCHAR(150);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS raw_input TEXT;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Valid Submission';
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_valid BOOLEAN DEFAULT TRUE;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_follower BOOLEAN DEFAULT FALSE;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_duplicate BOOLEAN DEFAULT FALSE;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS duplicate_of VARCHAR(100);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS followed_at_formatted VARCHAR(50);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS followed_at_timestamp BIGINT;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verification_badge TEXT;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verification_note TEXT;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS date VARCHAR(20);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_formatted_ist VARCHAR(20);
 
       CREATE TABLE IF NOT EXISTS tracking_links (
         id VARCHAR(50) PRIMARY KEY,
@@ -999,33 +1118,192 @@ app.delete('/api/webauthn/credentials/:id', async (req, res) => {
   }
 });
 
+// Submission Normalization & Staff Enrichment Helper
+function normalizeSubmissionRecord(input) {
+  if (!input) return null;
+  const nowIso = new Date().toISOString();
+  const rawId = input.id || `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const employeeId = String(input.employeeId || '').trim();
+  const staff = resolveStaff(employeeId);
+  const cleanUsername = String(input.username || input.normalizedUsername || input.handle || '').trim().toLowerCase().replace(/^@+/, '');
+  const taskId = input.taskId || 'TASK-INSTA-001';
+  const submittedAt = input.submittedAt || input.created_at || input.timestamp || nowIso;
+  
+  // Date in IST YYYY-MM-DD
+  let dateStr = input.date;
+  if (!dateStr) {
+    try {
+      const d = new Date(submittedAt);
+      dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+    } catch (_) {
+      dateStr = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  // Time in IST HH:mm
+  let timeStr = input.timeFormattedIST || '';
+  if (!timeStr) {
+    try {
+      const d = new Date(submittedAt);
+      timeStr = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(d);
+    } catch (_) {}
+  }
+
+  const rawStatus = input.status || 'Valid Submission';
+  const isValid = input.isValid !== undefined 
+    ? Boolean(input.isValid) 
+    : (rawStatus === 'Valid Submission' || rawStatus === 'Valid');
+
+  return {
+    id: String(rawId),
+    taskId,
+    employeeId: staff?.id || employeeId || 'UNKNOWN',
+    employeeName: input.employeeName || staff?.name || 'Staff Member',
+    supportCode: staff?.supportCode || input.supportCode || employeeId,
+    staffId: staff?.staffId || input.staffId || '',
+    parliamentCode: staff?.parliamentCode || input.parliamentCode || (employeeId.startsWith('APP') ? employeeId.substring(0, 5) : ''),
+    parliamentName: staff?.parliamentName || input.parliamentName || '',
+    assemblyCode: staff?.assemblyCode || input.assemblyCode || '',
+    assemblyName: staff?.assemblyName || input.assemblyName || '',
+    platform: input.platform || 'Instagram',
+    username: cleanUsername,
+    rawInput: input.rawInput || input.raw_input || cleanUsername,
+    status: rawStatus,
+    isValid,
+    isFollower: Boolean(input.isFollower),
+    isDuplicate: Boolean(input.isDuplicate),
+    duplicateOf: input.duplicateOf || null,
+    followedAtFormatted: input.followedAtFormatted || null,
+    followedAtTimestamp: input.followedAtTimestamp ? Number(input.followedAtTimestamp) : null,
+    verificationBadge: input.verificationBadge || null,
+    verificationNote: input.verificationNote || null,
+    submittedAt,
+    date: dateStr,
+    timeFormattedIST: timeStr
+  };
+}
+
+// Bi-directional Submissions Merger
+function mergeSubmissions(serverList, clientList) {
+  const map = new Map();
+  // 1. Existing server submissions are baseline
+  (serverList || []).forEach(s => {
+    if (s && s.id) {
+      map.set(String(s.id), s);
+    }
+  });
+
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  // 2. Incorporate client submissions
+  (clientList || []).forEach(raw => {
+    const norm = normalizeSubmissionRecord(raw);
+    if (!norm || !norm.username) return;
+
+    if (!map.has(norm.id)) {
+      // Check if duplicate submission under same task & username exists
+      const existingSameUser = Array.from(map.values()).find(s => 
+        s.taskId === norm.taskId &&
+        String(s.username).toLowerCase() === norm.username.toLowerCase()
+      );
+
+      if (existingSameUser) {
+        // If already exists under another ID, keep the earlier/authoritative one
+        return;
+      }
+
+      map.set(norm.id, norm);
+      addedCount++;
+    } else {
+      const existing = map.get(norm.id);
+      // If server was pending and client has updated verification
+      if (existing.status === 'Pending Submission' && (norm.status === 'Valid Submission' || norm.status === 'Already Followed')) {
+        map.set(norm.id, { ...existing, ...norm });
+        updatedCount++;
+      }
+    }
+  });
+
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  return { merged, addedCount, updatedCount };
+}
+
 // GET All Tasks
 app.get('/api/tasks', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     if (isDbConnected) {
-      const result = await pool.query('SELECT * FROM tasks ORDER BY created_at DESC');
-      return res.json(result.rows);
+      try {
+        const result = await pool.query('SELECT * FROM tasks ORDER BY created_at DESC');
+        if (result.rows.length > 0) {
+          return res.json(result.rows);
+        }
+      } catch (dbErr) {
+        console.warn('PostgreSQL tasks fetch error, using file fallback:', dbErr.message);
+      }
     }
-    res.json([]);
+    const tasks = getStoredTasks();
+    res.json(tasks);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST Create Task
+// POST Create or Update Task
 app.post('/api/tasks', async (req, res) => {
-  const { title, description, targetDate, campaignName, targetPerStaff } = req.body;
-  const id = `TSK_${Date.now()}`;
+  const { id, title, name, description, targetDate, campaignName, targetPerStaff, dailyTarget, platform, submissionType, targetUrl, urlSlug } = req.body;
+  const taskId = id || `TSK_${Date.now()}`;
+  const effectiveName = name || title || 'New Task';
+  const effectiveTarget = Number(dailyTarget || targetPerStaff) || 10;
+  
+  const newTask = {
+    id: taskId,
+    name: effectiveName,
+    title: effectiveName,
+    description: description || '',
+    targetDate: targetDate || new Date().toISOString().split('T')[0],
+    campaignName: campaignName || 'Individual Staff Outreach',
+    targetPerStaff: effectiveTarget,
+    dailyTarget: effectiveTarget,
+    platform: platform || 'Instagram',
+    submissionType: submissionType || 'Instagram Handle',
+    targetUrl: targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
+    urlSlug: urlSlug || 'instagram',
+    status: 'Active',
+    createdAt: new Date().toISOString()
+  };
+
   try {
-    if (isDbConnected) {
-      const result = await pool.query(
-        `INSERT INTO tasks (id, title, description, target_date, campaign_name, target_per_staff)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [id, title, description || '', targetDate, campaignName || 'Individual Staff Outreach', targetPerStaff || 10]
-      );
-      return res.json({ success: true, task: result.rows[0] });
+    const tasks = getStoredTasks();
+    const idx = tasks.findIndex(t => t.id === taskId);
+    if (idx >= 0) {
+      tasks[idx] = { ...tasks[idx], ...newTask };
+    } else {
+      tasks.unshift(newTask);
     }
-    res.json({ success: true, task: { id, title, description, targetDate, campaignName, targetPerStaff } });
+    saveStoredTasks(tasks);
+
+    if (isDbConnected) {
+      try {
+        await pool.query(
+          `INSERT INTO tasks (id, title, description, target_date, campaign_name, target_per_staff, target_url, url_slug)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             title = $2, description = $3, target_date = $4, campaign_name = $5, target_per_staff = $6, target_url = $7, url_slug = $8`,
+          [taskId, effectiveName, description || '', newTask.targetDate, newTask.campaignName, effectiveTarget, newTask.targetUrl, newTask.urlSlug]
+        );
+      } catch (dbErr) {
+        console.warn('PostgreSQL task insert error:', dbErr.message);
+      }
+    }
+    return res.json({ success: true, task: newTask });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1033,63 +1311,348 @@ app.post('/api/tasks', async (req, res) => {
 
 // GET All Employees
 app.get('/api/employees', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     if (isDbConnected) {
-      const result = await pool.query('SELECT * FROM employees ORDER BY id ASC');
-      return res.json(result.rows);
+      try {
+        const result = await pool.query('SELECT * FROM employees ORDER BY id ASC');
+        if (result.rows.length > 0) {
+          return res.json(result.rows);
+        }
+      } catch (dbErr) {
+        console.warn('PostgreSQL employees fetch error, using staff seed:', dbErr.message);
+      }
     }
-    res.json([]);
+    res.json(PAT_STAFF_OCTOBER_2026);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET All Submissions
+// GET All Submissions (with query filters, no-cache headers, and file + DB sync)
 app.get('/api/submissions', async (req, res) => {
-  const { taskId, date } = req.query;
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const { taskId, date, employeeId, parliamentCode, assemblyCode, status, search } = req.query;
   try {
+    let list = getStoredSubmissions();
+
     if (isDbConnected) {
-      let query = 'SELECT * FROM submissions';
-      const params = [];
-      const conditions = [];
-
-      if (taskId) {
-        params.push(taskId);
-        conditions.push(`task_id = $${params.length}`);
+      try {
+        const result = await pool.query(`
+          SELECT 
+            id, task_id as "taskId", employee_id as "employeeId",
+            employee_name as "employeeName", support_code as "supportCode",
+            staff_id as "staffId", parliament_code as "parliamentCode",
+            parliament_name as "parliamentName", assembly_code as "assemblyCode",
+            assembly_name as "assemblyName", platform, username,
+            raw_input as "rawInput", status, is_valid as "isValid",
+            is_follower as "isFollower", is_duplicate as "isDuplicate",
+            duplicate_of as "duplicateOf", followed_at_formatted as "followedAtFormatted",
+            followed_at_timestamp as "followedAtTimestamp",
+            verification_badge as "verificationBadge", verification_note as "verificationNote",
+            submitted_at as "submittedAt", date, time_formatted_ist as "timeFormattedIST"
+          FROM submissions 
+          ORDER BY submitted_at DESC
+        `);
+        if (result.rows.length > 0) {
+          const { merged } = mergeSubmissions(result.rows, list);
+          list = merged;
+        }
+      } catch (dbErr) {
+        console.warn('PostgreSQL submissions fetch error, using file storage:', dbErr.message);
       }
-      if (date) {
-        params.push(date);
-        conditions.push(`DATE(created_at) = $${params.length}`);
-      }
-
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
-
-      query += ' ORDER BY created_at DESC';
-      const result = await pool.query(query, params);
-      return res.json(result.rows);
     }
-    res.json([]);
+
+    if (taskId) {
+      list = list.filter(s => s.taskId === taskId);
+    }
+    if (date) {
+      list = list.filter(s => s.date === date || (s.submittedAt && s.submittedAt.startsWith(date)));
+    }
+    if (employeeId) {
+      const cleanEmp = String(employeeId).trim().toUpperCase();
+      list = list.filter(s => 
+        (s.employeeId && s.employeeId.toUpperCase() === cleanEmp) ||
+        (s.supportCode && s.supportCode.toUpperCase() === cleanEmp)
+      );
+    }
+    if (parliamentCode) {
+      const cleanP = String(parliamentCode).trim().toUpperCase();
+      list = list.filter(s => s.parliamentCode && s.parliamentCode.toUpperCase() === cleanP);
+    }
+    if (assemblyCode) {
+      const cleanA = String(assemblyCode).trim().toUpperCase();
+      list = list.filter(s => s.assemblyCode && s.assemblyCode.toUpperCase() === cleanA);
+    }
+    if (status) {
+      list = list.filter(s => s.status === status);
+    }
+    if (search) {
+      const q = String(search).toLowerCase().trim();
+      list = list.filter(s => 
+        (s.username && s.username.toLowerCase().includes(q)) ||
+        (s.employeeName && s.employeeName.toLowerCase().includes(q)) ||
+        (s.employeeId && s.employeeId.toLowerCase().includes(q))
+      );
+    }
+
+    return res.json({
+      success: true,
+      submissions: list,
+      total: list.length,
+      valid: list.filter(s => s.isValid).length
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message, submissions: [] });
   }
 });
 
-// POST New Submission
+// POST New Submission (single or batch)
 app.post('/api/submissions', async (req, res) => {
-  const { taskId, employeeId, parliamentCode, assemblyCode, fullName, mobileNumber, voterId, photoUrl } = req.body;
-  const id = `SUB_${Date.now()}`;
   try {
-    if (isDbConnected) {
-      const result = await pool.query(
-        `INSERT INTO submissions (id, task_id, employee_id, parliament_code, assembly_code, full_name, mobile_number, voter_id, photo_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [id, taskId, employeeId, parliamentCode, assemblyCode || null, fullName, mobileNumber, voterId || null, photoUrl || null]
-      );
-      return res.json({ success: true, submission: result.rows[0] });
+    let payload = req.body;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch (_) {}
     }
-    res.json({ success: true, submission: { id, taskId, employeeId, parliamentCode, assemblyCode, fullName, mobileNumber } });
+    const incomingSub = payload?.submission || payload;
+    if (!incomingSub) {
+      return res.status(400).json({ success: false, error: 'No submission data provided' });
+    }
+
+    const items = Array.isArray(incomingSub) ? incomingSub : [incomingSub];
+    const normalizedItems = items.map(normalizeSubmissionRecord).filter(Boolean);
+
+    if (normalizedItems.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid submission objects provided' });
+    }
+
+    const currentList = getStoredSubmissions();
+    const { merged, addedCount, updatedCount } = mergeSubmissions(currentList, normalizedItems);
+    saveStoredSubmissions(merged);
+
+    // Persist to PostgreSQL if connected
+    if (isDbConnected) {
+      for (const norm of normalizedItems) {
+        try {
+          await pool.query(
+            `INSERT INTO submissions (
+              id, task_id, employee_id, employee_name, support_code, staff_id,
+              parliament_code, parliament_name, assembly_code, assembly_name,
+              platform, username, raw_input, status, is_valid, is_follower,
+              is_duplicate, duplicate_of, followed_at_formatted, followed_at_timestamp,
+              verification_badge, verification_note, submitted_at, date, time_formatted_ist
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+            ON CONFLICT (id) DO UPDATE SET
+              status = EXCLUDED.status,
+              is_valid = EXCLUDED.is_valid,
+              is_follower = EXCLUDED.is_follower,
+              verification_badge = EXCLUDED.verification_badge,
+              verification_note = EXCLUDED.verification_note,
+              followed_at_formatted = EXCLUDED.followed_at_formatted,
+              followed_at_timestamp = EXCLUDED.followed_at_timestamp`,
+            [
+              norm.id, norm.taskId, norm.employeeId, norm.employeeName, norm.supportCode, norm.staffId,
+              norm.parliamentCode, norm.parliamentName, norm.assemblyCode, norm.assemblyName,
+              norm.platform, norm.username, norm.rawInput, norm.status, norm.isValid, norm.isFollower,
+              norm.isDuplicate, norm.duplicateOf, norm.followedAtFormatted, norm.followedAtTimestamp,
+              norm.verificationBadge, norm.verificationNote, norm.submittedAt, norm.date, norm.timeFormattedIST
+            ]
+          );
+        } catch (dbErr) {
+          console.warn('PostgreSQL insert submission error, stored in file:', dbErr.message);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      submission: normalizedItems[0],
+      submissions: normalizedItems,
+      added: addedCount,
+      updated: updatedCount,
+      total: merged.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Bi-directional Submissions Sync Route
+app.post('/api/submissions/sync', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  try {
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (_) {}
+    }
+    const localSubs = Array.isArray(body?.localSubmissions) 
+      ? body.localSubmissions 
+      : (Array.isArray(body) ? body : []);
+
+    const serverSubs = getStoredSubmissions();
+    const { merged, addedCount, updatedCount } = mergeSubmissions(serverSubs, localSubs);
+
+    if (addedCount > 0 || updatedCount > 0) {
+      saveStoredSubmissions(merged);
+
+      if (isDbConnected) {
+        for (const sub of localSubs) {
+          const norm = normalizeSubmissionRecord(sub);
+          if (!norm) continue;
+          try {
+            await pool.query(
+              `INSERT INTO submissions (
+                id, task_id, employee_id, employee_name, support_code, staff_id,
+                parliament_code, parliament_name, assembly_code, assembly_name,
+                platform, username, raw_input, status, is_valid, is_follower,
+                is_duplicate, duplicate_of, followed_at_formatted, followed_at_timestamp,
+                verification_badge, verification_note, submitted_at, date, time_formatted_ist
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+              ON CONFLICT (id) DO NOTHING`,
+              [
+                norm.id, norm.taskId, norm.employeeId, norm.employeeName, norm.supportCode, norm.staffId,
+                norm.parliamentCode, norm.parliamentName, norm.assemblyCode, norm.assemblyName,
+                norm.platform, norm.username, norm.rawInput, norm.status, norm.isValid, norm.isFollower,
+                norm.isDuplicate, norm.duplicateOf, norm.followedAtFormatted, norm.followedAtTimestamp,
+                norm.verificationBadge, norm.verificationNote, norm.submittedAt, norm.date, norm.timeFormattedIST
+              ]
+            );
+          } catch (_) {}
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      submissions: merged,
+      total: merged.length,
+      syncedAdded: addedCount,
+      syncedUpdated: updatedCount
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Revalidate All Stored Submissions against Followers DB
+app.post('/api/submissions/revalidate', (req, res) => {
+  try {
+    const list = getStoredSubmissions();
+    if (!list.length) {
+      return res.json({ success: true, updatedCount: 0, total: 0 });
+    }
+
+    const WINDOW_MS = 24 * 60 * 60 * 1000;
+    let updatedCount = 0;
+
+    for (let i = 0; i < list.length; i++) {
+      const sub = list[i];
+      const clean = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
+      const follower = FOLLOWERS_MAP.get(clean);
+
+      // Check duplicates against earlier submissions
+      const prior = list.slice(i + 1).find(p => String(p.username || '').trim().toLowerCase().replace(/^@+/, '') === clean);
+      if (prior) {
+        if (sub.status !== 'Already Followed' || !sub.isDuplicate) {
+          sub.status = 'Already Followed';
+          sub.isValid = false;
+          sub.isDuplicate = true;
+          sub.duplicateOf = prior.id;
+          sub.verificationBadge = 'Duplicate Submission';
+          sub.verificationNote = `Duplicate of submission by ${prior.employeeName || 'staff'}`;
+          updatedCount++;
+        }
+        continue;
+      }
+
+      if (!follower) {
+        if (sub.status !== 'Pending Submission') {
+          sub.status = 'Pending Submission';
+          sub.isValid = false;
+          sub.isFollower = false;
+          sub.verificationBadge = 'Pending Follow Sync';
+          sub.verificationNote = 'Awaiting next official follower JSON sync';
+          updatedCount++;
+        }
+        continue;
+      }
+
+      const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
+      const followTime = Number(follower.timestamp) * 1000;
+      const formattedDate = follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp);
+
+      if (followTime < (subTime - WINDOW_MS)) {
+        if (sub.status !== 'Already Followed') {
+          sub.status = 'Already Followed';
+          sub.isValid = false;
+          sub.isFollower = true;
+          sub.followedAtFormatted = formattedDate;
+          sub.followedAtTimestamp = follower.timestamp;
+          sub.verificationBadge = `✓ Existing Follower: ${formattedDate}`;
+          sub.verificationNote = 'Followed prior to campaign window';
+          updatedCount++;
+        }
+      } else if (followTime > (subTime + WINDOW_MS)) {
+        if (sub.status !== 'Invalid Submission') {
+          sub.status = 'Invalid Submission';
+          sub.isValid = false;
+          sub.isFollower = true;
+          sub.followedAtFormatted = formattedDate;
+          sub.followedAtTimestamp = follower.timestamp;
+          sub.verificationBadge = `Outside 24h Window: ${formattedDate}`;
+          sub.verificationNote = 'Followed after 24h window expired';
+          updatedCount++;
+        }
+      } else {
+        if (sub.status !== 'Valid Submission' || !sub.isValid) {
+          sub.status = 'Valid Submission';
+          sub.isValid = true;
+          sub.isFollower = true;
+          sub.followedAtFormatted = formattedDate;
+          sub.followedAtTimestamp = follower.timestamp;
+          sub.verificationBadge = `✓ Followed: ${formattedDate}`;
+          sub.verificationNote = 'Verified genuine new follower';
+          updatedCount++;
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      saveStoredSubmissions(list);
+    }
+
+    res.json({
+      success: true,
+      updatedCount,
+      total: list.length,
+      submissions: list
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE Single Submission
+app.delete('/api/submissions/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const list = getStoredSubmissions();
+    const filtered = list.filter(s => s.id !== id);
+    saveStoredSubmissions(filtered);
+
+    if (isDbConnected) {
+      try {
+        await pool.query('DELETE FROM submissions WHERE id = $1', [id]);
+      } catch (dbErr) {
+        console.warn('PostgreSQL delete submission error:', dbErr.message);
+      }
+    }
+
+    res.json({ success: true, remaining: filtered.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

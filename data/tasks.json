@@ -1,0 +1,32 @@
+[
+  {
+    "id": "TASK-INSTA-001",
+    "name": "Instagram Follower Outreach",
+    "title": "Instagram Follower Outreach",
+    "description": "Connect with local youth and active social media users via Instagram outreach.",
+    "platform": "Instagram",
+    "submissionType": "Instagram Handle",
+    "targetUrl": "https://www.instagram.com/ramakrishnabhashyam/",
+    "urlSlug": "instagram",
+    "dailyTarget": 10,
+    "targetPerStaff": 10,
+    "frequency": "Daily",
+    "status": "Active",
+    "createdDate": "2026-09-17"
+  },
+  {
+    "id": "TASK-WA-002",
+    "name": "WhatsApp Voter Connect",
+    "title": "WhatsApp Voter Connect",
+    "description": "Gather verified WhatsApp contact numbers of constituency booth leads.",
+    "platform": "WhatsApp",
+    "submissionType": "Mobile Number",
+    "targetUrl": "https://chat.whatsapp.com/",
+    "urlSlug": "whatsapp",
+    "dailyTarget": 15,
+    "targetPerStaff": 15,
+    "frequency": "Daily",
+    "status": "Active",
+    "createdDate": "2026-09-18"
+  }
+]

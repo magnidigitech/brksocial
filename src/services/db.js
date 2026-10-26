@@ -234,6 +234,15 @@ export const dbService = {
         defaultTarget: 10
       }));
     }
+
+    // Auto-sync in background on init if in browser
+    if (typeof window !== 'undefined' && !window.__brk_initial_sync_done) {
+      window.__brk_initial_sync_done = true;
+      setTimeout(() => {
+        this.syncSubmissionsWithServer().catch(() => {});
+        this.syncClicksWithServer().catch(() => {});
+      }, 50);
+    }
   },
 
   getAdminAccount() {
@@ -466,9 +475,11 @@ export const dbService = {
     return null;
   },
 
-  getSubmissions(dateFilter = null) {
+  getSubmissions(dateFilter = null, customSubs = null) {
     this.init();
-    let subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    let subs = Array.isArray(customSubs)
+      ? customSubs
+      : (JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || []);
     if (dateFilter) {
       subs = subs.filter(s => s.date === dateFilter);
     }
@@ -505,6 +516,12 @@ export const dbService = {
       taskId: effectiveTaskId,
       employeeId: emp.id || employeeId,
       employeeName: emp.name,
+      supportCode: emp.supportCode || emp.id || employeeId,
+      staffId: emp.staffId || '',
+      parliamentCode: emp.parliamentCode || (emp.id?.startsWith('APP') ? emp.id.substring(0, 5) : ''),
+      parliamentName: emp.parliamentName || '',
+      assemblyCode: emp.assemblyCode || '',
+      assemblyName: emp.assemblyName || '',
       platform,
       username: normalizedUsername,
       rawInput,
@@ -540,6 +557,11 @@ export const dbService = {
     }
 
     broadcastSyncEvent('brk_submission_event', newSub);
+
+    // Sync directly to the backend server immediately
+    this.sendSubmissionToServer(newSub).then(() => {
+      this.syncSubmissionsWithServer().catch(() => {});
+    }).catch(() => {});
 
     return {
       success: validation.status !== 'Invalid Submission',
@@ -618,14 +640,15 @@ export const dbService = {
     if (updatedCount > 0) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
       broadcastSyncEvent('brk_submission_event', { updatedCount });
+      this.syncSubmissionsWithServer().catch(() => {});
     }
 
     return { updatedCount, subs };
   },
 
-  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null) {
+  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null, customSubs = null) {
     const task = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
-    const allSubs = this.getSubmissions();
+    const allSubs = this.getSubmissions(null, customSubs);
     const subs = allSubs.filter(s => 
       s.employeeId.toUpperCase() === employeeId.toUpperCase() && 
       (s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr) &&
@@ -671,13 +694,13 @@ export const dbService = {
     };
   },
 
-  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null) {
+  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null, customSubs = null) {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
     const targetTask = selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask();
 
-    let allSubs = this.getSubmissions();
+    let allSubs = this.getSubmissions(null, customSubs);
     let todaySubs = allSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
     if (targetTask) {
       todaySubs = todaySubs.filter(s => s.taskId === targetTask.id);
@@ -1062,6 +1085,73 @@ export const dbService = {
       clickRecord,
       targetUrl: resolved?.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/'
     };
+  },
+
+  async sendSubmissionToServer(sub) {
+    if (typeof fetch === 'undefined' || !sub) return sub;
+    try {
+      const res = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        body: JSON.stringify({ submission: sub }),
+        keepalive: true
+      });
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          return data.submission || sub;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to send submission to server (stored locally):', e.message);
+    }
+    return sub;
+  },
+
+  async syncSubmissionsWithServer() {
+    if (typeof fetch === 'undefined') {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    }
+    try {
+      const localSubs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+      const res = await fetch('/api/submissions/sync?_t=' + Date.now(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        body: JSON.stringify({ localSubmissions: localSubs })
+      });
+
+      if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          const serverSubs = Array.isArray(data.submissions) 
+            ? data.submissions 
+            : (Array.isArray(data) ? data : null);
+
+          if (serverSubs) {
+            const currentStr = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]';
+            const serverStr = JSON.stringify(serverSubs);
+            if (currentStr !== serverStr) {
+              localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, serverStr);
+              broadcastSyncEvent('brk_submission_event', { submissions: serverSubs });
+            }
+            return serverSubs;
+          }
+        }
+      }
+    } catch (e) {
+      // Offline / standalone mode - ignore
+    }
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
   },
 
   async syncClicksWithServer() {

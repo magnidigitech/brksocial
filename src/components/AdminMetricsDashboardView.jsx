@@ -117,8 +117,25 @@ export function AdminMetricsDashboardView() {
     return map;
   });
 
+  const fetchLiveData = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      console.warn('Live data sync error:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    const handleSubmissionEvent = () => {
+    fetchLiveData();
+
+    const handleUpdate = () => {
       setRefreshTrigger(prev => prev + 1);
     };
 
@@ -128,23 +145,34 @@ export function AdminMetricsDashboardView() {
       }
     };
 
-    window.addEventListener('brk_submission_event', handleSubmissionEvent);
-    window.addEventListener('brk_link_click_event', handleSubmissionEvent);
-    window.addEventListener('storage', handleStorageEvent);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLiveData();
+      }
+    };
 
-    // Live sync polling every 2.5 seconds: pulls server clicks & refreshes UI
+    window.addEventListener('brk_submission_event', handleUpdate);
+    window.addEventListener('brk_link_click_event', handleUpdate);
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('focus', fetchLiveData);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Live sync polling every 2.5 seconds: pulls server clicks & submissions & refreshes UI
     const interval = setInterval(() => {
-      dbService.syncClicksWithServer().then(() => {
+      Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]).then(() => {
         setRefreshTrigger(prev => prev + 1);
-      }).catch(() => {
-        setRefreshTrigger(prev => prev + 1);
-      });
+      }).catch(() => {});
     }, 2500);
 
     return () => {
-      window.removeEventListener('brk_submission_event', handleSubmissionEvent);
-      window.removeEventListener('brk_link_click_event', handleSubmissionEvent);
+      window.removeEventListener('brk_submission_event', handleUpdate);
+      window.removeEventListener('brk_link_click_event', handleUpdate);
       window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('focus', fetchLiveData);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };
   }, []);
@@ -452,10 +480,7 @@ export function AdminMetricsDashboardView() {
   };
 
   const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 400);
+    fetchLiveData();
   };
 
   const targetCompletionPercentage = stats.targetSubmissions > 0 

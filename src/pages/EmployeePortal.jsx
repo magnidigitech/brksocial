@@ -69,6 +69,7 @@ export function EmployeePortal({ session, onLogout }) {
   const handleSyncFollowers = async () => {
     setIsSyncingFollowers(true);
     try {
+      await dbService.syncSubmissionsWithServer();
       const res = await dbService.revalidateSubmissionsWithFollowers();
       const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
       const taskId = activeTask?.id || 'TASK-INSTA-001';
@@ -102,7 +103,10 @@ export function EmployeePortal({ session, onLogout }) {
     };
 
     const triggerSync = () => {
-      dbService.syncClicksWithServer().then(() => {
+      Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]).then(() => {
         handleLiveRefresh();
       }).catch(() => {});
     };
@@ -345,6 +349,9 @@ export function EmployeePortal({ session, onLogout }) {
     }
 
     updateStats(empId, activeTask.id);
+    dbService.syncSubmissionsWithServer().then(() => {
+      updateStats(empId, activeTask.id);
+    }).catch(() => {});
     setIsSubmitting(false);
   };
 
