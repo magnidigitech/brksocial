@@ -665,8 +665,8 @@ export function EmployeePortal({ session, onLogout }) {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                   <input
                     type="text"
                     required
@@ -679,9 +679,9 @@ export function EmployeePortal({ session, onLogout }) {
                     value={inputVal}
                     onChange={(e) => setInputVal(e.target.value)}
                     style={{
-                      flex: '1 1 200px',
-                      minWidth: '180px',
-                      padding: '10px 16px',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '12px 18px',
                       borderRadius: '980px',
                       border: '1px solid rgba(0, 0, 0, 0.1)',
                       fontSize: '13.5px',
@@ -696,25 +696,25 @@ export function EmployeePortal({ session, onLogout }) {
                     type="submit"
                     disabled={isSubmitting || !inputVal.trim()}
                     style={{
-                      padding: '10px 24px',
+                      width: '100%',
+                      padding: '12px 24px',
                       borderRadius: '980px',
                       border: 'none',
                       backgroundColor: '#0071e3',
                       color: '#ffffff',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      cursor: isSubmitting || !inputVal.trim() ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(0, 113, 227, 0.3)',
+                      gap: '8px',
+                      boxShadow: '0 3px 10px rgba(0, 113, 227, 0.3)',
                       whiteSpace: 'nowrap',
-                      flex: '0 0 auto',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <Send size={14} />
+                    <Send size={15} />
                     <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
                   </button>
                 </div>
