@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "SUB-1793023479879-486",
+    "taskId": "TASK-INSTA-001",
+    "employeeId": "APP02A01",
+    "employeeName": "Uusa Nagalakshmi",
+    "supportCode": "APP02A01",
+    "staffId": "Ichapuram_001",
+    "parliamentCode": "APP02",
+    "parliamentName": "Srikakulam",
+    "assemblyCode": "APP02A01",
+    "assemblyName": "Ichchapuram",
+    "platform": "Instagram",
+    "username": "test_123",
+    "rawInput": "test_123",
+    "status": "Pending Submission",
+    "isValid": false,
+    "isFollower": false,
+    "isDuplicate": false,
+    "duplicateOf": null,
+    "followedAtFormatted": null,
+    "followedAtTimestamp": null,
+    "verificationBadge": "Pending Follow Sync",
+    "verificationNote": "Awaiting next official follower JSON sync",
+    "submittedAt": "2026-10-26T14:04:39.879Z",
+    "date": "2026-10-26",
+    "timeFormattedIST": "19:34"
+  }
+]

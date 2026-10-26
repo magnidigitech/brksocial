@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  UserCheck, 
-  LogOut, 
-  Target, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  Send, 
-  Instagram, 
-  MessageSquare, 
-  Twitter, 
-  Facebook, 
-  Youtube, 
-  ClipboardList, 
-  Share2, 
-  Building2, 
+import {
+  UserCheck,
+  LogOut,
+  Target,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Send,
+  Instagram,
+  MessageSquare,
+  Twitter,
+  Facebook,
+  Youtube,
+  ClipboardList,
+  Share2,
+  Building2,
   MapPin,
   ShieldAlert,
   Award,
@@ -36,6 +36,7 @@ import {
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
 import { formatIST, validateFollowerSubmission, getTodayISTDateString, getISTDateFromISO } from '../services/istUtils.js';
+import VerificationBottomSheet from '../components/VerificationBottomSheet.jsx';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -69,7 +70,7 @@ export function EmployeePortal({ session, onLogout }) {
   useEffect(() => {
     loadData();
     // Auto-revalidate existing submissions against follower DB on mount
-    dbService.revalidateSubmissionsWithFollowers().catch(() => {});
+    dbService.revalidateSubmissionsWithFollowers().catch(() => { });
   }, [session]);
 
   const handleSyncFollowers = async () => {
@@ -114,7 +115,7 @@ export function EmployeePortal({ session, onLogout }) {
         dbService.syncSubmissionsWithServer()
       ]).then(() => {
         handleLiveRefresh();
-      }).catch(() => {});
+      }).catch(() => { });
     };
 
     // Immediate sync on load
@@ -159,8 +160,8 @@ export function EmployeePortal({ session, onLogout }) {
       setIsLiveChecking(true);
 
       const allSubs = dbService.getSubmissions();
-      const existingSub = allSubs.find(s => 
-        s.taskId === activeTask.id && 
+      const existingSub = allSubs.find(s =>
+        s.taskId === activeTask.id &&
         String(s.username || '').toLowerCase() === cleanHandle
       );
 
@@ -357,14 +358,14 @@ export function EmployeePortal({ session, onLogout }) {
     updateStats(empId, activeTask.id);
     dbService.syncSubmissionsWithServer().then(() => {
       updateStats(empId, activeTask.id);
-    }).catch(() => {});
+    }).catch(() => { });
     setIsSubmitting(false);
   };
 
   const todayStr = getTodayISTDateString();
   const allLocalSubs = dbService.getSubmissions();
   const currentEmpId = employee?.id || session?.employeeId || session?.id || '';
-  const previousSubmissions = allLocalSubs.filter(s => 
+  const previousSubmissions = allLocalSubs.filter(s =>
     s && s.employeeId &&
     s.employeeId.toUpperCase() === currentEmpId.toUpperCase() &&
     (!activeTask || s.taskId === activeTask.id) &&
@@ -574,8 +575,8 @@ export function EmployeePortal({ session, onLogout }) {
                     <div style={{
                       width: `${taskStats.progressPercent}%`,
                       height: '100%',
-                      background: taskStats.validCount >= activeTask.dailyTarget 
-                        ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)' 
+                      background: taskStats.validCount >= activeTask.dailyTarget
+                        ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
                         : 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
                       borderRadius: '9999px',
                       transition: 'width 0.4s ease'
@@ -601,23 +602,22 @@ export function EmployeePortal({ session, onLogout }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  backgroundColor: feedback.type === 'success' 
-                    ? '#ecfdf5' 
+                  backgroundColor: feedback.type === 'success'
+                    ? '#ecfdf5'
                     : (feedback.type === 'pending'
                       ? 'rgba(0, 113, 227, 0.08)'
                       : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
-                  color: feedback.type === 'success' 
-                    ? '#047857' 
+                  color: feedback.type === 'success'
+                    ? '#047857'
                     : (feedback.type === 'pending'
                       ? '#0071e3'
                       : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
-                  border: `1px solid ${
-                    feedback.type === 'success' 
-                      ? '#a7f3d0' 
-                      : (feedback.type === 'pending'
-                        ? 'rgba(0, 113, 227, 0.25)'
-                        : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
-                  }`
+                  border: `1px solid ${feedback.type === 'success'
+                    ? '#a7f3d0'
+                    : (feedback.type === 'pending'
+                      ? 'rgba(0, 113, 227, 0.25)'
+                      : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
+                    }`
                 }}>
                   {feedback.type === 'success' ? (
                     <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
@@ -639,8 +639,8 @@ export function EmployeePortal({ session, onLogout }) {
                     required
                     disabled={isSubmitting}
                     placeholder={
-                      activeTask.submissionType === 'Mobile Number' 
-                        ? 'Enter 10-digit voter mobile number...' 
+                      activeTask.submissionType === 'Mobile Number'
+                        ? 'Enter 10-digit voter mobile number...'
                         : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
                     }
                     value={inputVal}
@@ -703,15 +703,14 @@ export function EmployeePortal({ session, onLogout }) {
                         : (liveCheck.status === 'Pending Submission'
                           ? 'rgba(0, 113, 227, 0.06)'
                           : 'rgba(255, 59, 48, 0.08)')),
-                    border: `1px solid ${
-                      liveCheck.status === 'Valid Submission'
-                        ? 'rgba(52, 199, 89, 0.25)'
-                        : (liveCheck.status === 'Already Followed'
-                          ? 'rgba(255, 149, 0, 0.3)'
-                          : (liveCheck.status === 'Pending Submission'
-                            ? 'rgba(0, 113, 227, 0.2)'
-                            : 'rgba(255, 59, 48, 0.25)'))
-                    }`,
+                    border: `1px solid ${liveCheck.status === 'Valid Submission'
+                      ? 'rgba(52, 199, 89, 0.25)'
+                      : (liveCheck.status === 'Already Followed'
+                        ? 'rgba(255, 149, 0, 0.3)'
+                        : (liveCheck.status === 'Pending Submission'
+                          ? 'rgba(0, 113, 227, 0.2)'
+                          : 'rgba(255, 59, 48, 0.25)'))
+                      }`,
                     color: liveCheck.status === 'Valid Submission'
                       ? '#1b5e20'
                       : (liveCheck.status === 'Already Followed'
@@ -964,7 +963,7 @@ export function EmployeePortal({ session, onLogout }) {
                           const today = getTodayISTDateString();
                           const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
                           setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
-                        }).catch(() => {});
+                        }).catch(() => { });
                       }}
                       style={{
                         display: 'flex',
@@ -1056,7 +1055,7 @@ export function EmployeePortal({ session, onLogout }) {
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  Today's Submissions ({taskStats?.todaySubmissions?.length || 0})
+                  Today ({taskStats?.todaySubmissions?.length || 0})
                 </button>
                 <button
                   type="button"
@@ -1075,7 +1074,7 @@ export function EmployeePortal({ session, onLogout }) {
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  Previous Submissions ({previousSubmissions.length})
+                  Previous ({previousSubmissions.length})
                 </button>
               </div>
 
@@ -1128,8 +1127,8 @@ export function EmployeePortal({ session, onLogout }) {
                                 backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
                                 color: '#ffffff',
                                 whiteSpace: 'nowrap',
-                                boxShadow: isStatusValid 
-                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)' 
+                                boxShadow: isStatusValid
+                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)'
                                   : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
                               }}>
                                 {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
@@ -1228,8 +1227,8 @@ export function EmployeePortal({ session, onLogout }) {
                                 backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
                                 color: '#ffffff',
                                 whiteSpace: 'nowrap',
-                                boxShadow: isStatusValid 
-                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)' 
+                                boxShadow: isStatusValid
+                                  ? '0 1px 4px rgba(22, 163, 74, 0.25)'
                                   : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
                               }}>
                                 {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
@@ -1290,7 +1289,7 @@ export function EmployeePortal({ session, onLogout }) {
 
       {/* Citizen Scan & Follow QR Code Modal */}
       {showQrModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -1446,7 +1445,7 @@ export function EmployeePortal({ session, onLogout }) {
 
       {/* Hamburger Drawer Menu */}
       {showMenu && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -1588,149 +1587,12 @@ export function EmployeePortal({ session, onLogout }) {
         </div>
       )}
 
-      {/* Follower Verification Status & Detail Tooltip Modal */}
+      {/* Follower Verification Status & Detail Bottom Sheet (shadcn style + swipe down to dismiss) */}
       {selectedSubForInfo && (
-        <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.70)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '16px'
-          }}
-          onClick={() => setSelectedSubForInfo(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '20px',
-              maxWidth: '380px',
-              width: '100%',
-              padding: '22px 20px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #e2e8f0',
-              position: 'relative'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Info size={19} style={{ color: '#0284c7' }} />
-                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  Verification Details
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedSubForInfo(null)}
-                style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: '#f8fafc',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#64748b'
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Handle / Entry:</span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', fontSize: '14px' }}>
-                  @{String(selectedSubForInfo.username || selectedSubForInfo.rawInput || '').replace(/^@+/, '')}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
-                <span style={{
-                  padding: '3px 10px',
-                  borderRadius: '9999px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  backgroundColor: selectedSubForInfo.status === 'Valid Submission' || selectedSubForInfo.status === 'Valid'
-                    ? '#16a34a'
-                    : (selectedSubForInfo.status === 'Pending Submission' ? '#ea580c' : '#dc2626'),
-                  color: '#ffffff'
-                }}>
-                  {selectedSubForInfo.status}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Submission Time:</span>
-                <span style={{ fontWeight: 600, color: '#334155' }}>
-                  {formatIST(selectedSubForInfo.submittedAt) || selectedSubForInfo.timeFormattedIST || 'Today'} IST
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Follower Timestamp:</span>
-                <span style={{ fontWeight: 600, color: '#334155', textAlign: 'right' }}>
-                  {selectedSubForInfo.followedAtFormatted || (selectedSubForInfo.isFollower ? 'Verified' : 'Pending JSON Sync')}
-                </span>
-              </div>
-
-              {selectedSubForInfo.verificationBadge && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Verification Info:</span>
-                  <div style={{
-                    fontSize: '12px',
-                    backgroundColor: '#f8fafc',
-                    padding: '8px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0',
-                    color: '#334155',
-                    fontWeight: 500,
-                    lineHeight: 1.4
-                  }}>
-                    {selectedSubForInfo.verificationBadge}
-                    {selectedSubForInfo.verificationNote ? ` • ${selectedSubForInfo.verificationNote}` : ''}
-                  </div>
-                </div>
-              )}
-
-              {selectedSubForInfo.isDuplicate && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                  <span style={{ color: '#dc2626', fontWeight: 700 }}>Duplicate Flag:</span>
-                  <span style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600 }}>
-                    {selectedSubForInfo.duplicateOf ? `Duplicate of ${selectedSubForInfo.duplicateOf}` : 'Duplicate attempt flagged'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSelectedSubForInfo(null)}
-              style={{
-                width: '100%',
-                marginTop: '18px',
-                padding: '10px',
-                borderRadius: '10px',
-                backgroundColor: '#0f172a',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <VerificationBottomSheet
+          submission={selectedSubForInfo}
+          onClose={() => setSelectedSubForInfo(null)}
+        />
       )}
     </div>
   );
