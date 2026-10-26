@@ -194,13 +194,11 @@ export const followerStorage = {
           if (res.ok && contentType.includes('application/json')) {
             const stats = await res.json();
             backendCount = stats.total || 0;
+            if (backendCount === 0) {
+              memoryMap.clear();
+            }
           }
         } catch (_) {}
-
-        // If backend does NOT have data or is returning HTML, auto-seed from public/data/
-        if (backendCount === 0 && memoryMap.size === 0) {
-          await this.autoSeedFromPublicData();
-        }
 
         isInitialized = true;
       } catch (err) {
@@ -561,8 +559,10 @@ export const followerStorage = {
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
-        if (data && data.success && data.total > 0) {
-          // If backend has more data or same, return backend stats
+        if (data && data.success) {
+          if (data.total === 0) {
+            memoryMap.clear();
+          }
           return data;
         }
       }

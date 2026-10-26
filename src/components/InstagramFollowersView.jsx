@@ -56,7 +56,6 @@ export function InstagramFollowersView() {
 
   // Visual Progress Import Modal State
   const fileInputRef = useRef(null);
-  const [selectedImportMode, setSelectedImportMode] = useState('BASELINE'); // 'BASELINE' | 'RECONCILIATION'
   const [uploadToast, setUploadToast] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [importModal, setImportModal] = useState({
@@ -66,6 +65,7 @@ export function InstagramFollowersView() {
     progressPercent: 0,
     statusText: '',
     fileName: '',
+    fileCount: 1,
     fileSizeStr: '',
     totalRecords: 0,
     metrics: null,
@@ -169,8 +169,8 @@ export function InstagramFollowersView() {
     try {
       const data = await followerStorage.getUnfollowedList(query, pageNum, limit);
       if (data && data.success) {
-        setUnfollowedList(data.unfollowers || []);
-        setTotalUnfollowed(data.total || 0);
+        setUnfollowedList(data.unfollowed || data.unfollowers || []);
+        setTotalUnfollowed(data.total || (data.unfollowed ? data.unfollowed.length : 0));
         setUnfollowedPage(pageNum);
       }
     } catch (err) {
@@ -247,33 +247,49 @@ export function InstagramFollowersView() {
     }
   };
 
-  // Open file picker with explicit mode
-  const triggerImportMode = (mode) => {
-    setSelectedImportMode(mode);
+  // Open file picker (single unified button for all JSON files)
+  const triggerImportPicker = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
       fileInputRef.current.click();
     }
   };
 
-  // Read files and execute import with live visual progress bar
+  // Read files (single or multiple like followers_1.json, followers_2.json) and execute import
   const handleFileSelection = async (e) => {
-    const files = e.target.files || (e.dataTransfer && e.dataTransfer.files);
-    if (!files || files.length === 0) return;
+    const rawFiles = Array.from(e.target.files || (e.dataTransfer && e.dataTransfer.files) || []);
+    if (!rawFiles || rawFiles.length === 0) return;
 
-    const file = files[0];
-    const mode = selectedImportMode || 'BASELINE';
-    const modeLabel = mode === 'BASELINE' ? 'Mode A: Baseline Import' : 'Mode B: Daily Reconciliation';
+    const jsonFiles = rawFiles.filter(f => f.name.toLowerCase().endsWith('.json'));
+    if (jsonFiles.length === 0) {
+      alert('Please select valid Instagram follower JSON files (.json).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // Automatically determine mode: if current followers is 0 -> BASELINE, else -> RECONCILIATION
+    const currentActive = stats.total || stats.activeCount || reconcileStats.currentActiveFollowers || 0;
+    const mode = currentActive === 0 ? 'BASELINE' : 'RECONCILIATION';
+    const modeLabel = mode === 'BASELINE' ? 'Baseline Setup' : 'Daily Reconciliation';
+
+    const totalFileSizeBytes = jsonFiles.reduce((acc, f) => acc + f.size, 0);
+    const combinedSizeStr = totalFileSizeBytes > 1024 * 1024
+      ? `${(totalFileSizeBytes / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(totalFileSizeBytes / 1024).toLocaleString()} KB`;
+    const fileLabel = jsonFiles.length === 1
+      ? jsonFiles[0].name
+      : `${jsonFiles.length} files (${jsonFiles.map(f => f.name).slice(0, 3).join(', ')}${jsonFiles.length > 3 ? '...' : ''})`;
 
     // 1. Open Visual Progress Modal immediately
     setImportModal({
       isOpen: true,
       mode,
       phase: 'reading',
-      progressPercent: 15,
-      statusText: `Reading ${file.name}...`,
-      fileName: file.name,
-      fileSizeStr: `${Math.round(file.size / 1024).toLocaleString()} KB`,
+      progressPercent: 10,
+      statusText: `Preparing to process ${jsonFiles.length} file${jsonFiles.length > 1 ? 's' : ''}...`,
+      fileName: fileLabel,
+      fileCount: jsonFiles.length,
+      fileSizeStr: combinedSizeStr,
       totalRecords: 0,
       metrics: null,
       error: null
@@ -281,61 +297,68 @@ export function InstagramFollowersView() {
     setUploadToast(null);
 
     try {
-      if (!file.name.toLowerCase().endsWith('.json')) {
-        throw new Error(`File "${file.name}" is not a JSON file. Please upload an Instagram export .json file.`);
+      const allRawItems = [];
+
+      // 2. Read and parse each JSON file
+      for (let i = 0; i < jsonFiles.length; i++) {
+        const file = jsonFiles[i];
+        const stepProgress = 12 + Math.round(((i + 0.5) / jsonFiles.length) * 38);
+        setImportModal(prev => ({
+          ...prev,
+          phase: 'reading',
+          progressPercent: stepProgress,
+          statusText: `Reading file ${i + 1} of ${jsonFiles.length}: ${file.name}...`
+        }));
+
+        const text = await file.text();
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch (jsonErr) {
+          throw new Error(`Invalid JSON format in "${file.name}": ${jsonErr.message}`);
+        }
+
+        const items = extractItemsFromParsedJson(json);
+        allRawItems.push(...items);
+        await new Promise(r => setTimeout(r, 60));
       }
 
-      await new Promise(r => setTimeout(r, 200));
-
-      // 2. Read and parse JSON
-      setImportModal(prev => ({
-        ...prev,
-        phase: 'reading',
-        progressPercent: 32,
-        statusText: `Parsing ${file.name} JSON content...`
-      }));
-
-      const text = await file.text();
-      let json;
-      try {
-        json = JSON.parse(text);
-      } catch (jsonErr) {
-        throw new Error(`Invalid JSON format: ${jsonErr.message}`);
+      if (allRawItems.length === 0) {
+        throw new Error(`No follower items found in the ${jsonFiles.length} uploaded file(s).`);
       }
 
-      // 3. Extract items
-      setImportModal(prev => ({
-        ...prev,
-        phase: 'extracting',
-        progressPercent: 52,
-        statusText: 'Extracting and normalizing follower handles...'
-      }));
-
-      const items = extractItemsFromParsedJson(json);
-      if (!items || items.length === 0) {
-        throw new Error('No valid follower items found. Please verify your Instagram export JSON.');
-      }
-
+      // 3. Extract & Combine items across all files
       setImportModal(prev => ({
         ...prev,
         phase: 'extracting',
-        progressPercent: 68,
-        statusText: `Found ${items.length.toLocaleString()} records. Reconciling with follower database...`,
-        totalRecords: items.length
+        progressPercent: 60,
+        statusText: `Combining ${allRawItems.length.toLocaleString()} records across ${jsonFiles.length} file(s)...`,
+        totalRecords: allRawItems.length
       }));
 
-      await new Promise(r => setTimeout(r, 220));
+      await new Promise(r => setTimeout(r, 180));
 
-      // 4. Send to server for atomic reconciliation / baseline commit
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'extracting',
+        progressPercent: 75,
+        statusText: `Found ${allRawItems.length.toLocaleString()} records across all files. Reconciling database...`
+      }));
+
+      await new Promise(r => setTimeout(r, 180));
+
+      // 4. Send combined payload to server for atomic reconciliation / baseline commit
       setImportModal(prev => ({
         ...prev,
         phase: 'syncing',
-        progressPercent: 84,
-        statusText: mode === 'BASELINE' ? 'Saving clean baseline into database...' : 'Calculating new followers and unfollowers...'
+        progressPercent: 86,
+        statusText: mode === 'BASELINE'
+          ? `Establishing clean baseline of ${allRawItems.length.toLocaleString()} followers...`
+          : `Reconciling ${allRawItems.length.toLocaleString()} followers to detect new follows & unfollowers...`
       }));
 
       const result = await followerStorage.commitReconciliation(
-        items,
+        allRawItems,
         mode,
         'Admin'
       );
@@ -366,7 +389,7 @@ export function InstagramFollowersView() {
 
       setUploadToast({
         type: 'success',
-        message: `${modeLabel} Completed! ${(result.validUnique || items.length).toLocaleString()} followers processed.`
+        message: `${modeLabel} Completed! ${(result.validUnique || allRawItems.length).toLocaleString()} followers processed across ${jsonFiles.length} file(s).`
       });
 
     } catch (err) {
@@ -541,57 +564,32 @@ export function InstagramFollowersView() {
           </div>
         </div>
 
-        {/* Action Buttons: Mode A, Mode B, and Reset Baseline */}
+        {/* Action Buttons: Unified Import Followers + Reset Baseline */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Mode A: Initial Baseline Import */}
+          {/* Single Unified Import Button (Auto Baseline / Reconciliation, Multiple Files) */}
           <button
             type="button"
-            onClick={() => triggerImportMode('BASELINE')}
+            onClick={triggerImportPicker}
             disabled={isUploading}
-            title="Import complete current follower list to establish clean baseline without artificial follow/unfollow events"
+            title="Import Instagram followers JSON export (select one or multiple files: followers_1.json, followers_2.json...)"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '980px',
-              backgroundColor: '#f8fafc',
-              border: '1.5px solid #cbd5e1',
-              color: '#334155',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              cursor: isUploading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Upload size={14} style={{ color: '#0284c7' }} />
-            <span>Mode A: Baseline Import</span>
-          </button>
-
-          {/* Mode B: Daily Full-List Reconciliation */}
-          <button
-            type="button"
-            onClick={() => triggerImportMode('RECONCILIATION')}
-            disabled={isUploading}
-            title="Upload daily complete list to detect retained, new followers, and unfollowers"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 18px',
+              gap: '8px',
+              padding: '9px 20px',
               borderRadius: '980px',
               backgroundColor: '#0071e3',
               border: 'none',
               color: '#ffffff',
-              fontSize: '12.5px',
+              fontSize: '13px',
               fontWeight: 700,
               cursor: isUploading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 113, 227, 0.3)',
+              boxShadow: '0 2px 10px rgba(0, 113, 227, 0.35)',
               transition: 'all 0.15s ease'
             }}
           >
-            <RefreshCw size={14} className={isUploading ? 'spin' : ''} />
-            <span>Mode B: Daily Reconciliation</span>
+            {isUploading ? <RefreshCw size={15} className="spin" /> : <Upload size={15} />}
+            <span>Import Followers</span>
           </button>
 
           {/* Protected Reset Baseline Button */}
@@ -1225,7 +1223,7 @@ export function InstagramFollowersView() {
                       </td>
 
                       <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: '#64748b' }}>
-                        {u.last_unfollowed_at ? formatFollowerTimestamp(new Date(u.last_unfollowed_at).getTime()) : 'Recorded'}
+                        {(u.lastUnfollowedAt || u.last_unfollowed_at) ? formatFollowerTimestamp(new Date(u.lastUnfollowedAt || u.last_unfollowed_at).getTime()) : 'Recorded'}
                       </td>
 
                       <td style={{ padding: '10px 12px' }}>
@@ -1306,11 +1304,17 @@ export function InstagramFollowersView() {
               </thead>
               <tbody>
                 {importHistory.map((imp, idx) => {
-                  const net = (imp.new_followers || 0) - (imp.new_unfollowers || 0);
+                  const importId = imp.id || imp.import_id || `IMP_${idx + 1}`;
+                  const totalInput = imp.totalSubmitted ?? imp.total_submitted_records ?? 0;
+                  const unique = imp.validUnique ?? imp.valid_unique_usernames ?? 0;
+                  const retained = imp.retainedFollowers ?? imp.retained_followers ?? 0;
+                  const newFollowers = imp.newFollowers ?? imp.new_followers ?? 0;
+                  const newUnfollowers = imp.newUnfollowers ?? imp.new_unfollowers ?? 0;
+                  const net = imp.netChange ?? ((newFollowers || 0) - (newUnfollowers || 0));
                   return (
-                    <tr key={imp.import_id || idx} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
+                    <tr key={importId || idx} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
                       <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 600, color: '#0f172a' }}>
-                        {imp.import_id}
+                        {importId}
                       </td>
                       <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#475569' }}>
                         {imp.timestamp ? formatFollowerTimestamp(new Date(imp.timestamp).getTime()) : ''}
@@ -1328,19 +1332,19 @@ export function InstagramFollowersView() {
                         </span>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                        {(imp.total_submitted_records || 0).toLocaleString()}
+                        {totalInput.toLocaleString()}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>
-                        {(imp.valid_unique_usernames || 0).toLocaleString()}
+                        {unique.toLocaleString()}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                        {(imp.retained_followers || 0).toLocaleString()}
+                        {retained.toLocaleString()}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#0071e3' }}>
-                        +{imp.new_followers || 0}
+                        +{newFollowers}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
-                        -{imp.new_unfollowers || 0}
+                        -{newUnfollowers}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: net >= 0 ? '#16a34a' : '#dc2626' }}>
                         {net >= 0 ? `+${net}` : net}
@@ -1567,7 +1571,7 @@ export function InstagramFollowersView() {
                   color: importModal.mode === 'BASELINE' ? '#0369a1' : '#6d28d9',
                   border: `1px solid ${importModal.mode === 'BASELINE' ? '#bae6fd' : '#ddd6fe'}`
                 }}>
-                  {importModal.mode === 'BASELINE' ? 'Mode A: Baseline Import' : 'Mode B: Daily Reconciliation'}
+                  {importModal.mode === 'BASELINE' ? 'Baseline Setup' : 'Daily Reconciliation'}
                 </span>
                 <span style={{
                   fontSize: '11px',
@@ -1693,12 +1697,12 @@ export function InstagramFollowersView() {
                   ) : (
                     <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
                   ))}
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 15 ? '#0f172a' : '#94a3b8' }}>
-                    1. Read JSON
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 10 ? '#0f172a' : '#94a3b8' }}>
+                    1. Read File{importModal.fileCount > 1 ? `s (${importModal.fileCount})` : ''}
                   </span>
                 </div>
 
-                {/* Step 2: Extract Handles */}
+                {/* Step 2: Combine & Extract Handles */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {importModal.phase === 'extracting' ? (
                     <RefreshCw size={13} className="spin" style={{ color: '#0071e3', flexShrink: 0 }} />
@@ -1707,8 +1711,8 @@ export function InstagramFollowersView() {
                   ) : (
                     <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
                   ))}
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 52 ? '#0f172a' : '#94a3b8' }}>
-                    2. Extract Handles
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 50 ? '#0f172a' : '#94a3b8' }}>
+                    2. Combine & Extract
                   </span>
                 </div>
 
@@ -1721,7 +1725,7 @@ export function InstagramFollowersView() {
                   ) : (
                     <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
                   ))}
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 84 ? '#0f172a' : '#94a3b8' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 80 ? '#0f172a' : '#94a3b8' }}>
                     3. Sync Database
                   </span>
                 </div>
@@ -1769,8 +1773,8 @@ export function InstagramFollowersView() {
                   <CheckCircle2 size={16} style={{ color: importModal.mode === 'BASELINE' ? '#16a34a' : '#2563eb', flexShrink: 0 }} />
                   <span>
                     {importModal.mode === 'BASELINE'
-                      ? 'Baseline successfully established! All active followers have been cleanly synchronized into the database.'
-                      : 'Daily reconciliation finished! New followers and unfollowers have been detected and staff credits updated.'}
+                      ? `Baseline successfully established! ${importModal.fileCount > 1 ? `Combined ${importModal.fileCount} files with ` : ''}all active followers synchronized into the database.`
+                      : `Daily reconciliation finished across ${importModal.fileCount > 1 ? `${importModal.fileCount} files` : 'file'}! New followers and unfollowers have been detected and staff credits updated.`}
                   </span>
                 </div>
 

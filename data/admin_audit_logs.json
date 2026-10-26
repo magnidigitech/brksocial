@@ -1,5 +1,37 @@
 [
   {
+    "id": "AUD_1793051434652_9xkv5",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051434633_88p3a\",\"timestamp\":\"2026-10-26T21:50:34.633Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":339,\"validUnique\":339,\"previousActiveFollowers\":10000,\"currentActiveFollowers\":339,\"activeCount\":339,\"retainedFollowers\":0,\"newFollowers\":0,\"newUnfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":9,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:50:34.652Z"
+  },
+  {
+    "id": "AUD_1793051428820_7axos",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051428445_01x7a\",\"timestamp\":\"2026-10-26T21:50:28.445Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":10000,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":0,\"newUnfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":9,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:50:28.820Z"
+  },
+  {
+    "id": "AUD_1793051422506_hnihi",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051422024_2lmgo\",\"timestamp\":\"2026-10-26T21:50:22.024Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":10000,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":0,\"newUnfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":9,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:50:22.506Z"
+  },
+  {
+    "id": "AUD_1793051238511_k3wwu",
+    "action": "DAILY_RECONCILIATION_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051238000_5elch\",\"timestamp\":\"2026-10-26T21:47:18.000Z\",\"mode\":\"RECONCILIATION\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":10000,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":10000,\"newUnfollowers\":10000,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":0,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:47:18.511Z"
+  },
+  {
     "id": "AUD_1793051169956_od3lv",
     "action": "DAILY_RECONCILIATION_IMPORT",
     "operator": "Admin",

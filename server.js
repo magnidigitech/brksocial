@@ -638,16 +638,22 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
     const activeFollowersCount = followersList.filter(f => f.status === 'active').length;
     const importSummary = {
       id: importId,
+      import_id: importId,
       timestamp: nowIso,
       mode,
       totalSubmitted: processed.totalSubmitted,
+      total_submitted_records: processed.totalSubmitted,
       validUnique: validUniqueCount,
+      valid_unique_usernames: validUniqueCount,
       previousActiveFollowers: previousActiveCount,
       currentActiveFollowers: activeFollowersCount,
       activeCount: activeFollowersCount,
       retainedFollowers: retainedKeys.length,
+      retained_followers: retainedKeys.length,
       newFollowers: newFollowerKeys.length,
+      new_followers: newFollowerKeys.length,
       newUnfollowers: unfollowerKeys.length,
+      new_unfollowers: unfollowerKeys.length,
       netChange: newFollowerKeys.length - unfollowerKeys.length,
       invalidOrDuplicate: processed.invalidCount + processed.duplicateCount,
       submissionsUpdated: submissionsUpdatedCount,
@@ -2413,7 +2419,8 @@ app.get('/api/instagram/followers/unfollowed', (req, res) => {
       page,
       limit,
       totalPages: Math.ceil(total / limit) || 1,
-      unfollowed: enrichedItems
+      unfollowed: enrichedItems,
+      unfollowers: enrichedItems
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
