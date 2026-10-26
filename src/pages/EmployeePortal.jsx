@@ -677,7 +677,7 @@ export function EmployeePortal({ session, onLogout }) {
                       placeholder={
                         activeTask.submissionType === 'Mobile Number'
                           ? 'Enter 10-digit voter mobile number...'
-                          : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
+                          : `Enter ${activeTask.submissionType} or URL`
                       }
                       value={inputVal}
                       onChange={(e) => setInputVal(e.target.value)}
@@ -755,78 +755,70 @@ export function EmployeePortal({ session, onLogout }) {
                       </div>
 
                       <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
-                        Tap any pattern below to autofill sample:
+                        Supported formats for submission entries:
                       </p>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div
-                          onClick={() => { setInputVal('@lakshmisettylavanya'); setShowPatternHelp(false); }}
                           style={{
-                            padding: '7px 10px',
+                            padding: '7px 12px',
                             borderRadius: '8px',
                             backgroundColor: '#f8fafc',
                             border: '1px solid #f1f5f9',
-                            cursor: 'pointer',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                           }}
                         >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@lakshmisettylavanya</span>
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@username</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>With @ prefix</span>
                         </div>
 
                         <div
-                          onClick={() => { setInputVal('lakshmisettylavanya'); setShowPatternHelp(false); }}
                           style={{
-                            padding: '7px 10px',
+                            padding: '7px 12px',
                             borderRadius: '8px',
                             backgroundColor: '#f8fafc',
                             border: '1px solid #f1f5f9',
-                            cursor: 'pointer',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                           }}
                         >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>lakshmisettylavanya</span>
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>username</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>Plain handle</span>
                         </div>
 
                         <div
-                          onClick={() => { setInputVal('https://instagram.com/lakshmisettylavanya'); setShowPatternHelp(false); }}
                           style={{
-                            padding: '7px 10px',
+                            padding: '7px 12px',
                             borderRadius: '8px',
                             backgroundColor: '#f8fafc',
                             border: '1px solid #f1f5f9',
-                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                            https://instagram.com/username
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #f1f5f9',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                           }}
                         >
                           <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11.5px', wordBreak: 'break-all' }}>
-                            https://instagram.com/lakshmisettylavanya
-                          </span>
-                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
-                        </div>
-
-                        <div
-                          onClick={() => { setInputVal('https://www.instagram.com/lakshmisettylavanya?igsh=MXR3N3N0'); setShowPatternHelp(false); }}
-                          style={{
-                            padding: '7px 10px',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all' }}>
-                            ...instagram.com/lakshmisettylavanya?igsh=...
+                            https://instagram.com/username?igsh=...
                           </span>
                           <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Share URL</span>
                         </div>
