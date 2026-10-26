@@ -453,6 +453,7 @@ export const dbService = {
       duplicateScope: taskData.rules?.duplicateScope || taskData.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: taskData.rules?.allowExtraSubmissions ?? true,
       requireProof: taskData.rules?.requireProof ?? false,
+      samplePatterns: taskData.samplePatterns || null,
       status: taskData.status || 'Active',
       createdDate: taskData.createdDate || new Date().toISOString().split('T')[0]
     };

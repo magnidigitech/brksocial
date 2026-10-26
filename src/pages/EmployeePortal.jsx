@@ -32,10 +32,14 @@ import {
   Menu,
   Info,
   Phone,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft,
+  ChevronRight,
+  Calendar,
+  Layers
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
-import { normalizeInstagramUsername } from '../services/normalization.js';
+import { normalizeInstagramUsername, getDefaultSamplePatterns } from '../services/normalization.js';
 import { formatIST, validateFollowerSubmission, getTodayISTDateString, getISTDateFromISO } from '../services/istUtils.js';
 import VerificationBottomSheet from '../components/VerificationBottomSheet.jsx';
 import PullToRefreshPreloader from '../components/PullToRefreshPreloader.jsx';
@@ -48,6 +52,58 @@ const PLATFORM_ICONS = {
   'YouTube': Youtube,
   'Ground Survey': ClipboardList,
   'Custom': Share2
+};
+
+const PLATFORM_THEMES = {
+  'Instagram': {
+    bg: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+    color: '#ffffff',
+    lightBg: '#fdf2f8',
+    borderColor: '#fbcfe8',
+    textColor: '#be185d'
+  },
+  'WhatsApp': {
+    bg: '#25D366',
+    color: '#ffffff',
+    lightBg: '#f0fdf4',
+    borderColor: '#bbf7d0',
+    textColor: '#15803d'
+  },
+  'X (Twitter)': {
+    bg: '#000000',
+    color: '#ffffff',
+    lightBg: '#f8fafc',
+    borderColor: '#e2e8f0',
+    textColor: '#0f172a'
+  },
+  'Facebook': {
+    bg: '#1877F2',
+    color: '#ffffff',
+    lightBg: '#eff6ff',
+    borderColor: '#bfdbfe',
+    textColor: '#1d4ed8'
+  },
+  'YouTube': {
+    bg: '#FF0000',
+    color: '#ffffff',
+    lightBg: '#fef2f2',
+    borderColor: '#fecaca',
+    textColor: '#b91c1c'
+  },
+  'Ground Survey': {
+    bg: '#0284c7',
+    color: '#ffffff',
+    lightBg: '#f0f9ff',
+    borderColor: '#bae6fd',
+    textColor: '#0369a1'
+  },
+  'Custom': {
+    bg: '#7c3aed',
+    color: '#ffffff',
+    lightBg: '#faf5ff',
+    borderColor: '#e9d5ff',
+    textColor: '#6d28d9'
+  }
 };
 
 export function EmployeePortal({ session, onLogout }) {
@@ -111,7 +167,13 @@ export function EmployeePortal({ session, onLogout }) {
   useEffect(() => {
     const handleLiveRefresh = () => {
       const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-      const taskId = activeTask?.id || 'TASK-INSTA-001';
+      const refreshedTasks = dbService.getTasksForEmployee(empId);
+      setAssignedTasks(refreshedTasks);
+
+      if (!activeTask) {
+        return;
+      }
+      const taskId = activeTask.id;
       const today = getTodayISTDateString();
       const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
       setTaskStats(stats);
@@ -229,12 +291,15 @@ export function EmployeePortal({ session, onLogout }) {
     const tasks = dbService.getTasksForEmployee(empId);
     setAssignedTasks(tasks);
 
-    if (tasks.length > 0) {
-      const selected = activeTask ? (tasks.find(t => t.id === activeTask.id) || tasks[0]) : tasks[0];
-      setActiveTask(selected);
-      updateStats(empId, selected.id);
+    if (activeTask) {
+      const selected = tasks.find(t => t.id === activeTask.id);
+      if (selected) {
+        setActiveTask(selected);
+        updateStats(empId, selected.id);
+      } else {
+        setActiveTask(null);
+      }
     }
-
   };
 
   const updateStats = (empId, taskId) => {
@@ -252,11 +317,29 @@ export function EmployeePortal({ session, onLogout }) {
   };
 
   const handleTaskSwitch = (task) => {
+    handleSelectTask(task);
+  };
+
+  const handleSelectTask = (task) => {
     setActiveTask(task);
     setInputVal('');
     setFeedback(null);
+    setShowPatternHelp(false);
     const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
     updateStats(empId, task.id);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleBackToTasks = () => {
+    setActiveTask(null);
+    setInputVal('');
+    setFeedback(null);
+    setShowPatternHelp(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const effectiveLink = trackingLink || (activeTask && (employee?.id || session?.employeeId || session?.id)
@@ -387,6 +470,29 @@ export function EmployeePortal({ session, onLogout }) {
 
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
+  // Active task sample patterns (dynamic from task or platform defaults)
+  const activePatterns = activeTask
+    ? ((activeTask.samplePatterns && activeTask.samplePatterns.length > 0)
+        ? activeTask.samplePatterns
+        : getDefaultSamplePatterns(activeTask.platform, activeTask.submissionType))
+    : [];
+
+  // Aggregated daily metrics for landing page across all assigned tasks
+  const allTasksSummary = assignedTasks.map(t => {
+    const s = dbService.getEmployeeDailyStats(currentEmpId, todayStr, t.id);
+    const target = t.dailyTarget || 10;
+    const valid = s?.validCount || 0;
+    return {
+      task: t,
+      stats: s,
+      valid,
+      target,
+      isTargetMet: valid >= target
+    };
+  });
+  const totalValidToday = allTasksSummary.reduce((acc, curr) => acc + curr.valid, 0);
+  const targetsMetCount = allTasksSummary.filter(curr => curr.isTargetMet).length;
+
   return (
     <div className="dashboard-page-wrapper" style={{ padding: 0 }}>
       {/* Pull-down to refresh preloader with animated MD logo mark */}
@@ -486,48 +592,61 @@ export function EmployeePortal({ session, onLogout }) {
           </button>
         </div>
 
-        {/* ASSIGNED TASKS SELECTOR (If Multiple Tasks exist) */}
-        {assignedTasks.length > 1 && (
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              Select Assigned Task ({assignedTasks.length} Active Tasks):
-            </label>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {assignedTasks.map((t) => {
-                const Icon = PLATFORM_ICONS[t.platform] || Share2;
-                const isSel = activeTask?.id === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => handleTaskSwitch(t)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      borderRadius: '9999px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      border: isSel ? '1.5px solid #ff4d00' : '1px solid #cbd5e1',
-                      backgroundColor: isSel ? '#fff7ed' : '#ffffff',
-                      color: isSel ? '#c2410c' : '#475569',
-                      boxShadow: isSel ? '0 4px 12px rgba(255, 77, 0, 0.15)' : 'none',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Icon size={16} />
-                    <span>{t.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ACTIVE TASK & SUBMISSIONS 2-COLUMN DESKTOP GRID */}
+        {/* If Active Task selected: Render Task Detail View with Back Button. Otherwise: Render Campaign Tasks Landing Page */}
         {activeTask ? (
-          <div className="portal-content-grid">
+          <div>
+            {/* Top Navigation Bar: Back to All Tasks */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              marginBottom: '18px',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                type="button"
+                onClick={handleBackToTasks}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <ArrowLeft size={16} />
+                <span>All Tasks ({assignedTasks.length})</span>
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
+                }}>
+                  Active Campaign:
+                </span>
+                <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
+                  {activeTask.name}
+                </span>
+              </div>
+            </div>
+
+            <div className="portal-content-grid">
             {/* LEFT COLUMN: Task Details & Citizen Outreach Tracking Link */}
             <div className="portal-column portal-left-column">
               {/* 1. Task Overview Box with Daily Completion Progress */}
@@ -916,7 +1035,9 @@ export function EmployeePortal({ session, onLogout }) {
                         placeholder={
                           activeTask.submissionType === 'Mobile Number'
                             ? 'Enter 10-digit voter mobile number...'
-                            : `Enter ${activeTask.submissionType} or URL`
+                            : activeTask.platform === 'Instagram'
+                              ? 'Enter Instagram handle or profile URL...'
+                              : `Enter ${activeTask.submissionType || 'submission entry'}...`
                         }
                         value={inputVal}
                         onChange={(e) => setInputVal(e.target.value)}
@@ -937,8 +1058,8 @@ export function EmployeePortal({ session, onLogout }) {
                       <button
                         type="button"
                         onClick={() => setShowPatternHelp(prev => !prev)}
-                        title="View sample username & URL patterns"
-                        aria-label="View sample username & URL patterns"
+                        title={`View sample ${activeTask.submissionType || 'entry'} patterns`}
+                        aria-label={`View sample ${activeTask.submissionType || 'entry'} patterns`}
                         style={{
                           position: 'absolute',
                           right: '12px',
@@ -973,7 +1094,7 @@ export function EmployeePortal({ session, onLogout }) {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0f172a' }}>
                             <Info size={15} style={{ color: '#0071e3' }} />
-                            <span>Accepted Username & URL Patterns</span>
+                            <span>Accepted {activeTask.submissionType || 'Entry'} Patterns</span>
                           </div>
                           <button
                             type="button"
@@ -994,73 +1115,32 @@ export function EmployeePortal({ session, onLogout }) {
                         </div>
 
                         <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
-                          Supported formats for submission entries:
+                          Supported formats for this campaign ({activeTask.submissionType || activeTask.platform}):
                         </p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #f1f5f9',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}
-                          >
-                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@username</span>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>With @ prefix</span>
-                          </div>
-
-                          <div
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #f1f5f9',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}
-                          >
-                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>username</span>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>Plain handle</span>
-                          </div>
-
-                          <div
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #f1f5f9',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}
-                          >
-                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
-                              https://instagram.com/username
-                            </span>
-                            <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
-                          </div>
-
-                          <div
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #f1f5f9',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}
-                          >
-                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11.5px', wordBreak: 'break-all' }}>
-                              https://instagram.com/username?igsh=...
-                            </span>
-                            <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Share URL</span>
-                          </div>
+                          {activePatterns.map((pat, pIdx) => (
+                            <div
+                              key={pIdx}
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: '8px',
+                                backgroundColor: '#f8fafc',
+                                border: '1px solid #f1f5f9',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                                {pat.pattern}
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+                                {pat.label}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -1439,14 +1519,341 @@ export function EmployeePortal({ session, onLogout }) {
               )}
             </div>
           </div>
-        </div>
+            </div>
+          </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-            <Award size={40} style={{ color: '#d1d5db', marginBottom: '12px' }} />
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#374151', margin: 0 }}>No Tasks Currently Assigned</h3>
-            <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-              Check back later or contact your administrator to assign campaign tasks to your constituency.
-            </p>
+          /* CAMPAIGN TASKS LANDING PAGE */
+          <div className="portal-landing-page" style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* 1. Welcome & Constituency Banner Card */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              padding: '24px 20px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '260px',
+                height: '100%',
+                background: 'radial-gradient(circle at right center, rgba(255, 77, 0, 0.08) 0%, transparent 70%)',
+                pointerEvents: 'none'
+              }} />
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', position: 'relative', zIndex: 1 }}>
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fff7ed', border: '1px solid #ffedd5', padding: '4px 12px', borderRadius: '9999px', marginBottom: '10px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ff4d00' }} />
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Citizen Outreach Hub
+                    </span>
+                  </div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                    Welcome, {employee?.name || session?.name || 'Field Officer'}
+                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '13px', color: '#64748b' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <Calendar size={14} style={{ color: '#ff4d00' }} />
+                      {formatIST(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span>•</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <MapPin size={14} style={{ color: '#0284c7' }} />
+                      {employee?.parliamentName || 'All'} Parliament {employee?.assemblyName ? `(${employee.assemblyName})` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleSyncFollowers}
+                    disabled={isSyncingFollowers}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 16px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      color: '#334155',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: isSyncingFollowers ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RefreshCw size={14} className={isSyncingFollowers ? 'animate-spin' : ''} />
+                    <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Data'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Metric Cards for Today */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '14px',
+                marginTop: '22px'
+              }}>
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Assigned Campaigns
+                    </span>
+                    <Layers size={16} style={{ color: '#ff4d00' }} />
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>
+                    {assignedTasks.length}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                    Active field tasks
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Today's Submissions
+                    </span>
+                    <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#14532d' }}>
+                    {totalValidToday}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>
+                    Verified entries today
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Targets Achieved
+                    </span>
+                    <Award size={16} style={{ color: '#2563eb' }} />
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#1e3a8a' }}>
+                    {targetsMetCount} <span style={{ fontSize: '15px', fontWeight: 600, color: '#64748b' }}>/ {assignedTasks.length}</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#2563eb', marginTop: '2px' }}>
+                    Campaigns completed today
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Tasks Grid Section */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: '0 0 2px 0' }}>
+                    Your Assigned Campaign Tasks
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: 0 }}>
+                    Click any task card below to start making submissions, copy your tracking link, or view live progress.
+                  </p>
+                </div>
+                <span style={{
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  backgroundColor: '#f1f5f9',
+                  padding: '4px 10px',
+                  borderRadius: '9999px'
+                }}>
+                  {assignedTasks.length} Available
+                </span>
+              </div>
+
+              {assignedTasks.length === 0 ? (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '48px 24px',
+                  textAlign: 'center'
+                }}>
+                  <Award size={44} style={{ color: '#cbd5e1', margin: '0 auto 12px auto' }} />
+                  <h4 style={{ fontSize: '17px', fontWeight: 800, color: '#1e293b', margin: '0 0 6px 0' }}>No Tasks Assigned Yet</h4>
+                  <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '420px', margin: '0 auto' }}>
+                    There are currently no active tasks assigned to your assembly or parliament area. Contact your campaign administrator for assistance.
+                  </p>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {assignedTasks.map((task) => {
+                    const Icon = PLATFORM_ICONS[task.platform] || Share2;
+                    const theme = PLATFORM_THEMES[task.platform] || PLATFORM_THEMES['Custom'];
+                    const item = allTasksSummary.find(s => s.task.id === task.id);
+                    const target = task.dailyTarget || 10;
+                    const valid = item?.valid || 0;
+                    const pct = Math.min(100, Math.round((valid / target) * 100));
+                    const isMet = valid >= target;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="task-landing-card"
+                        onClick={() => handleSelectTask(task)}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '18px',
+                          border: isMet ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                          padding: '20px',
+                          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '16px',
+                          position: 'relative'
+                        }}
+                      >
+                        <div>
+                          {/* Top Header of Card */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                            <div style={{
+                              width: '46px',
+                              height: '46px',
+                              borderRadius: '14px',
+                              background: theme.bg,
+                              color: theme.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                            }}>
+                              <Icon size={24} />
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '3px 9px',
+                                borderRadius: '9999px',
+                                backgroundColor: theme.lightBg,
+                                color: theme.textColor,
+                                border: `1px solid ${theme.borderColor}`
+                              }}>
+                                {task.platform}
+                              </span>
+                              {isMet && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '3px 9px',
+                                  borderRadius: '9999px',
+                                  backgroundColor: '#dcfce7',
+                                  color: '#15803d',
+                                  border: '1px solid #86efac',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}>
+                                  <Check size={11} /> Target Met
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Task Name & Description */}
+                          <h4 style={{
+                            fontSize: '17px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            margin: '0 0 6px 0',
+                            lineHeight: 1.3
+                          }}>
+                            {task.name}
+                          </h4>
+                          <p style={{
+                            fontSize: '12.5px',
+                            color: '#64748b',
+                            margin: '0 0 14px 0',
+                            lineHeight: 1.5,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                          }}>
+                            {task.description || `Field campaign outreach task for ${task.platform}.`}
+                          </p>
+
+                          {/* Submission format tag */}
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            color: '#475569',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            padding: '4px 10px',
+                            borderRadius: '8px'
+                          }}>
+                            <span>Format:</span>
+                            <strong style={{ color: '#0f172a' }}>{task.submissionType || 'Instagram Handle'}</strong>
+                          </div>
+                        </div>
+
+                        <div>
+                          {/* Progress Row */}
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '5px' }}>
+                              <span style={{ fontWeight: 600, color: '#64748b' }}>
+                                Daily Progress: <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
+                              </span>
+                              <span style={{ fontWeight: 800, color: isMet ? '#16a34a' : '#ff4d00' }}>
+                                {pct}%
+                              </span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '9999px', overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${pct}%`,
+                                height: '100%',
+                                backgroundColor: isMet ? '#10b981' : '#ff4d00',
+                                borderRadius: '9999px',
+                                transition: 'width 0.4s ease'
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Action Link button */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #f1f5f9',
+                            marginTop: '6px'
+                          }}>
+                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0071e3', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              Open Campaign Task
+                              <ChevronRight size={15} />
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              Click to enter →
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

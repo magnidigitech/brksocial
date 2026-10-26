@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
+import { getDefaultSamplePatterns, patternsToString, stringToPatterns } from '../services/normalization.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -78,7 +79,8 @@ export function TaskManagementView() {
     scopeType: 'ALL_STAFF',
     duplicateScope: 'Entire Campaign',
     allowExtraSubmissions: true,
-    requireProof: false
+    requireProof: false,
+    samplePatternsText: patternsToString(getDefaultSamplePatterns('Instagram', 'Instagram Handle'))
   });
 
   // Flatten assemblies list once
@@ -121,7 +123,8 @@ export function TaskManagementView() {
       scopeType: 'ALL_STAFF',
       duplicateScope: 'Entire Campaign',
       allowExtraSubmissions: true,
-      requireProof: false
+      requireProof: false,
+      samplePatternsText: patternsToString(getDefaultSamplePatterns('Instagram', 'Instagram Handle'))
     });
     setIsModalOpen(true);
   };
@@ -145,6 +148,10 @@ export function TaskManagementView() {
 
     setParliamentSearchText('');
     setAssemblySearchText('');
+    const initialPatterns = (task.samplePatterns && task.samplePatterns.length > 0)
+      ? task.samplePatterns
+      : getDefaultSamplePatterns(task.platform || 'Instagram', task.submissionType || 'Instagram Handle');
+
     setFormData({
       name: task.name || '',
       description: task.description || '',
@@ -157,7 +164,8 @@ export function TaskManagementView() {
       scopeType: scope.scopeType || 'ALL_STAFF',
       duplicateScope: task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: task.rules?.allowExtraSubmissions ?? task.allowExtraSubmissions ?? true,
-      requireProof: task.rules?.requireProof ?? task.requireProof ?? false
+      requireProof: task.rules?.requireProof ?? task.requireProof ?? false,
+      samplePatternsText: patternsToString(initialPatterns)
     });
     setIsModalOpen(true);
   };
@@ -305,6 +313,7 @@ export function TaskManagementView() {
         duplicateScope: formData.duplicateScope || 'Entire Campaign',
         allowExtraSubmissions: formData.allowExtraSubmissions ?? true,
         requireProof: formData.requireProof ?? false,
+        samplePatterns: stringToPatterns(formData.samplePatternsText),
         status: editingTask ? editingTask.status : 'Active',
         createdDate: editingTask ? editingTask.createdDate : new Date().toISOString().split('T')[0]
       };
@@ -810,17 +819,29 @@ export function TaskManagementView() {
                       const newPlatform = e.target.value;
                       let newUrl = formData.targetUrl;
                       let newSlug = formData.urlSlug;
+                      let newSub = formData.submissionType;
                       if (newPlatform === 'Instagram') {
                         newUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
                         newSlug = 'instagram';
+                        newSub = 'Instagram Handle';
                       } else if (newPlatform === 'WhatsApp') {
                         newUrl = 'https://chat.whatsapp.com/';
                         newSlug = 'whatsapp';
+                        newSub = 'Mobile Number';
                       } else if (newPlatform === 'YouTube') {
                         newUrl = 'https://youtube.com/@ramakrishnabhashyam';
                         newSlug = 'youtube';
+                        newSub = 'Profile Link';
                       }
-                      setFormData({ ...formData, platform: newPlatform, targetUrl: newUrl, urlSlug: newSlug });
+                      const defPatterns = getDefaultSamplePatterns(newPlatform, newSub);
+                      setFormData({ 
+                        ...formData, 
+                        platform: newPlatform, 
+                        targetUrl: newUrl, 
+                        urlSlug: newSlug,
+                        submissionType: newSub,
+                        samplePatternsText: patternsToString(defPatterns)
+                      });
                     }}
                     style={{
                       width: '100%',
@@ -849,7 +870,15 @@ export function TaskManagementView() {
                   </label>
                   <select
                     value={formData.submissionType}
-                    onChange={(e) => setFormData({ ...formData, submissionType: e.target.value })}
+                    onChange={(e) => {
+                      const newSub = e.target.value;
+                      const defPatterns = getDefaultSamplePatterns(formData.platform, newSub);
+                      setFormData({ 
+                        ...formData, 
+                        submissionType: newSub,
+                        samplePatternsText: patternsToString(defPatterns)
+                      });
+                    }}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -868,6 +897,64 @@ export function TaskManagementView() {
                     <option value="Text Input">Lead / Citizen Text Info</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ACCEPTED SAMPLE PATTERNS & STAFF TOOLTIP GUIDANCE */}
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#1d1d1f', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                    Accepted Submission Patterns (Staff Tooltip Guidance)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const def = getDefaultSamplePatterns(formData.platform, formData.submissionType);
+                      setFormData({ ...formData, samplePatternsText: patternsToString(def) });
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0071e3',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    Reset Defaults ({formData.platform})
+                  </button>
+                </div>
+
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+                  Enter one format per line: <strong>Format | Description</strong>. These will be dynamically fetched and displayed to staff in the tooltip:
+                </p>
+
+                <textarea
+                  rows={3}
+                  value={formData.samplePatternsText}
+                  onChange={(e) => setFormData({ ...formData, samplePatternsText: e.target.value })}
+                  placeholder="9876543210 | 10-digit mobile number&#10;+91 9876543210 | With country code"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                    fontWeight: 500,
+                    outline: 'none',
+                    backgroundColor: '#ffffff',
+                    boxSizing: 'border-box'
+                  }}
+                />
               </div>
 
               {/* OUTREACH TRACKING LINK & TARGET REDIRECT URL */}
