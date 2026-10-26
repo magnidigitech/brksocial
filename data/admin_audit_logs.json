@@ -1,5 +1,61 @@
 [
   {
+    "id": "AUD_1793051169956_od3lv",
+    "action": "DAILY_RECONCILIATION_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051169483_h30wc\",\"timestamp\":\"2026-10-26T21:46:09.483Z\",\"mode\":\"RECONCILIATION\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":10000,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":10000,\"newUnfollowers\":10000,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":0,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:46:09.956Z"
+  },
+  {
+    "id": "AUD_1793051149556_xfyzi",
+    "action": "DAILY_RECONCILIATION_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051149147_8r3p4\",\"timestamp\":\"2026-10-26T21:45:49.147Z\",\"mode\":\"RECONCILIATION\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":0,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":10000,\"newUnfollowers\":0,\"netChange\":10000,\"invalidOrDuplicate\":0,\"submissionsUpdated\":0,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:49.556Z"
+  },
+  {
+    "id": "AUD_1793051138516_0yfc9",
+    "action": "RESET_FOLLOWER_DATABASE",
+    "operator": "Administrator",
+    "details": "{\"previousFollowersCleared\":10000,\"submissionsPreservedAndReset\":12,\"submissionsStatusUpdated\":9,\"note\":\"Follower baseline cleared. Ready for Mode A: Initial Baseline Import.\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:38.516Z"
+  },
+  {
+    "id": "AUD_1793051135397_ncz7y",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051135019_1mz61\",\"timestamp\":\"2026-10-26T21:45:35.019Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":10000,\"validUnique\":10000,\"previousActiveFollowers\":3,\"currentActiveFollowers\":10000,\"activeCount\":10000,\"retainedFollowers\":0,\"newFollowers\":0,\"newUnfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":9,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:35.397Z"
+  },
+  {
+    "id": "AUD_1793051133193_z2cx4",
+    "action": "DAILY_RECONCILIATION_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051133190_3xqst\",\"timestamp\":\"2026-10-26T21:45:33.190Z\",\"mode\":\"RECONCILIATION\",\"totalSubmitted\":3,\"validUnique\":3,\"previousActiveFollowers\":0,\"currentActiveFollowers\":3,\"activeCount\":3,\"retainedFollowers\":0,\"newFollowers\":3,\"newUnfollowers\":0,\"netChange\":3,\"invalidOrDuplicate\":0,\"submissionsUpdated\":0,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:33.193Z"
+  },
+  {
+    "id": "AUD_1793051126696_nr3u4",
+    "action": "RESET_FOLLOWER_DATABASE",
+    "operator": "Administrator",
+    "details": "{\"previousFollowersCleared\":3,\"submissionsPreservedAndReset\":12,\"submissionsStatusUpdated\":9,\"note\":\"Follower baseline cleared. Ready for Mode A: Initial Baseline Import.\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:26.696Z"
+  },
+  {
+    "id": "AUD_1793051123391_n4ax2",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1793051123299_wzlwy\",\"timestamp\":\"2026-10-26T21:45:23.299Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":3,\"validUnique\":3,\"previousActiveFollowers\":0,\"currentActiveFollowers\":3,\"activeCount\":3,\"retainedFollowers\":0,\"newFollowers\":0,\"newUnfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":9,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:45:23.391Z"
+  },
+  {
     "id": "AUD_1793049626782_42ods",
     "action": "RESET_FOLLOWER_DATABASE",
     "operator": "Administrator",

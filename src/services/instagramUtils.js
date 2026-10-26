@@ -69,19 +69,24 @@ export function parseFollowerItem(rawItem) {
   // 1. Meta Data Download JSON structure
   if (rawItem.string_list_data && Array.isArray(rawItem.string_list_data) && rawItem.string_list_data.length > 0) {
     const d = rawItem.string_list_data[0];
-    rawUsername = d.value || '';
+    rawUsername = d.value || d.href || rawItem.title || '';
     href = d.href || '';
     timestamp = Number(d.timestamp) || 0;
   }
   // 2. Direct object format
   else if (typeof rawItem === 'object') {
-    rawUsername = rawItem.username || rawItem.value || rawItem.name || rawItem.handle || '';
+    rawUsername = rawItem.username || rawItem.value || rawItem.title || rawItem.name || rawItem.handle || '';
     href = rawItem.href || rawItem.profile_url || rawItem.url || '';
     timestamp = Number(rawItem.timestamp) || 0;
   }
   // 3. String format
   else if (typeof rawItem === 'string') {
     rawUsername = rawItem;
+  }
+
+  // Fallback to title or href if username still blank
+  if (!rawUsername) {
+    rawUsername = rawItem?.title || rawItem?.href || '';
   }
 
   const norm = normalizeInstagramUsername(rawUsername);

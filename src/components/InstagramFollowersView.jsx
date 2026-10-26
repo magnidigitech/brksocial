@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Instagram, Search, Upload, Check, AlertCircle, RefreshCw, 
   ExternalLink, Calendar, Users, ShieldCheck, Download, Clock, Filter,
-  RotateCcw, History, AlertTriangle, ArrowRight, X, ChevronRight, UserMinus, UserCheck, ShieldAlert
+  RotateCcw, History, AlertTriangle, ArrowRight, X, ChevronRight, UserMinus, UserCheck, ShieldAlert,
+  CheckCircle2, FileText
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { followerStorage, extractItemsFromParsedJson, formatFollowerTimestamp } from '../services/followerStorage.js';
@@ -53,19 +54,24 @@ export function InstagramFollowersView() {
   const [checkResult, setCheckResult] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
 
-  // Import Flow States
+  // Visual Progress Import Modal State
   const fileInputRef = useRef(null);
-  const [selectedImportMode, setSelectedImportMode] = useState('RECONCILIATION'); // 'BASELINE' | 'RECONCILIATION'
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
+  const [selectedImportMode, setSelectedImportMode] = useState('BASELINE'); // 'BASELINE' | 'RECONCILIATION'
   const [uploadToast, setUploadToast] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-
-  // Reconciliation Preview Modal State
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewData, setPreviewData] = useState(null);
-  const [pendingPayload, setPendingPayload] = useState(null);
-  const [isCommitting, setIsCommitting] = useState(false);
+  const [importModal, setImportModal] = useState({
+    isOpen: false,
+    mode: 'BASELINE',
+    phase: 'idle',
+    progressPercent: 0,
+    statusText: '',
+    fileName: '',
+    fileSizeStr: '',
+    totalRecords: 0,
+    metrics: null,
+    error: null
+  });
+  const isUploading = importModal.isOpen && importModal.phase !== 'completed' && importModal.phase !== 'error';
 
   // Reset Database Modal State
   const [showResetModal, setShowResetModal] = useState(false);
@@ -250,98 +256,134 @@ export function InstagramFollowersView() {
     }
   };
 
-  // Step 1: Read files and generate non-mutating preview
+  // Read files and execute import with live visual progress bar
   const handleFileSelection = async (e) => {
     const files = e.target.files || (e.dataTransfer && e.dataTransfer.files);
     if (!files || files.length === 0) return;
 
-    setIsUploading(true);
-    setUploadProgress('Reading follower JSON file(s)...');
+    const file = files[0];
+    const mode = selectedImportMode || 'BASELINE';
+    const modeLabel = mode === 'BASELINE' ? 'Mode A: Baseline Import' : 'Mode B: Daily Reconciliation';
+
+    // 1. Open Visual Progress Modal immediately
+    setImportModal({
+      isOpen: true,
+      mode,
+      phase: 'reading',
+      progressPercent: 15,
+      statusText: `Reading ${file.name}...`,
+      fileName: file.name,
+      fileSizeStr: `${Math.round(file.size / 1024).toLocaleString()} KB`,
+      totalRecords: 0,
+      metrics: null,
+      error: null
+    });
     setUploadToast(null);
 
     try {
-      let combinedData = [];
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.name.toLowerCase().endsWith('.json')) {
-          throw new Error(`File "${file.name}" is not a JSON file. Please upload .json files.`);
-        }
-
-        setUploadProgress(`Parsing ${file.name} (${Math.round(file.size / 1024)} KB)...`);
-        const text = await file.text();
-        const json = JSON.parse(text);
-        const items = extractItemsFromParsedJson(json);
-        for (let j = 0; j < items.length; j++) {
-          if (items[j]) combinedData.push(items[j]);
-        }
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        throw new Error(`File "${file.name}" is not a JSON file. Please upload an Instagram export .json file.`);
       }
 
-      if (combinedData.length === 0) {
-        throw new Error('No valid follower records found in uploaded file(s).');
+      await new Promise(r => setTimeout(r, 200));
+
+      // 2. Read and parse JSON
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'reading',
+        progressPercent: 32,
+        statusText: `Parsing ${file.name} JSON content...`
+      }));
+
+      const text = await file.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (jsonErr) {
+        throw new Error(`Invalid JSON format: ${jsonErr.message}`);
       }
 
-      setUploadProgress(`Analyzing ${combinedData.length.toLocaleString()} records for ${selectedImportMode} preview...`);
+      // 3. Extract items
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'extracting',
+        progressPercent: 52,
+        statusText: 'Extracting and normalizing follower handles...'
+      }));
 
-      // Request server-side non-mutating preview
-      const previewRes = await followerStorage.generatePreview(combinedData, selectedImportMode);
+      const items = extractItemsFromParsedJson(json);
+      if (!items || items.length === 0) {
+        throw new Error('No valid follower items found. Please verify your Instagram export JSON.');
+      }
 
-      setPreviewData(previewRes.preview);
-      setPendingPayload(combinedData);
-      setShowPreviewModal(true);
-    } catch (err) {
-      console.error('Preview generation failed:', err);
-      setUploadToast({
-        type: 'error',
-        message: `Failed to prepare import preview: ${err.message}`
-      });
-    } finally {
-      setIsUploading(false);
-      setUploadProgress('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'extracting',
+        progressPercent: 68,
+        statusText: `Found ${items.length.toLocaleString()} records. Reconciling with follower database...`,
+        totalRecords: items.length
+      }));
 
-  // Step 2: Confirm and commit import atomically
-  const handleConfirmCommit = async () => {
-    if (!pendingPayload) return;
+      await new Promise(r => setTimeout(r, 220));
 
-    setIsCommitting(true);
-    setUploadProgress('Committing reconciliation atomically to database...');
-    try {
+      // 4. Send to server for atomic reconciliation / baseline commit
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'syncing',
+        progressPercent: 84,
+        statusText: mode === 'BASELINE' ? 'Saving clean baseline into database...' : 'Calculating new followers and unfollowers...'
+      }));
+
       const result = await followerStorage.commitReconciliation(
-        pendingPayload,
-        selectedImportMode,
+        items,
+        mode,
         'Admin'
       );
 
-      // Re-sync submissions with server
+      // 5. Update submissions & local cache
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'syncing',
+        progressPercent: 96,
+        statusText: 'Updating staff submission credits and cache...'
+      }));
+
       await dbService.syncSubmissionsWithServer();
-
-      setShowPreviewModal(false);
-      setPreviewData(null);
-      setPendingPayload(null);
-
-      setUploadToast({
-        type: 'success',
-        message: `Import Committed Successfully! ${result.validUnique?.toLocaleString()} unique followers (${result.mode === 'BASELINE' ? 'Baseline Set' : `+${result.newFollowers} new, -${result.newUnfollowers} unfollowed`}).`
-      });
-
-      // Refresh all views and metrics
       await fetchAllStats();
       await fetchFollowers(1, searchQuery);
       if (activeTab === 'UNFOLLOWED') fetchUnfollowed(1, unfollowedSearch);
       if (activeTab === 'HISTORY') fetchHistory();
       if (activeTab === 'AUDIT') fetchAuditLogs();
+
+      // 6. Complete!
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'completed',
+        progressPercent: 100,
+        statusText: 'Import completed successfully!',
+        metrics: result
+      }));
+
+      setUploadToast({
+        type: 'success',
+        message: `${modeLabel} Completed! ${(result.validUnique || items.length).toLocaleString()} followers processed.`
+      });
+
     } catch (err) {
-      console.error('Commit failed:', err);
+      console.error('Import failed:', err);
+      setImportModal(prev => ({
+        ...prev,
+        phase: 'error',
+        progressPercent: 0,
+        statusText: 'Import Failed',
+        error: err.message
+      }));
       setUploadToast({
         type: 'error',
-        message: `Import Commit Failed: ${err.message}`
+        message: `Import Error: ${err.message}`
       });
     } finally {
-      setIsCommitting(false);
-      setUploadProgress('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -491,10 +533,10 @@ export function InstagramFollowersView() {
           </div>
           <div>
             <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-              Instagram Full-List Reconciliation System
+              Instagram Follower Tracking
             </h2>
             <p style={{ fontSize: '11.5px', color: '#86868b', margin: '2px 0 0 0' }}>
-              Set Comparison Engine: Retained = Prev ∩ Curr • New = Curr − Prev • Unfollowers = Prev − Curr
+              Upload your Instagram follower JSON export to track active followers, new follows, and unfollowers.
             </p>
           </div>
         </div>
@@ -1487,13 +1529,13 @@ export function InstagramFollowersView() {
         </div>
       )}
 
-      {/* RECONCILIATION PREVIEW MODAL */}
-      {showPreviewModal && previewData && (
+      {/* VISUAL PROGRESS & IMPORT MODAL */}
+      {importModal.isOpen && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(15, 23, 42, 0.72)',
+          backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1502,202 +1544,386 @@ export function InstagramFollowersView() {
         }}>
           <div style={{
             backgroundColor: '#ffffff',
-            borderRadius: '20px',
+            borderRadius: '24px',
             width: '100%',
-            maxWidth: '680px',
-            maxHeight: '90vh',
+            maxWidth: '560px',
+            maxHeight: '92vh',
             overflowY: 'auto',
-            padding: '24px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            border: '1px solid rgba(0, 0, 0, 0.1)'
+            padding: '28px',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+            position: 'relative'
           }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    padding: '3px 8px',
-                    borderRadius: '9999px',
-                    backgroundColor: previewData.mode === 'BASELINE' ? '#e0f2fe' : '#dbeafe',
-                    color: previewData.mode === 'BASELINE' ? '#0369a1' : '#1d4ed8'
-                  }}>
-                    {previewData.mode === 'BASELINE' ? 'Mode A: Baseline Setup' : 'Mode B: Daily Reconciliation'}
-                  </span>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                    Reconciliation Preview & Verification
-                  </h3>
-                </div>
-                <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
-                  Inspect calculated changes before committing atomically to the database.
-                </p>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                  backgroundColor: importModal.mode === 'BASELINE' ? '#e0f2fe' : '#ede9fe',
+                  color: importModal.mode === 'BASELINE' ? '#0369a1' : '#6d28d9',
+                  border: `1px solid ${importModal.mode === 'BASELINE' ? '#bae6fd' : '#ddd6fe'}`
+                }}>
+                  {importModal.mode === 'BASELINE' ? 'Mode A: Baseline Import' : 'Mode B: Daily Reconciliation'}
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                  backgroundColor: importModal.phase === 'completed' ? '#dcfce7' : (importModal.phase === 'error' ? '#fee2e2' : '#f1f5f9'),
+                  color: importModal.phase === 'completed' ? '#15803d' : (importModal.phase === 'error' ? '#b91c1c' : '#475569')
+                }}>
+                  {importModal.phase === 'completed' ? '✓ Completed' : (importModal.phase === 'error' ? '⚠ Error' : 'In Progress')}
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => { setShowPreviewModal(false); setPendingPayload(null); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-              >
-                <X size={20} />
-              </button>
+
+              {(importModal.phase === 'completed' || importModal.phase === 'error') && (
+                <button
+                  type="button"
+                  onClick={() => setImportModal(prev => ({ ...prev, isOpen: false }))}
+                  style={{
+                    border: 'none',
+                    background: '#f1f5f9',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
 
-            {/* Anomaly Warnings if any */}
-            {previewData.warnings && previewData.warnings.length > 0 && (
+            {/* Title & File Pill */}
+            <div style={{ marginBottom: '18px' }}>
+              <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                {importModal.phase === 'completed'
+                  ? 'Import Completed Successfully!'
+                  : (importModal.phase === 'error' ? 'Import Failed' : 'Importing Followers...')}
+              </h3>
+              {importModal.fileName && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  color: '#475569',
+                  backgroundColor: '#f8fafc',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  fontFamily: 'monospace'
+                }}>
+                  <FileText size={13} style={{ color: '#0284c7' }} />
+                  <span>{importModal.fileName}</span>
+                  {importModal.fileSizeStr && (
+                    <span style={{ color: '#94a3b8' }}>({importModal.fileSizeStr})</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* VISUAL ANIMATED PROGRESS BAR */}
+            <div style={{
+              backgroundColor: '#f8fafc',
+              border: '1.5px solid #e2e8f0',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                  {importModal.statusText || 'Processing...'}
+                </span>
+                <span style={{
+                  fontSize: '17px',
+                  fontWeight: 900,
+                  color: importModal.phase === 'completed' ? '#16a34a' : '#0071e3',
+                  fontFamily: 'monospace'
+                }}>
+                  {importModal.progressPercent}%
+                </span>
+              </div>
+
+              {/* Progress Track & Fill */}
               <div style={{
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                marginBottom: '16px',
-                color: '#b91c1c',
-                fontSize: '12.5px',
-                display: 'flex',
-                gap: '8px'
+                height: '14px',
+                borderRadius: '9999px',
+                backgroundColor: '#e2e8f0',
+                overflow: 'hidden',
+                position: 'relative',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
               }}>
-                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{
+                  width: `${importModal.progressPercent}%`,
+                  height: '100%',
+                  borderRadius: '9999px',
+                  background: importModal.phase === 'completed'
+                    ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                    : 'linear-gradient(90deg, #0071e3 0%, #38bdf8 50%, #6366f1 100%)',
+                  transition: 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 1px 6px rgba(0, 113, 227, 0.4)'
+                }} />
+              </div>
+
+              {/* 3 Step Visual Indicators */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px',
+                marginTop: '16px',
+                paddingTop: '12px',
+                borderTop: '1px solid #e2e8f0'
+              }}>
+                {/* Step 1: Read File */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {importModal.phase === 'reading' ? (
+                    <RefreshCw size={13} className="spin" style={{ color: '#0071e3', flexShrink: 0 }} />
+                  ) : (importModal.progressPercent > 32 || importModal.phase === 'completed' ? (
+                    <CheckCircle2 size={13} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
+                  ))}
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 15 ? '#0f172a' : '#94a3b8' }}>
+                    1. Read JSON
+                  </span>
+                </div>
+
+                {/* Step 2: Extract Handles */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {importModal.phase === 'extracting' ? (
+                    <RefreshCw size={13} className="spin" style={{ color: '#0071e3', flexShrink: 0 }} />
+                  ) : (importModal.progressPercent > 68 || importModal.phase === 'completed' ? (
+                    <CheckCircle2 size={13} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
+                  ))}
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 52 ? '#0f172a' : '#94a3b8' }}>
+                    2. Extract Handles
+                  </span>
+                </div>
+
+                {/* Step 3: Sync Database */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {importModal.phase === 'syncing' ? (
+                    <RefreshCw size={13} className="spin" style={{ color: '#0071e3', flexShrink: 0 }} />
+                  ) : (importModal.phase === 'completed' ? (
+                    <CheckCircle2 size={13} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
+                  ))}
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: importModal.progressPercent >= 84 ? '#0f172a' : '#94a3b8' }}>
+                    3. Sync Database
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ERROR DISPLAY */}
+            {importModal.phase === 'error' && (
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                backgroundColor: '#fee2e2',
+                border: '1px solid #fca5a5',
+                color: '#991b1b',
+                fontSize: '13px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <strong>Attention Required:</strong>
-                  <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
-                    {previewData.warnings.map((w, idx) => (
-                      <li key={idx}>{w}</li>
-                    ))}
-                  </ul>
+                  <div style={{ fontWeight: 700, marginBottom: '2px' }}>Import Error</div>
+                  <div>{importModal.error}</div>
                 </div>
               </div>
             )}
 
-            {/* Set Comparison Metric Cards */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-              gap: '10px',
-              marginBottom: '18px'
-            }}>
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Previous Active</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                  {previewData.previousActive?.toLocaleString() || 0}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Valid Unique In File</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                  {previewData.validUnique?.toLocaleString() || 0}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: 600, textTransform: 'uppercase' }}>Retained (Intersection)</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>
-                  {previewData.retained?.toLocaleString() || 0}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                <div style={{ fontSize: '10.5px', color: '#1d4ed8', fontWeight: 600, textTransform: 'uppercase' }}>New Followers</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e40af', marginTop: '2px' }}>
-                  +{previewData.newFollowers?.toLocaleString() || 0}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
-                <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: 600, textTransform: 'uppercase' }}>Newly Unfollowed</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#991b1b', marginTop: '2px' }}>
-                  -{previewData.newUnfollowers?.toLocaleString() || 0}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#faf5ff', border: '1px solid #e9d5ff' }}>
-                <div style={{ fontSize: '10.5px', color: '#7e22ce', fontWeight: 600, textTransform: 'uppercase' }}>Net Change</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#6b21a8', marginTop: '2px' }}>
-                  {previewData.netChange >= 0 ? `+${previewData.netChange}` : previewData.netChange}
-                </div>
-              </div>
-            </div>
-
-            {/* Samples Breakdown */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-              {/* New Followers Sample */}
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', marginBottom: '6px' }}>
-                  Newly Detected Sample ({previewData.sampleNewFollowers?.length || 0}):
-                </div>
-                {previewData.sampleNewFollowers && previewData.sampleNewFollowers.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {previewData.sampleNewFollowers.map((handle, idx) => (
-                      <span key={idx} style={{ fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#eff6ff', color: '#1e40af', padding: '2px 6px', borderRadius: '4px' }}>
-                        @{handle}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>None detected</span>
-                )}
-              </div>
-
-              {/* Unfollowers Sample */}
-              <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#b91c1c', marginBottom: '6px' }}>
-                  Newly Unfollowed Sample ({previewData.sampleUnfollowers?.length || 0}):
-                </div>
-                {previewData.sampleUnfollowers && previewData.sampleUnfollowers.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {previewData.sampleUnfollowers.map((handle, idx) => (
-                      <span key={idx} style={{ fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#fef2f2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px' }}>
-                        @{handle}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>None detected</span>
-                )}
-              </div>
-            </div>
-
-            {/* Commit vs Cancel Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => { setShowPreviewModal(false); setPendingPayload(null); }}
-                disabled={isCommitting}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f1f5f9',
-                  color: '#475569',
-                  border: '1px solid #cbd5e1',
+            {/* RESULTS METRICS (WHEN COMPLETED) */}
+            {importModal.phase === 'completed' && importModal.metrics && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  backgroundColor: importModal.mode === 'BASELINE' ? '#f0fdf4' : '#eff6ff',
+                  border: `1px solid ${importModal.mode === 'BASELINE' ? '#bbf7d0' : '#bfdbfe'}`,
+                  marginBottom: '16px',
+                  fontSize: '12.5px',
+                  color: importModal.mode === 'BASELINE' ? '#166534' : '#1e40af',
                   fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel Without Modifying
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmCommit}
-                disabled={isCommitting}
-                style={{
-                  padding: '10px 22px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#0071e3',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: isCommitting ? 'wait' : 'pointer',
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 12px rgba(0, 113, 227, 0.3)'
-                }}
-              >
-                {isCommitting ? <RefreshCw size={14} className="spin" /> : <Check size={14} />}
-                <span>{isCommitting ? 'Committing Atomic Changes...' : 'Confirm & Commit Import'}</span>
-              </button>
+                  gap: '8px'
+                }}>
+                  <CheckCircle2 size={16} style={{ color: importModal.mode === 'BASELINE' ? '#16a34a' : '#2563eb', flexShrink: 0 }} />
+                  <span>
+                    {importModal.mode === 'BASELINE'
+                      ? 'Baseline successfully established! All active followers have been cleanly synchronized into the database.'
+                      : 'Daily reconciliation finished! New followers and unfollowers have been detected and staff credits updated.'}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '10px'
+                }}>
+                  {/* Total Active Followers */}
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #e2e8f0',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                      Active Followers
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginTop: '2px', fontFamily: 'monospace' }}>
+                      {(importModal.metrics.currentActiveFollowers || importModal.metrics.validUnique || importModal.metrics.activeCount || 0).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Net Change */}
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #e2e8f0',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                      {importModal.mode === 'BASELINE' ? 'Total Unique Valid' : 'Net Follower Change'}
+                    </div>
+                    <div style={{
+                      fontSize: '20px',
+                      fontWeight: 800,
+                      marginTop: '2px',
+                      fontFamily: 'monospace',
+                      color: importModal.mode === 'BASELINE'
+                        ? '#0071e3'
+                        : ((importModal.metrics.netChange || 0) >= 0 ? '#16a34a' : '#dc2626')
+                    }}>
+                      {importModal.mode === 'BASELINE'
+                        ? (importModal.metrics.validUnique || 0).toLocaleString()
+                        : ((importModal.metrics.netChange || 0) >= 0 ? `+${importModal.metrics.netChange || 0}` : importModal.metrics.netChange)}
+                    </div>
+                  </div>
+
+                  {/* New Follows */}
+                  {importModal.mode !== 'BASELINE' && (
+                    <div style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1.5px solid #bbf7d0'
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+                        New Follows
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a', marginTop: '2px', fontFamily: 'monospace' }}>
+                        +{importModal.metrics.newFollowers || 0}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unfollowers */}
+                  {importModal.mode !== 'BASELINE' && (
+                    <div style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: '#fef2f2',
+                      border: '1.5px solid #fecaca'
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase' }}>
+                        Unfollowed
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#dc2626', marginTop: '2px', fontFamily: 'monospace' }}>
+                        -{importModal.metrics.newUnfollowers || 0}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Staff Submissions Updated */}
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #e2e8f0',
+                    gridColumn: 'span 2',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      Employee Outreach Submissions Reconciled:
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0071e3', fontFamily: 'monospace' }}>
+                      {importModal.metrics.submissionsUpdated || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ACTION BUTTON */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              {importModal.phase === 'completed' ? (
+                <button
+                  type="button"
+                  onClick={() => setImportModal(prev => ({ ...prev, isOpen: false }))}
+                  style={{
+                    padding: '11px 24px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#0071e3',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(0, 113, 227, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Check size={16} />
+                  <span>Done & View Followers</span>
+                </button>
+              ) : (importModal.phase === 'error' ? (
+                <button
+                  type="button"
+                  onClick={() => setImportModal(prev => ({ ...prev, isOpen: false }))}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close
+                </button>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <RefreshCw size={13} className="spin" />
+                  <span>Please wait while importing...</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

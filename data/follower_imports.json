@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": "IMP_1793051169483_h30wc",
+    "timestamp": "2026-10-26T21:46:09.483Z",
+    "mode": "RECONCILIATION",
+    "totalSubmitted": 10000,
+    "validUnique": 10000,
+    "previousActiveFollowers": 10000,
+    "currentActiveFollowers": 10000,
+    "activeCount": 10000,
+    "retainedFollowers": 0,
+    "newFollowers": 10000,
+    "newUnfollowers": 10000,
+    "netChange": 0,
+    "invalidOrDuplicate": 0,
+    "submissionsUpdated": 0,
+    "status": "COMPLETED",
+    "operator": "Admin"
+  },
+  {
+    "id": "IMP_1793051149147_8r3p4",
+    "timestamp": "2026-10-26T21:45:49.147Z",
+    "mode": "RECONCILIATION",
+    "totalSubmitted": 10000,
+    "validUnique": 10000,
+    "previousActiveFollowers": 0,
+    "currentActiveFollowers": 10000,
+    "activeCount": 10000,
+    "retainedFollowers": 0,
+    "newFollowers": 10000,
+    "newUnfollowers": 0,
+    "netChange": 10000,
+    "invalidOrDuplicate": 0,
+    "submissionsUpdated": 0,
+    "status": "COMPLETED",
+    "operator": "Admin"
+  }
+]

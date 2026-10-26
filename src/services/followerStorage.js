@@ -82,19 +82,23 @@ export function normalizeFollowerItem(rawItem) {
   // 1. Meta / Instagram standard format: { title: "", string_list_data: [ { href, value, timestamp } ] }
   if (rawItem.string_list_data && Array.isArray(rawItem.string_list_data) && rawItem.string_list_data.length > 0) {
     const data = rawItem.string_list_data[0];
-    username = data.value || '';
+    username = data.value || data.href || rawItem.title || '';
     href = data.href || '';
     timestamp = Number(data.timestamp) || 0;
   }
   // 2. Direct object format: { username, href, timestamp } or { value, href, timestamp }
   else if (typeof rawItem === 'object') {
-    username = rawItem.username || rawItem.value || rawItem.name || '';
+    username = rawItem.username || rawItem.value || rawItem.title || rawItem.name || '';
     href = rawItem.href || rawItem.profile_url || '';
     timestamp = Number(rawItem.timestamp) || 0;
   }
   // 3. Simple string handle
   else if (typeof rawItem === 'string') {
     username = rawItem;
+  }
+
+  if (!username) {
+    username = rawItem?.title || rawItem?.href || '';
   }
 
   const cleanUser = String(username).trim().replace(/^@+/, '');
