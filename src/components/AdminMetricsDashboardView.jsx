@@ -265,8 +265,11 @@ export function AdminMetricsDashboardView() {
     });
 
     const activeEmployees = filteredStaff.length;
-    const dailyTarget = rawStats.selectedTask?.dailyTarget || 10;
-    const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || dailyTarget), 0);
+    const isWeekly = rawStats.selectedTask?.frequency === 'Weekly';
+    const taskTarget = isWeekly
+      ? (rawStats.selectedTask?.weeklyTarget || rawStats.selectedTask?.dailyTarget || 10)
+      : (rawStats.selectedTask?.dailyTarget || 10);
+    const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || taskTarget), 0);
     const validSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
     const duplicates = filteredStaff.reduce((acc, curr) => acc + (curr.duplicate || 0), 0);
     const remaining = Math.max(0, targetSubmissions - validSubmissions);
@@ -560,6 +563,24 @@ export function AdminMetricsDashboardView() {
               }}
             />
           </div>
+
+          {/* Weekly Window Indicator if Selected Task is Weekly */}
+          {stats.isWeekly && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              border: '1px solid rgba(0, 113, 227, 0.2)',
+              borderRadius: '980px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#0071e3'
+            }}>
+              <span>Weekly Window: {stats.weekStartDate} → {selectedDate}</span>
+            </div>
+          )}
 
           {/* Task Selector Filter */}
           <div style={{
@@ -1072,7 +1093,9 @@ export function AdminMetricsDashboardView() {
           overflow: 'hidden'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Verified Submissions</span>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
+              {stats.isWeekly ? `Verified (${stats.weekStartDate || 'Start'} → Today)` : 'Verified Submissions'}
+            </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
               <CheckCircle2 size={16} />
             </div>
@@ -1204,8 +1227,10 @@ export function AdminMetricsDashboardView() {
             }}>
               {activeTask?.platform || 'Instagram'}
             </span>
-            <span style={{ fontSize: '11.5px', fontWeight: 400, color: '#86868b' }}>
-              Target: {activeTask?.dailyTarget || 10} / Staff
+            <span style={{ fontSize: '11.5px', fontWeight: 500, color: '#86868b' }}>
+              {activeTask?.frequency === 'Weekly'
+                ? `Weekly Target: ${activeTask?.weeklyTarget || activeTask?.dailyTarget || 10} / Staff${activeTask?.weekStartDate ? ` (From ${activeTask.weekStartDate} to Today)` : ''}`
+                : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
             </span>
           </div>
         </div>

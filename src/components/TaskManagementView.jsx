@@ -29,6 +29,7 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getDefaultSamplePatterns, patternsToString, stringToPatterns } from '../services/normalization.js';
+import { getMondayOfCurrentWeekIST } from '../services/istUtils.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -76,6 +77,7 @@ export function TaskManagementView() {
     urlSlug: 'instagram',
     dailyTarget: 10,
     frequency: 'Daily',
+    weekStartDate: getMondayOfCurrentWeekIST(),
     scopeType: 'ALL_STAFF',
     duplicateScope: 'Entire Campaign',
     allowExtraSubmissions: true,
@@ -120,6 +122,7 @@ export function TaskManagementView() {
       urlSlug: 'instagram',
       dailyTarget: 10,
       frequency: 'Daily',
+      weekStartDate: getMondayOfCurrentWeekIST(),
       scopeType: 'ALL_STAFF',
       duplicateScope: 'Entire Campaign',
       allowExtraSubmissions: true,
@@ -159,8 +162,9 @@ export function TaskManagementView() {
       submissionType: task.submissionType || 'Instagram Handle',
       targetUrl: task.targetUrl || (task.platform === 'Instagram' ? 'https://www.instagram.com/ramakrishnabhashyam/' : ''),
       urlSlug: task.urlSlug || (task.platform === 'Instagram' ? 'instagram' : 'go'),
-      dailyTarget: task.dailyTarget || 10,
+      dailyTarget: task.dailyTarget || task.weeklyTarget || 10,
       frequency: task.frequency || 'Daily',
+      weekStartDate: task.weekStartDate || getMondayOfCurrentWeekIST(),
       scopeType: scope.scopeType || 'ALL_STAFF',
       duplicateScope: task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: task.rules?.allowExtraSubmissions ?? task.allowExtraSubmissions ?? true,
@@ -299,6 +303,8 @@ export function TaskManagementView() {
         urlSlug: cleanSlug,
         dailyTarget: Number(formData.dailyTarget) || 10,
         frequency: formData.frequency || 'Daily',
+        weekStartDate: formData.frequency === 'Weekly' ? (formData.weekStartDate || getMondayOfCurrentWeekIST()) : null,
+        weeklyTarget: formData.frequency === 'Weekly' ? (Number(formData.dailyTarget) || 10) : (editingTask?.weeklyTarget || null),
         assignmentScope: {
           scopeType: normalizedScopeType,
           targetCodes,
@@ -547,7 +553,7 @@ export function TaskManagementView() {
                     </span>
                   </div>
 
-                  {/* Daily Target */}
+                  {/* Daily / Weekly Target */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -562,10 +568,12 @@ export function TaskManagementView() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Target size={12} style={{ color: '#0071e3' }} />
-                      <span>Daily Target:</span>
+                      <span>{task.frequency === 'Weekly' ? 'Weekly Target:' : 'Daily Target:'}</span>
                     </div>
                     <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
-                      {task.dailyTarget} {task.submissionType || 'entries'} / day
+                      {task.frequency === 'Weekly'
+                        ? `${task.weeklyTarget || task.dailyTarget} ${task.submissionType || 'entries'} / week${task.weekStartDate ? ` (From ${task.weekStartDate})` : ''}`
+                        : `${task.dailyTarget} ${task.submissionType || 'entries'} / day`}
                     </span>
                   </div>
 
@@ -1025,16 +1033,16 @@ export function TaskManagementView() {
                 </div>
               </div>
 
-              {/* Daily Target & Frequency */}
+              {/* Daily / Weekly Target & Frequency */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
-                    Daily Target (per employee)
+                    {formData.frequency === 'Weekly' ? 'Weekly Target (per employee)' : 'Daily Target (per employee)'}
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max="500"
+                    max="5000"
                     required
                     value={formData.dailyTarget}
                     onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
@@ -1057,7 +1065,14 @@ export function TaskManagementView() {
                   </label>
                   <select
                     value={formData.frequency}
-                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                    onChange={(e) => {
+                      const newFreq = e.target.value;
+                      setFormData({
+                        ...formData,
+                        frequency: newFreq,
+                        weekStartDate: newFreq === 'Weekly' ? (formData.weekStartDate || getMondayOfCurrentWeekIST()) : formData.weekStartDate
+                      });
+                    }}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1075,6 +1090,49 @@ export function TaskManagementView() {
                   </select>
                 </div>
               </div>
+
+              {/* Conditional Week Start Date picker when Weekly Target is selected */}
+              {formData.frequency === 'Weekly' && (
+                <div style={{
+                  backgroundColor: 'rgba(0, 113, 227, 0.05)',
+                  border: '1px solid rgba(0, 113, 227, 0.2)',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      📅 Week Start Date
+                    </label>
+                    <span style={{ fontSize: '11px', color: '#0071e3', fontWeight: 600 }}>
+                      Counts progress: <strong>{formData.weekStartDate || getMondayOfCurrentWeekIST()}</strong> → Today
+                    </span>
+                  </div>
+                  <input
+                    type="date"
+                    required
+                    value={formData.weekStartDate || getMondayOfCurrentWeekIST()}
+                    onChange={(e) => setFormData({ ...formData, weekStartDate: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0, 113, 227, 0.3)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#1d1d1f',
+                      backgroundColor: '#ffffff',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: '#555' }}>
+                    Select week start date. Staff submissions logged from this date till today count towards the weekly goal.
+                  </span>
+                </div>
+              )}
 
               {/* GEOGRAPHIC ASSIGNMENT SCOPE WITH MULTI-SELECT CHECKBOXES */}
               <div style={{

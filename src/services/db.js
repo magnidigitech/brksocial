@@ -9,6 +9,7 @@ import {
   formatIST,
   getTodayISTDateString,
   getISTDateFromISO,
+  getMondayOfCurrentWeekIST,
   validateFollowerSubmission,
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
@@ -626,6 +627,11 @@ export const dbService = {
 
   addTask(taskData) {
     const tasks = this.getTasks();
+    const isWeekly = taskData.frequency === 'Weekly';
+    const weeklyTarget = isWeekly 
+      ? Number(taskData.weeklyTarget || taskData.dailyTarget) || 10 
+      : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null);
+    const dailyTarget = Number(taskData.dailyTarget || taskData.weeklyTarget) || 10;
     const newTask = {
       id: taskData.id || `TASK-${Date.now()}`,
       name: taskData.name || 'New Task',
@@ -634,8 +640,10 @@ export const dbService = {
       submissionType: taskData.submissionType || 'Instagram Handle',
       targetUrl: taskData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
       urlSlug: taskData.urlSlug || 'go',
-      dailyTarget: Number(taskData.dailyTarget) || 10,
+      dailyTarget: isWeekly ? weeklyTarget : dailyTarget,
+      weeklyTarget: isWeekly ? weeklyTarget : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null),
       frequency: taskData.frequency || 'Daily',
+      weekStartDate: isWeekly ? (taskData.weekStartDate || getMondayOfCurrentWeekIST()) : (taskData.weekStartDate || null),
       assignmentScope: taskData.assignmentScope || {
         scopeType: 'ALL_STAFF',
         targetCode: null,
@@ -672,7 +680,23 @@ export const dbService = {
     const tasks = this.getTasks();
     const idx = tasks.findIndex(t => t.id === updatedTask.id);
     if (idx !== -1) {
-      tasks[idx] = { ...tasks[idx], ...updatedTask };
+      const isWeekly = updatedTask.frequency === 'Weekly' || (updatedTask.frequency === undefined && tasks[idx].frequency === 'Weekly');
+      const weeklyTarget = isWeekly
+        ? Number(updatedTask.weeklyTarget || updatedTask.dailyTarget || tasks[idx].weeklyTarget || tasks[idx].dailyTarget) || 10
+        : (updatedTask.weeklyTarget !== undefined ? updatedTask.weeklyTarget : (tasks[idx].weeklyTarget || null));
+      const dailyTarget = Number(updatedTask.dailyTarget || updatedTask.weeklyTarget || tasks[idx].dailyTarget) || 10;
+      const weekStartDate = isWeekly 
+        ? (updatedTask.weekStartDate || tasks[idx].weekStartDate || getMondayOfCurrentWeekIST()) 
+        : (updatedTask.weekStartDate || null);
+
+      tasks[idx] = { 
+        ...tasks[idx], 
+        ...updatedTask,
+        dailyTarget: isWeekly ? weeklyTarget : dailyTarget,
+        weeklyTarget: isWeekly ? weeklyTarget : tasks[idx].weeklyTarget,
+        frequency: updatedTask.frequency || tasks[idx].frequency || 'Daily',
+        weekStartDate
+      };
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
 
       try {
@@ -884,11 +908,26 @@ export const dbService = {
   getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null, customSubs = null) {
     const task = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
     const allSubs = this.getSubmissions(null, customSubs);
-    const subs = allSubs.filter(s => 
-      s.employeeId.toUpperCase() === employeeId.toUpperCase() && 
-      (s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr) &&
-      (!task || s.taskId === task.id)
-    );
+
+    const isWeekly = task?.frequency === 'Weekly';
+    const isCampaignTotal = task?.frequency === 'Campaign Total';
+    const weekStart = task?.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST(dateStr) : null);
+
+    const subs = allSubs.filter(s => {
+      if (!s.employeeId || s.employeeId.toUpperCase() !== employeeId.toUpperCase()) return false;
+      if (task && s.taskId !== task.id) return false;
+
+      const subDate = s.date || getISTDateFromISO(s.submittedAt);
+      if (isWeekly && weekStart) {
+        // Count the progress from week start date to till date (dateStr)
+        return subDate >= weekStart && subDate <= dateStr;
+      } else if (isCampaignTotal) {
+        return subDate <= dateStr;
+      } else {
+        // Daily target count
+        return subDate === dateStr;
+      }
+    });
     
     // Strict adherence to validation statuses:
     // Only 'Valid Submission' (or legacy 'Valid') counts towards target
@@ -898,7 +937,9 @@ export const dbService = {
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
 
     const validCount = validSubs.length;
-    const target = task?.dailyTarget || 10;
+    const target = isWeekly 
+      ? (task?.weeklyTarget || task?.dailyTarget || 10) 
+      : (task?.dailyTarget || 10);
     const remaining = Math.max(0, target - validCount);
     const progressPercent = Math.min(100, Math.round((validCount / target) * 100));
 
@@ -921,7 +962,11 @@ export const dbService = {
       progressPercent,
       duplicateCount: alreadyFollowedSubs.length,
       status,
+      isWeekly,
+      weekStartDate: weekStart,
+      periodLabel: isWeekly ? `Weekly (From ${weekStart} to ${dateStr})` : `Daily (${dateStr})`,
       todaySubmissions: subs,
+      periodSubmissions: subs,
       validSubs,
       pendingSubs,
       alreadyFollowedSubs,
@@ -936,18 +981,40 @@ export const dbService = {
     const targetTask = selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask();
 
     let allSubs = this.getSubmissions(null, customSubs);
-    let todaySubs = allSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+    let taskSubs = allSubs;
     if (targetTask) {
-      todaySubs = todaySubs.filter(s => s.taskId === targetTask.id);
+      taskSubs = taskSubs.filter(s => s.taskId === targetTask.id);
     }
 
-    const validSubs = todaySubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
-    const pendingSubs = todaySubs.filter(s => s.status === 'Pending Submission');
-    const alreadyFollowedSubs = todaySubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
-    const invalidSubs = todaySubs.filter(s => s.status === 'Invalid Submission');
+    const isWeekly = targetTask?.frequency === 'Weekly';
+    const isCampaignTotal = targetTask?.frequency === 'Campaign Total';
+    const weekStart = targetTask?.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST(dateStr) : null);
 
-    const dailyTargetPerEmp = targetTask ? (targetTask.dailyTarget || 10) : (this.getActiveTask()?.dailyTarget || 10);
-    const totalTarget = activeEmployees.length * dailyTargetPerEmp;
+    let periodSubs = [];
+    if (isWeekly && weekStart) {
+      // Count submissions from week start date to till date (dateStr)
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        return d >= weekStart && d <= dateStr;
+      });
+    } else if (isCampaignTotal) {
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        return d <= dateStr;
+      });
+    } else {
+      periodSubs = taskSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+    }
+
+    const validSubs = periodSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const pendingSubs = periodSubs.filter(s => s.status === 'Pending Submission');
+    const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
+    const invalidSubs = periodSubs.filter(s => s.status === 'Invalid Submission');
+
+    const targetPerEmp = isWeekly 
+      ? (targetTask?.weeklyTarget || targetTask?.dailyTarget || 10) 
+      : (targetTask?.dailyTarget || 10);
+    const totalTarget = activeEmployees.length * targetPerEmp;
     const validCount = validSubs.length;
     const remainingCount = Math.max(0, totalTarget - validCount);
 
@@ -956,12 +1023,12 @@ export const dbService = {
     let notStartedEmpCount = 0;
 
     const empProgressList = activeEmployees.map(emp => {
-      const empSubs = todaySubs.filter(s => s.employeeId.toUpperCase() === emp.id.toUpperCase());
+      const empSubs = periodSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === emp.id.toUpperCase());
       const empValid = empSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
       const empPending = empSubs.filter(s => s.status === 'Pending Submission').length;
       const empAlready = empSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated').length;
       const empInvalid = empSubs.filter(s => s.status === 'Invalid Submission').length;
-      const target = dailyTargetPerEmp;
+      const target = targetPerEmp;
       const empRemaining = Math.max(0, target - empValid);
 
       let empStatus = 'Not Started';
@@ -991,9 +1058,14 @@ export const dbService = {
     return {
       date: dateStr,
       selectedTask: targetTask,
+      isWeekly,
+      frequency: targetTask?.frequency || 'Daily',
+      weekStartDate: weekStart,
+      periodLabel: isWeekly ? `Weekly (From ${weekStart} to ${dateStr})` : `Daily (${dateStr})`,
       totalEmployees: employees.length,
       activeEmployees: activeEmployees.length,
       tasksToday: tasks.length,
+      totalTarget,
       targetSubmissions: totalTarget,
       validSubmissions: validCount,
       pendingSubmissions: pendingSubs.length,

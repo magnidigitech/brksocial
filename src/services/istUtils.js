@@ -105,6 +105,27 @@ export function getISTDateOffset(daysOffset = 0) {
 }
 
 /**
+ * Returns the Monday date of the current week in IST (YYYY-MM-DD)
+ */
+export function getMondayOfCurrentWeekIST(referenceDateStr = null) {
+  const baseStr = referenceDateStr || getTodayISTDateString();
+  const d = new Date(baseStr + 'T12:00:00+05:30');
+  const day = d.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(monday);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const dayVal = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${dayVal}`;
+}
+
+/**
  * Returns date in IST formatted as YYYY-MM-DD from any ISO string
  */
 export function getISTDateFromISO(isoString) {

@@ -493,10 +493,10 @@ export function EmployeePortal({ session, onLogout }) {
       : getDefaultSamplePatterns(activeTask.platform, activeTask.submissionType))
     : [];
 
-  // Aggregated daily metrics for landing page across all assigned tasks
+  // Aggregated metrics for landing page across all assigned tasks
   const allTasksSummary = assignedTasks.map(t => {
     const s = dbService.getEmployeeDailyStats(currentEmpId, todayStr, t.id);
-    const target = t.dailyTarget || 10;
+    const target = s?.target || (t.frequency === 'Weekly' ? (t.weeklyTarget || t.dailyTarget || 10) : (t.dailyTarget || 10));
     const valid = s?.validCount || 0;
     return {
       task: t,
@@ -706,7 +706,7 @@ export function EmployeePortal({ session, onLogout }) {
                       fontWeight: 700,
                       color: '#334155'
                     }}>
-                      Target: <strong>{activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'} / day
+                      Target: <strong>{activeTask.frequency === 'Weekly' ? (activeTask.weeklyTarget || activeTask.dailyTarget) : activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'} {activeTask.frequency === 'Weekly' ? (activeTask.weekStartDate ? `/ week (From ${activeTask.weekStartDate})` : '/ week') : '/ day'}
                     </div>
                   </div>
 
@@ -714,9 +714,13 @@ export function EmployeePortal({ session, onLogout }) {
                   {taskStats && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
-                        <span>Daily Completion Progress</span>
-                        <span style={{ color: taskStats.validCount >= activeTask.dailyTarget ? '#16a34a' : '#ea580c' }}>
-                          {taskStats.validCount} / {activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
+                        <span>
+                          {activeTask.frequency === 'Weekly' 
+                            ? `Weekly Completion (${taskStats.weekStartDate || activeTask.weekStartDate || 'Start'} to Today)` 
+                            : 'Daily Completion Progress'}
+                        </span>
+                        <span style={{ color: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget) ? '#16a34a' : '#ea580c' }}>
+                          {taskStats.validCount} / {taskStats.target || (activeTask.frequency === 'Weekly' ? (activeTask.weeklyTarget || activeTask.dailyTarget) : activeTask.dailyTarget)} Valid ({taskStats.progressPercent}%)
                         </span>
                       </div>
 
@@ -730,7 +734,7 @@ export function EmployeePortal({ session, onLogout }) {
                         <div style={{
                           width: `${taskStats.progressPercent}%`,
                           height: '100%',
-                          background: taskStats.validCount >= activeTask.dailyTarget
+                          background: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget)
                             ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
                             : 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
                           borderRadius: '9999px',
@@ -1699,7 +1703,7 @@ export function EmployeePortal({ session, onLogout }) {
                     const Icon = PLATFORM_ICONS[task.platform] || Share2;
                     const theme = PLATFORM_THEMES[task.platform] || PLATFORM_THEMES['Custom'];
                     const item = allTasksSummary.find(s => s.task.id === task.id);
-                    const target = task.dailyTarget || 10;
+                    const target = task.frequency === 'Weekly' ? (task.weeklyTarget || task.dailyTarget || 10) : (task.dailyTarget || 10);
                     const valid = item?.valid || 0;
                     const pct = Math.min(100, Math.round((valid / target) * 100));
                     const isMet = valid >= target;
@@ -1817,7 +1821,10 @@ export function EmployeePortal({ session, onLogout }) {
                           <div style={{ marginBottom: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '5px' }}>
                               <span style={{ fontWeight: 600, color: '#64748b' }}>
-                                Daily Progress: <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
+                                {task.frequency === 'Weekly'
+                                  ? `Weekly (${task.weekStartDate || 'Start'} → Today): `
+                                  : 'Daily Progress: '}
+                                <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
                               </span>
                               <span style={{ fontWeight: 800, color: isMet ? '#16a34a' : '#ff4d00' }}>
                                 {pct}%
