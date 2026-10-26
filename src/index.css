@@ -728,38 +728,65 @@ input::-ms-clear {
   }
 }
 
-/* Employee Portal Desktop 2-Column Responsive Layout */
+/* Employee Portal Responsive 2-Column Desktop & Streamlined Mobile Layout */
 .portal-content-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
   width: 100%;
 }
 
-.portal-left-column {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.portal-column {
   min-width: 0;
+  width: 100%;
 }
 
-.portal-right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
+@media (max-width: 1023px) {
+  .portal-column {
+    display: contents;
+  }
+
+  .portal-area-task {
+    order: 1;
+    width: 100%;
+  }
+
+  .portal-area-entry {
+    order: 2;
+    width: 100%;
+  }
+
+  .portal-area-tracking {
+    order: 3;
+    width: 100%;
+  }
+
+  .portal-area-history {
+    order: 4;
+    width: 100%;
+  }
 }
 
 @media (min-width: 1024px) {
   .portal-content-grid {
-    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
     gap: 24px;
     align-items: start;
   }
 
-  .portal-right-column .dashboard-section-card {
-    position: sticky;
-    top: 20px;
+  .portal-column {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .portal-area-task,
+  .portal-area-entry,
+  .portal-area-tracking,
+  .portal-area-history {
+    order: unset;
   }
 }
 
@@ -767,7 +794,10 @@ input::-ms-clear {
   .portal-content-grid {
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
     gap: 28px;
-    align-items: start;
+  }
+
+  .portal-column {
+    gap: 28px;
   }
 }
 

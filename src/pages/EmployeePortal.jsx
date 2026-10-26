@@ -528,10 +528,10 @@ export function EmployeePortal({ session, onLogout }) {
         {/* ACTIVE TASK & SUBMISSIONS 2-COLUMN DESKTOP GRID */}
         {activeTask ? (
           <div className="portal-content-grid">
-            {/* LEFT COLUMN: Task Details, Entry Form & Outreach Tracking Link */}
-            <div className="portal-left-column">
+            {/* LEFT COLUMN: Task Details & Citizen Outreach Tracking Link */}
+            <div className="portal-column portal-left-column">
               {/* 1. Task Overview Box with Daily Completion Progress */}
-              <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
+              <div className="dashboard-section-card portal-area-task" style={{ backgroundColor: '#fafafa' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {/* Perfectly Round Platform Icon */}
@@ -606,332 +606,9 @@ export function EmployeePortal({ session, onLogout }) {
               )}
             </div>
 
-            {/* 2. SUBMISSION ENTRY FORM (MOVED HERE DIRECTLY BELOW DAILY PROGRESS) */}
-            <div className="dashboard-section-card">
-              <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
-                New Submission Entry ({activeTask.submissionType || 'Input'})
-              </h3>
-
-              {feedback && (
-                <div style={{
-                  marginBottom: '14px',
-                  padding: '10px 14px',
-                  borderRadius: '12px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                  backgroundColor: feedback.type === 'success'
-                    ? '#ecfdf5'
-                    : (feedback.type === 'pending'
-                      ? 'rgba(0, 113, 227, 0.08)'
-                      : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
-                  color: feedback.type === 'success'
-                    ? '#047857'
-                    : (feedback.type === 'pending'
-                      ? '#0071e3'
-                      : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
-                  border: `1px solid ${feedback.type === 'success'
-                    ? '#a7f3d0'
-                    : (feedback.type === 'pending'
-                      ? 'rgba(0, 113, 227, 0.25)'
-                      : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
-                    }`
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    {feedback.type === 'success' ? (
-                      <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
-                    ) : feedback.type === 'pending' ? (
-                      <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
-                    ) : feedback.type === 'warning' ? (
-                      <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                    ) : (
-                      <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
-                    )}
-                    <span style={{ lineHeight: 1.4 }}>{feedback.message}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setFeedback(null)}
-                    aria-label="Dismiss notification"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '3px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'inherit',
-                      opacity: 0.65,
-                      borderRadius: '6px',
-                      flexShrink: 0
-                    }}
-                    title="Dismiss"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type="text"
-                      required
-                      disabled={isSubmitting}
-                      placeholder={
-                        activeTask.submissionType === 'Mobile Number'
-                          ? 'Enter 10-digit voter mobile number...'
-                          : `Enter ${activeTask.submissionType} or URL`
-                      }
-                      value={inputVal}
-                      onChange={(e) => setInputVal(e.target.value)}
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        padding: '12px 44px 12px 18px',
-                        borderRadius: '980px',
-                        border: '1px solid rgba(0, 0, 0, 0.1)',
-                        fontSize: '13.5px',
-                        fontWeight: 500,
-                        outline: 'none',
-                        backgroundColor: 'rgba(118, 118, 128, 0.06)',
-                        color: '#1d1d1f'
-                      }}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => setShowPatternHelp(prev => !prev)}
-                      title="View sample username & URL patterns"
-                      aria-label="View sample username & URL patterns"
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: showPatternHelp ? '#0071e3' : '#64748b',
-                        cursor: 'pointer',
-                        borderRadius: '50%',
-                        transition: 'color 0.15s ease'
-                      }}
-                    >
-                      <HelpCircle size={18} />
-                    </button>
-                  </div>
-
-                  {showPatternHelp && (
-                    <div style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '16px',
-                      border: '1px solid #e2e8f0',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
-                      padding: '14px 16px',
-                      fontSize: '12.5px',
-                      color: '#334155'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0f172a' }}>
-                          <Info size={15} style={{ color: '#0071e3' }} />
-                          <span>Accepted Username & URL Patterns</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowPatternHelp(false)}
-                          aria-label="Close pattern help"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#94a3b8',
-                            cursor: 'pointer',
-                            padding: '2px',
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <X size={15} />
-                        </button>
-                      </div>
-
-                      <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
-                        Supported formats for submission entries:
-                      </p>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@username</span>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>With @ prefix</span>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>username</span>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>Plain handle</span>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
-                            https://instagram.com/username
-                          </span>
-                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
-                        </div>
-
-                        <div
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11.5px', wordBreak: 'break-all' }}>
-                            https://instagram.com/username?igsh=...
-                          </span>
-                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Share URL</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !inputVal.trim()}
-                    style={{
-                      width: '100%',
-                      padding: '12px 24px',
-                      borderRadius: '980px',
-                      border: 'none',
-                      backgroundColor: '#0071e3',
-                      color: '#ffffff',
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      cursor: isSubmitting || !inputVal.trim() ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 3px 10px rgba(0, 113, 227, 0.3)',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Send size={15} />
-                    <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
-                  </button>
-                </div>
-
-                {/* Live Real-Time Follower & Duplicate Preview Badge */}
-                {liveCheck && !feedback && (
-                  <div style={{
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    fontSize: '12.5px',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '9px',
-                    backgroundColor: liveCheck.status === 'Valid Submission'
-                      ? 'rgba(52, 199, 89, 0.08)'
-                      : (liveCheck.status === 'Already Followed'
-                        ? 'rgba(255, 149, 0, 0.10)'
-                        : (liveCheck.status === 'Pending Submission'
-                          ? 'rgba(0, 113, 227, 0.06)'
-                          : 'rgba(255, 59, 48, 0.08)')),
-                    border: `1px solid ${liveCheck.status === 'Valid Submission'
-                      ? 'rgba(52, 199, 89, 0.25)'
-                      : (liveCheck.status === 'Already Followed'
-                        ? 'rgba(255, 149, 0, 0.3)'
-                        : (liveCheck.status === 'Pending Submission'
-                          ? 'rgba(0, 113, 227, 0.2)'
-                          : 'rgba(255, 59, 48, 0.25)'))
-                      }`,
-                    color: liveCheck.status === 'Valid Submission'
-                      ? '#1b5e20'
-                      : (liveCheck.status === 'Already Followed'
-                        ? '#c2410c'
-                        : (liveCheck.status === 'Pending Submission'
-                          ? '#0071e3'
-                          : '#b91c1c'))
-                  }}>
-                    {liveCheck.status === 'Valid Submission' ? (
-                      <>
-                        <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
-                        <span>
-                          <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST.
-                        </span>
-                      </>
-                    ) : liveCheck.status === 'Already Followed' ? (
-                      <>
-                        <AlertTriangle size={16} style={{ color: '#ea580c', flexShrink: 0 }} />
-                        <span>
-                          <strong>Already Followed:</strong> {liveCheck.message}
-                        </span>
-                      </>
-                    ) : liveCheck.status === 'Pending Submission' ? (
-                      <>
-                        <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
-                        <span>
-                          <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' will be saved as <strong>Pending Submission</strong>.
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
-                        <span>
-                          <strong>{liveCheck.status}:</strong> {liveCheck.message}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </form>
-            </div>
-
-            {/* 3. YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
+            {/* 2. CITIZEN OUTREACH TRACKING LINK CARD */}
             {effectiveLink && (
-              <div className="dashboard-section-card" style={{
+              <div className="dashboard-section-card portal-area-tracking" style={{
                 background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
                 border: '1.5px solid #ffedd5',
                 boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
@@ -1157,10 +834,333 @@ export function EmployeePortal({ session, onLogout }) {
             )}
             </div>
 
-            {/* RIGHT COLUMN: Submissions History (Today & Previous Tabs) */}
-            <div className="portal-right-column">
+            {/* RIGHT COLUMN: Submission Entry on top of Submissions History */}
+            <div className="portal-column portal-right-column">
+              {/* 3. SUBMISSION ENTRY FORM */}
+              <div className="dashboard-section-card portal-area-entry">
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
+                  New Submission Entry ({activeTask.submissionType || 'Input'})
+                </h3>
+
+                {feedback && (
+                  <div style={{
+                    marginBottom: '14px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    backgroundColor: feedback.type === 'success'
+                      ? '#ecfdf5'
+                      : (feedback.type === 'pending'
+                        ? 'rgba(0, 113, 227, 0.08)'
+                        : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
+                    color: feedback.type === 'success'
+                      ? '#047857'
+                      : (feedback.type === 'pending'
+                        ? '#0071e3'
+                        : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
+                    border: `1px solid ${feedback.type === 'success'
+                      ? '#a7f3d0'
+                      : (feedback.type === 'pending'
+                        ? 'rgba(0, 113, 227, 0.25)'
+                        : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
+                      }`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                      {feedback.type === 'success' ? (
+                        <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                      ) : feedback.type === 'pending' ? (
+                        <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                      ) : feedback.type === 'warning' ? (
+                        <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                      ) : (
+                        <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                      )}
+                      <span style={{ lineHeight: 1.4 }}>{feedback.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFeedback(null)}
+                      aria-label="Dismiss notification"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '3px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'inherit',
+                        opacity: 0.65,
+                        borderRadius: '6px',
+                        flexShrink: 0
+                      }}
+                      title="Dismiss"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <input
+                        type="text"
+                        required
+                        disabled={isSubmitting}
+                        placeholder={
+                          activeTask.submissionType === 'Mobile Number'
+                            ? 'Enter 10-digit voter mobile number...'
+                            : `Enter ${activeTask.submissionType} or URL`
+                        }
+                        value={inputVal}
+                        onChange={(e) => setInputVal(e.target.value)}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          padding: '12px 44px 12px 18px',
+                          borderRadius: '980px',
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: '13.5px',
+                          fontWeight: 500,
+                          outline: 'none',
+                          backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                          color: '#1d1d1f'
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPatternHelp(prev => !prev)}
+                        title="View sample username & URL patterns"
+                        aria-label="View sample username & URL patterns"
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: showPatternHelp ? '#0071e3' : '#64748b',
+                          cursor: 'pointer',
+                          borderRadius: '50%',
+                          transition: 'color 0.15s ease'
+                        }}
+                      >
+                        <HelpCircle size={18} />
+                      </button>
+                    </div>
+
+                    {showPatternHelp && (
+                      <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '16px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                        padding: '14px 16px',
+                        fontSize: '12.5px',
+                        color: '#334155'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0f172a' }}>
+                            <Info size={15} style={{ color: '#0071e3' }} />
+                            <span>Accepted Username & URL Patterns</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowPatternHelp(false)}
+                            aria-label="Close pattern help"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#94a3b8',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+
+                        <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
+                          Supported formats for submission entries:
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div
+                            style={{
+                              padding: '7px 12px',
+                              borderRadius: '8px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@username</span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>With @ prefix</span>
+                          </div>
+
+                          <div
+                            style={{
+                              padding: '7px 12px',
+                              borderRadius: '8px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>username</span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>Plain handle</span>
+                          </div>
+
+                          <div
+                            style={{
+                              padding: '7px 12px',
+                              borderRadius: '8px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                              https://instagram.com/username
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
+                          </div>
+
+                          <div
+                            style={{
+                              padding: '7px 12px',
+                              borderRadius: '8px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11.5px', wordBreak: 'break-all' }}>
+                              https://instagram.com/username?igsh=...
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Share URL</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !inputVal.trim()}
+                      style={{
+                        width: '100%',
+                        padding: '12px 24px',
+                        borderRadius: '980px',
+                        border: 'none',
+                        backgroundColor: '#0071e3',
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        cursor: isSubmitting || !inputVal.trim() ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 3px 10px rgba(0, 113, 227, 0.3)',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Send size={15} />
+                      <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
+                    </button>
+                  </div>
+
+                  {/* Live Real-Time Follower & Duplicate Preview Badge */}
+                  {liveCheck && !feedback && (
+                    <div style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      fontSize: '12.5px',
+                      fontWeight: 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '9px',
+                      backgroundColor: liveCheck.status === 'Valid Submission'
+                        ? 'rgba(52, 199, 89, 0.08)'
+                        : (liveCheck.status === 'Already Followed'
+                          ? 'rgba(255, 149, 0, 0.10)'
+                          : (liveCheck.status === 'Pending Submission'
+                            ? 'rgba(0, 113, 227, 0.06)'
+                            : 'rgba(255, 59, 48, 0.08)')),
+                      border: `1px solid ${liveCheck.status === 'Valid Submission'
+                        ? 'rgba(52, 199, 89, 0.25)'
+                        : (liveCheck.status === 'Already Followed'
+                          ? 'rgba(255, 149, 0, 0.3)'
+                          : (liveCheck.status === 'Pending Submission'
+                            ? 'rgba(0, 113, 227, 0.2)'
+                            : 'rgba(255, 59, 48, 0.25)'))
+                        }`,
+                      color: liveCheck.status === 'Valid Submission'
+                        ? '#1b5e20'
+                        : (liveCheck.status === 'Already Followed'
+                          ? '#c2410c'
+                          : (liveCheck.status === 'Pending Submission'
+                            ? '#0071e3'
+                            : '#b91c1c'))
+                    }}>
+                      {liveCheck.status === 'Valid Submission' ? (
+                        <>
+                          <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
+                          <span>
+                            <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST.
+                          </span>
+                        </>
+                      ) : liveCheck.status === 'Already Followed' ? (
+                        <>
+                          <AlertTriangle size={16} style={{ color: '#ea580c', flexShrink: 0 }} />
+                          <span>
+                            <strong>Already Followed:</strong> {liveCheck.message}
+                          </span>
+                        </>
+                      ) : liveCheck.status === 'Pending Submission' ? (
+                        <>
+                          <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                          <span>
+                            <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' will be saved as <strong>Pending Submission</strong>.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
+                          <span>
+                            <strong>{liveCheck.status}:</strong> {liveCheck.message}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </form>
+              </div>
+
               {/* 4. SUBMISSIONS LOG (WITH TABS FOR TODAY & PREVIOUS SUBMISSIONS) */}
-              <div className="dashboard-section-card">
+              <div className="dashboard-section-card portal-area-history">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
                   Submissions History
