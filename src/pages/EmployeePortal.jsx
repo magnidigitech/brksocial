@@ -387,7 +387,7 @@ export function EmployeePortal({ session, onLogout }) {
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
   return (
-    <div className="dashboard-page-wrapper">
+    <div className="dashboard-page-wrapper" style={{ padding: 0 }}>
       {/* Background Soft Glow */}
       <div style={{
         position: 'absolute',
