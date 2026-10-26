@@ -6,15 +6,21 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PAT_STAFF_OCTOBER_2026 } from './src/services/staffSeedData.js';
+import {
+  normalizeInstagramUsername,
+  parseFollowerItem,
+  processFollowerPayload,
+  extractItemsFromParsedJson
+} from './src/services/instagramUtils.js';
 
 dotenv.config();
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ADMIN_RESET_PASSWORD = process.env.ADMIN_RESET_PASSWORD || 'Magni@3939';
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
@@ -28,6 +34,9 @@ const FOLLOWERS_FILE = path.join(DATA_DIR, 'instagram_followers.json');
 const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const EMPLOYEES_FILE = path.join(DATA_DIR, 'employees.json');
+const IMPORTS_FILE = path.join(DATA_DIR, 'follower_imports.json');
+const EVENTS_FILE = path.join(DATA_DIR, 'follower_events.json');
+const AUDIT_LOGS_FILE = path.join(DATA_DIR, 'admin_audit_logs.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -44,6 +53,15 @@ if (!fs.existsSync(CLICKS_FILE)) {
 }
 if (!fs.existsSync(SUBMISSIONS_FILE)) {
   fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([]), 'utf8');
+}
+if (!fs.existsSync(IMPORTS_FILE)) {
+  fs.writeFileSync(IMPORTS_FILE, JSON.stringify([]), 'utf8');
+}
+if (!fs.existsSync(EVENTS_FILE)) {
+  fs.writeFileSync(EVENTS_FILE, JSON.stringify([]), 'utf8');
+}
+if (!fs.existsSync(AUDIT_LOGS_FILE)) {
+  fs.writeFileSync(AUDIT_LOGS_FILE, JSON.stringify([]), 'utf8');
 }
 if (!fs.existsSync(TASKS_FILE)) {
   fs.writeFileSync(TASKS_FILE, JSON.stringify([
@@ -141,13 +159,101 @@ function saveStoredClicks(clicks) {
 }
 
 // ==========================================
-// Instagram Followers In-Memory Engine & Upsert
+// Follower Imports, Events, Audit Log Storage
+// ==========================================
+function getStoredImports() {
+  try {
+    if (fs.existsSync(IMPORTS_FILE)) {
+      return JSON.parse(fs.readFileSync(IMPORTS_FILE, 'utf8')) || [];
+    }
+  } catch (err) {
+    console.error('Error reading imports file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredImports(importsList) {
+  try {
+    fs.writeFileSync(IMPORTS_FILE, JSON.stringify(importsList.slice(0, 500), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving imports file:', err.message);
+  }
+}
+
+function getStoredEvents() {
+  try {
+    if (fs.existsSync(EVENTS_FILE)) {
+      return JSON.parse(fs.readFileSync(EVENTS_FILE, 'utf8')) || [];
+    }
+  } catch (err) {
+    console.error('Error reading events file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredEvents(eventsList) {
+  try {
+    fs.writeFileSync(EVENTS_FILE, JSON.stringify(eventsList.slice(0, 10000), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving events file:', err.message);
+  }
+}
+
+function getStoredAuditLogs() {
+  try {
+    if (fs.existsSync(AUDIT_LOGS_FILE)) {
+      return JSON.parse(fs.readFileSync(AUDIT_LOGS_FILE, 'utf8')) || [];
+    }
+  } catch (err) {
+    console.error('Error reading audit logs file:', err.message);
+  }
+  return [];
+}
+
+function saveStoredAuditLogs(logsList) {
+  try {
+    fs.writeFileSync(AUDIT_LOGS_FILE, JSON.stringify(logsList.slice(0, 1000), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving audit logs file:', err.message);
+  }
+}
+
+function logAuditAction(action, operator, details, result = 'SUCCESS') {
+  const auditEntry = {
+    id: `AUD_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    action,
+    operator: operator || 'Administrator',
+    details: typeof details === 'object' ? JSON.stringify(details) : String(details),
+    result,
+    createdAt: new Date().toISOString()
+  };
+
+  const logs = getStoredAuditLogs();
+  logs.unshift(auditEntry);
+  saveStoredAuditLogs(logs);
+
+  if (isDbConnected) {
+    pool.query(
+      `INSERT INTO admin_audit_logs (id, action, operator, details, result, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [auditEntry.id, auditEntry.action, auditEntry.operator, auditEntry.details, auditEntry.result, auditEntry.createdAt]
+    ).catch(e => console.warn('PostgreSQL audit log insert error:', e.message));
+  }
+
+  return auditEntry;
+}
+
+// ==========================================
+// Instagram Followers Canonical In-Memory Map
 // ==========================================
 let FOLLOWERS_MAP = new Map();
+let isReconciliationLocked = false;
 
 function formatFollowerTimestamp(ts) {
   if (!ts) return '';
-  const date = new Date(Number(ts) * 1000);
+  const num = Number(ts);
+  const ms = num < 1e11 ? num * 1000 : num;
+  const date = new Date(ms);
   if (isNaN(date.getTime())) return '';
   const parts = new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -171,7 +277,7 @@ function loadFollowersFromDisk() {
     if (fs.existsSync(FOLLOWERS_FILE)) {
       const raw = fs.readFileSync(FOLLOWERS_FILE, 'utf8');
       const list = JSON.parse(raw) || [];
-      if (Array.isArray(list) && list.length > 0) {
+      if (Array.isArray(list)) {
         FOLLOWERS_MAP = new Map();
         list.forEach(f => {
           const k = (f.key || f.username || '').toLowerCase().replace(/^@+/, '').trim();
@@ -179,6 +285,10 @@ function loadFollowersFromDisk() {
             if (!f.followedAtFormatted && f.timestamp) {
               f.followedAtFormatted = formatFollowerTimestamp(f.timestamp);
             }
+            if (!f.status) f.status = 'active';
+            if (!f.firstSeenAt) f.firstSeenAt = f.timestamp ? new Date(Number(f.timestamp) * 1000).toISOString() : new Date().toISOString();
+            if (!f.lastSeenAt) f.lastSeenAt = new Date().toISOString();
+            if (!f.lastFollowedAt) f.lastFollowedAt = f.firstSeenAt;
             FOLLOWERS_MAP.set(k, f);
           }
         });
@@ -187,104 +297,569 @@ function loadFollowersFromDisk() {
       }
     }
 
-    // Auto-seed from local followers_1.json and followers_2.json or public/data/ if available
-    const candidatePaths = [
-      path.join(__dirname, 'followers_1.json'),
-      path.join(__dirname, 'followers_2.json'),
-      path.join(__dirname, 'public', 'data', 'followers_1.json'),
-      path.join(__dirname, 'public', 'data', 'followers_2.json')
-    ];
+    // Auto-seed only on very first cold setup if no baseline has ever been established
+    const imports = getStoredImports();
+    if (imports.length === 0 && FOLLOWERS_MAP.size === 0) {
+      const candidatePaths = [
+        path.join(__dirname, 'followers_1.json'),
+        path.join(__dirname, 'followers_2.json'),
+        path.join(__dirname, 'public', 'data', 'followers_1.json'),
+        path.join(__dirname, 'public', 'data', 'followers_2.json')
+      ];
 
-    let seedList = [];
-    candidatePaths.forEach(p => {
-      if (fs.existsSync(p)) {
-        try {
-          const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
-          if (Array.isArray(parsed)) {
-            for (let i = 0; i < parsed.length; i++) {
-              if (parsed[i]) seedList.push(parsed[i]);
+      let seedList = [];
+      candidatePaths.forEach(p => {
+        if (fs.existsSync(p)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+            const items = extractItemsFromParsedJson(parsed);
+            if (Array.isArray(items)) {
+              for (let i = 0; i < items.length; i++) {
+                if (items[i]) seedList.push(items[i]);
+              }
             }
+          } catch (e) {
+            console.warn(`Could not parse seed file ${p}:`, e.message);
           }
-        } catch (e) {
-          console.warn(`Could not parse seed file ${p}:`, e.message);
         }
-      }
-    });
+      });
 
-    if (seedList.length > 0) {
-      console.log(`Auto-seeding Instagram followers from local JSON files (${seedList.length} records)...`);
-      upsertFollowersData(seedList);
+      if (seedList.length > 0) {
+        console.log(`Auto-seeding initial baseline from local JSON files (${seedList.length} records)...`);
+        executeReconciliationCommit(seedList, 'BASELINE', 'System Auto-Seed').catch(e => {
+          console.warn('Auto-seed reconciliation warning:', e.message);
+        });
+      }
     }
   } catch (err) {
     console.error('Error loading followers:', err.message);
   }
 }
 
-function upsertFollowersData(incomingData) {
-  let countAdded = 0;
-  let countUpdated = 0;
-  let items = [];
-
-  if (Array.isArray(incomingData)) {
-    items = incomingData;
-  } else if (incomingData && typeof incomingData === 'object') {
-    const candidateArrays = [
-      incomingData.followers,
-      incomingData.relationships_followers,
-      incomingData.data,
-      incomingData.items,
-      incomingData.users
-    ];
-    for (const arr of candidateArrays) {
-      if (Array.isArray(arr)) {
-        items = arr;
-        break;
-      }
-    }
-    if (!items.length) items = [incomingData];
+/**
+ * Generate Reconciliation Preview (Non-mutating)
+ */
+function generateReconciliationPreview(payload, mode = 'RECONCILIATION') {
+  const processed = processFollowerPayload(payload);
+  if (!processed.isValid) {
+    return {
+      success: false,
+      error: processed.error || 'Invalid follower payload.',
+      readyToCommit: false
+    };
   }
 
-  items.forEach(item => {
-    let username = null;
-    let href = null;
-    let timestamp = 0;
-
-    if (item && item.string_list_data && item.string_list_data.length > 0) {
-      const d = item.string_list_data[0];
-      username = d.value;
-      href = d.href;
-      timestamp = Number(d.timestamp) || 0;
-    } else if (item && (item.value || item.username)) {
-      username = item.value || item.username;
-      href = item.href;
-      timestamp = Number(item.timestamp) || 0;
-    } else if (typeof item === 'string') {
-      username = item;
+  const incomingMap = processed.uniqueMap;
+  const currentActiveKeys = new Set();
+  
+  for (const [key, follower] of FOLLOWERS_MAP.entries()) {
+    if (follower.status === 'active' || !follower.status) {
+      currentActiveKeys.add(key);
     }
+  }
 
-    if (username) {
-      const cleanKey = String(username).trim().toLowerCase().replace(/^@+/, '');
-      if (!cleanKey) return;
-      const existing = FOLLOWERS_MAP.get(cleanKey);
-      const effTimestamp = timestamp || (existing ? existing.timestamp : Math.floor(Date.now() / 1000));
+  const previousActiveCount = currentActiveKeys.size;
+  const validUniqueCount = incomingMap.size;
 
-      const record = {
-        username: String(username).trim().replace(/^@+/, ''),
-        key: cleanKey,
-        href: href || `https://www.instagram.com/${cleanKey}`,
-        timestamp: effTimestamp,
-        followedAtFormatted: formatFollowerTimestamp(effTimestamp),
-        updatedAt: new Date().toISOString()
-      };
+  let retainedKeys = [];
+  let newFollowerKeys = [];
+  let unfollowerKeys = [];
+  const warnings = [];
 
-      if (!existing) {
-        countAdded++;
+  if (mode === 'BASELINE') {
+    // Mode A: Baseline establishes initial state. All valid unique become active.
+    for (const key of incomingMap.keys()) {
+      newFollowerKeys.push(key);
+    }
+    if (previousActiveCount > 0) {
+      warnings.push(`Establishing a fresh baseline will reset active records. The new baseline will contain ${validUniqueCount.toLocaleString()} followers.`);
+    }
+  } else {
+    // Mode B: Set Comparison:
+    // Retained = Previous ∩ Current
+    // New = Current - Previous
+    // Unfollowers = Previous - Current
+    for (const key of incomingMap.keys()) {
+      if (currentActiveKeys.has(key)) {
+        retainedKeys.push(key);
       } else {
-        countUpdated++;
+        newFollowerKeys.push(key);
       }
-      FOLLOWERS_MAP.set(cleanKey, record);
     }
-  });
+
+    for (const key of currentActiveKeys) {
+      if (!incomingMap.has(key)) {
+        unfollowerKeys.push(key);
+      }
+    }
+
+    // Safety checks & warnings
+    if (previousActiveCount > 100 && unfollowerKeys.length > previousActiveCount * 0.3) {
+      warnings.push(`Significant decrease detected: ${unfollowerKeys.length.toLocaleString()} unfollowers (${Math.round((unfollowerKeys.length / previousActiveCount) * 100)}% drop). Verify that this file contains the complete follower export and not a partial segment.`);
+    }
+    if (previousActiveCount > 100 && newFollowerKeys.length > previousActiveCount * 0.5) {
+      warnings.push(`Significant increase detected: +${newFollowerKeys.length.toLocaleString()} new followers. Verify that this file matches the target Instagram account.`);
+    }
+  }
+
+  const netChange = newFollowerKeys.length - unfollowerKeys.length;
+  const projectedActiveCount = mode === 'BASELINE' ? validUniqueCount : previousActiveCount + netChange;
+
+  return {
+    success: true,
+    readyToCommit: true,
+    mode,
+    metrics: {
+      totalSubmitted: processed.totalSubmitted,
+      validUnique: validUniqueCount,
+      previousActiveFollowers: previousActiveCount,
+      projectedActiveFollowers: projectedActiveCount,
+      retainedFollowers: retainedKeys.length,
+      newFollowers: newFollowerKeys.length,
+      newUnfollowers: unfollowerKeys.length,
+      netChange,
+      invalidRecords: processed.invalidCount,
+      duplicateRecords: processed.duplicateCount
+    },
+    sampleNewFollowers: newFollowerKeys.slice(0, 15).map(k => incomingMap.get(k)?.username || k),
+    sampleUnfollowers: unfollowerKeys.slice(0, 15).map(k => FOLLOWERS_MAP.get(k)?.username || k),
+    warnings
+  };
+}
+
+/**
+ * Execute Full Reconciliation Commit Atomically
+ */
+async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', operator = 'Admin') {
+  if (isReconciliationLocked) {
+    throw new Error('Another import or reconciliation operation is currently in progress. Please wait.');
+  }
+
+  isReconciliationLocked = true;
+  const importId = `IMP_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const nowIso = new Date().toISOString();
+
+  try {
+    const processed = processFollowerPayload(payload);
+    if (!processed.isValid) {
+      throw new Error(processed.error || 'Invalid follower payload.');
+    }
+
+    const incomingMap = processed.uniqueMap;
+    const currentActiveKeys = new Set();
+    
+    for (const [key, follower] of FOLLOWERS_MAP.entries()) {
+      if (follower.status === 'active' || !follower.status) {
+        currentActiveKeys.add(key);
+      }
+    }
+
+    const previousActiveCount = currentActiveKeys.size;
+    const validUniqueCount = incomingMap.size;
+
+    let retainedKeys = [];
+    let newFollowerKeys = [];
+    let unfollowerKeys = [];
+    const newEvents = [];
+
+    if (mode === 'BASELINE') {
+      // BASELINE MODE: Establish initial canonical follower records without artificial events
+      FOLLOWERS_MAP.clear();
+
+      for (const [key, item] of incomingMap.entries()) {
+        const followerRecord = {
+          username: item.username,
+          key: key,
+          href: item.href,
+          status: 'active',
+          firstSeenAt: nowIso,
+          lastSeenAt: nowIso,
+          lastFollowedAt: nowIso,
+          lastUnfollowedAt: null,
+          lastImportId: importId,
+          timestamp: item.timestamp,
+          followedAtFormatted: formatFollowerTimestamp(item.timestamp),
+          updatedAt: nowIso
+        };
+        FOLLOWERS_MAP.set(key, followerRecord);
+      }
+    } else {
+      // RECONCILIATION MODE: Set Comparison
+      // 1. Retained followers
+      for (const [key, item] of incomingMap.entries()) {
+        if (currentActiveKeys.has(key)) {
+          retainedKeys.push(key);
+          const existing = FOLLOWERS_MAP.get(key);
+          if (existing) {
+            existing.lastSeenAt = nowIso;
+            existing.lastImportId = importId;
+            existing.updatedAt = nowIso;
+          }
+        } else {
+          // 2. Newly detected followers (or returning followers)
+          newFollowerKeys.push(key);
+          const existing = FOLLOWERS_MAP.get(key);
+          const isReturning = existing && existing.status === 'unfollowed';
+
+          const followerRecord = {
+            username: item.username,
+            key: key,
+            href: item.href,
+            status: 'active',
+            firstSeenAt: existing ? existing.firstSeenAt : nowIso,
+            lastSeenAt: nowIso,
+            lastFollowedAt: nowIso,
+            lastUnfollowedAt: existing ? existing.lastUnfollowedAt : null,
+            lastImportId: importId,
+            timestamp: item.timestamp,
+            followedAtFormatted: formatFollowerTimestamp(item.timestamp),
+            updatedAt: nowIso
+          };
+          FOLLOWERS_MAP.set(key, followerRecord);
+
+          newEvents.push({
+            id: `EVT_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            username: item.username,
+            eventType: 'FOLLOW',
+            importId,
+            eventTime: nowIso,
+            notes: isReturning ? 'Follower re-followed account' : 'New follower detected in snapshot'
+          });
+        }
+      }
+
+      // 3. Newly detected unfollowers (present in previous active, missing from current)
+      for (const key of currentActiveKeys) {
+        if (!incomingMap.has(key)) {
+          unfollowerKeys.push(key);
+          const existing = FOLLOWERS_MAP.get(key);
+          if (existing) {
+            existing.status = 'unfollowed';
+            existing.lastUnfollowedAt = nowIso;
+            existing.lastImportId = importId;
+            existing.updatedAt = nowIso;
+
+            newEvents.push({
+              id: `EVT_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              username: existing.username,
+              eventType: 'UNFOLLOW',
+              importId,
+              eventTime: nowIso,
+              notes: 'Follower unfollowed (missing from complete snapshot)'
+            });
+          }
+        }
+      }
+    }
+
+    // 4. Reconcile Linked Employee Submissions
+    const submissions = getStoredSubmissions();
+    let submissionsUpdatedCount = 0;
+    const unfollowerSet = new Set(unfollowerKeys);
+    const newFollowerSet = new Set(newFollowerKeys);
+    const incomingSet = new Set(incomingMap.keys());
+
+    for (const sub of submissions) {
+      if (!sub.username) continue;
+      const cleanSub = String(sub.username).trim().toLowerCase().replace(/^@+/, '');
+
+      if (mode === 'BASELINE') {
+        if (incomingSet.has(cleanSub)) {
+          if (sub.status !== 'Valid Submission' || !sub.isValid) {
+            sub.status = 'Valid Submission';
+            sub.isValid = true;
+            sub.isFollower = true;
+            sub.verificationBadge = '✓ Baseline Follower Verified';
+            sub.verificationNote = 'Verified against clean baseline snapshot';
+            sub.lastReconciledAt = nowIso;
+            submissionsUpdatedCount++;
+          }
+        } else {
+          if (sub.status !== 'Pending Submission') {
+            sub.status = 'Pending Submission';
+            sub.isValid = false;
+            sub.isFollower = false;
+            sub.verificationBadge = 'Pending Follow Sync';
+            sub.verificationNote = 'Awaiting next official follower JSON sync';
+            sub.lastReconciledAt = nowIso;
+            submissionsUpdatedCount++;
+          }
+        }
+      } else {
+        // Mode B: Reconciliation
+        if (unfollowerSet.has(cleanSub)) {
+          // A previously active follower unfollowed
+          if (sub.status === 'Valid Submission' || sub.status === 'active' || sub.isValid) {
+            sub.status = 'unfollowed';
+            sub.isValid = false;
+            sub.isFollower = false;
+            sub.unfollowedAt = nowIso;
+            sub.verificationBadge = '⚠️ Unfollowed Account';
+            sub.verificationNote = `Unfollow detected in import ${importId}`;
+            sub.lastReconciledAt = nowIso;
+            submissionsUpdatedCount++;
+          }
+        } else if (newFollowerSet.has(cleanSub)) {
+          // A follower returned or pending submission was matched
+          if (sub.status === 'unfollowed' || sub.status === 'Pending Submission') {
+            const wasUnfollowed = sub.status === 'unfollowed';
+            sub.status = 'Valid Submission';
+            sub.isValid = true;
+            sub.isFollower = true;
+            if (wasUnfollowed) sub.reFollowedAt = nowIso;
+            sub.verificationBadge = wasUnfollowed ? '✓ Follower Re-activated' : '✓ Follower Verified';
+            sub.verificationNote = wasUnfollowed
+              ? `Re-followed account detected in import ${importId}`
+              : `Verified genuine follower in import ${importId}`;
+            sub.lastReconciledAt = nowIso;
+            submissionsUpdatedCount++;
+          }
+        }
+      }
+    }
+
+    // Persist all data atomically
+    // 1. Followers to disk
+    const followersList = Array.from(FOLLOWERS_MAP.values());
+    fs.writeFileSync(FOLLOWERS_FILE, JSON.stringify(followersList), 'utf8');
+
+    // 2. Submissions to disk
+    if (submissionsUpdatedCount > 0) {
+      saveStoredSubmissions(submissions);
+    }
+
+    // 3. Events to disk
+    if (newEvents.length > 0) {
+      const storedEvents = getStoredEvents();
+      saveStoredEvents([...newEvents, ...storedEvents]);
+    }
+
+    // 4. Import summary record
+    const activeFollowersCount = followersList.filter(f => f.status === 'active').length;
+    const importSummary = {
+      id: importId,
+      timestamp: nowIso,
+      mode,
+      totalSubmitted: processed.totalSubmitted,
+      validUnique: validUniqueCount,
+      previousActiveFollowers: previousActiveCount,
+      currentActiveFollowers: activeFollowersCount,
+      activeCount: activeFollowersCount,
+      retainedFollowers: retainedKeys.length,
+      newFollowers: newFollowerKeys.length,
+      newUnfollowers: unfollowerKeys.length,
+      netChange: newFollowerKeys.length - unfollowerKeys.length,
+      invalidOrDuplicate: processed.invalidCount + processed.duplicateCount,
+      submissionsUpdated: submissionsUpdatedCount,
+      status: 'COMPLETED',
+      operator
+    };
+
+    const imports = getStoredImports();
+    imports.unshift(importSummary);
+    saveStoredImports(imports);
+
+    // 5. Audit log
+    logAuditAction(
+      mode === 'BASELINE' ? 'INITIAL_BASELINE_IMPORT' : 'DAILY_RECONCILIATION_IMPORT',
+      operator,
+      importSummary
+    );
+
+    // 6. PostgreSQL sync if connected
+    if (isDbConnected) {
+      try {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+
+          if (mode === 'BASELINE') {
+            await client.query('TRUNCATE TABLE instagram_followers CASCADE');
+          }
+
+          for (const f of followersList) {
+            await client.query(`
+              INSERT INTO instagram_followers (
+                username, profile_url, status, first_seen_at, last_seen_at,
+                last_followed_at, last_unfollowed_at, last_import_id, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              ON CONFLICT (username) DO UPDATE SET
+                status = EXCLUDED.status,
+                last_seen_at = EXCLUDED.last_seen_at,
+                last_followed_at = COALESCE(EXCLUDED.last_followed_at, instagram_followers.last_followed_at),
+                last_unfollowed_at = EXCLUDED.last_unfollowed_at,
+                last_import_id = EXCLUDED.last_import_id,
+                updated_at = EXCLUDED.updated_at
+            `, [
+              f.key, f.href, f.status, f.firstSeenAt, f.lastSeenAt,
+              f.lastFollowedAt, f.lastUnfollowedAt, f.lastImportId, f.updatedAt
+            ]);
+          }
+
+          for (const ev of newEvents) {
+            await client.query(`
+              INSERT INTO follower_events (id, username, event_type, import_id, event_time, notes)
+              VALUES ($1, $2, $3, $4, $5, $6)
+            `, [ev.id, ev.username, ev.eventType, ev.importId, ev.eventTime, ev.notes]);
+          }
+
+          await client.query(`
+            INSERT INTO follower_imports (
+              id, timestamp, mode, total_submitted, valid_unique, retained_followers,
+              new_followers, new_unfollowers, invalid_or_duplicate, status, operator, summary_notes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `, [
+            importSummary.id, importSummary.timestamp, importSummary.mode,
+            importSummary.totalSubmitted, importSummary.validUnique, importSummary.retainedFollowers,
+            importSummary.newFollowers, importSummary.newUnfollowers, importSummary.invalidOrDuplicate,
+            importSummary.status, importSummary.operator, JSON.stringify(importSummary)
+          ]);
+
+          await client.query('COMMIT');
+        } catch (dbTxErr) {
+          await client.query('ROLLBACK');
+          console.error('PostgreSQL reconciliation transaction rolled back:', dbTxErr.message);
+        } finally {
+          client.release();
+        }
+      } catch (poolErr) {
+        console.warn('PostgreSQL pool connection error during reconciliation:', poolErr.message);
+      }
+    }
+
+    return importSummary;
+  } finally {
+    isReconciliationLocked = false;
+  }
+}
+
+/**
+ * Execute Reset Follower Database (Clean Baseline Reset)
+ */
+async function executeResetFollowerDatabase(operator = 'Administrator') {
+  if (isReconciliationLocked) {
+    throw new Error('An import is currently running. Please wait.');
+  }
+
+  isReconciliationLocked = true;
+  try {
+    const previousTotal = FOLLOWERS_MAP.size;
+
+    // 1. Clear in-memory followers
+    FOLLOWERS_MAP.clear();
+
+    // 2. Clear follower file & history
+    fs.writeFileSync(FOLLOWERS_FILE, JSON.stringify([]), 'utf8');
+    saveStoredImports([]);
+    saveStoredEvents([]);
+
+    // 3. Reset submission statuses to 'Pending Submission' (preserving employee records & submissions)
+    const submissions = getStoredSubmissions();
+    let resetCount = 0;
+    const nowIso = new Date().toISOString();
+    for (const sub of submissions) {
+      if (sub.status !== 'Pending Submission') {
+        sub.status = 'Pending Submission';
+        sub.isValid = false;
+        sub.isFollower = false;
+        sub.unfollowedAt = null;
+        sub.reFollowedAt = null;
+        sub.verificationBadge = 'Pending Follow Sync';
+        sub.verificationNote = 'Reset baseline: awaiting clean follower baseline upload';
+        sub.lastReconciledAt = nowIso;
+        resetCount++;
+      }
+    }
+    if (resetCount > 0) {
+      saveStoredSubmissions(submissions);
+    }
+
+    // 4. Clear PostgreSQL tables if connected
+    if (isDbConnected) {
+      try {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('TRUNCATE TABLE instagram_followers CASCADE');
+          await client.query('TRUNCATE TABLE follower_imports CASCADE');
+          await client.query('TRUNCATE TABLE follower_events CASCADE');
+          await client.query(`
+            UPDATE submissions
+            SET status = 'Pending Submission', is_valid = FALSE, is_follower = FALSE,
+                verification_badge = 'Pending Follow Sync',
+                verification_note = 'Reset baseline: awaiting clean follower baseline upload'
+          `);
+          await client.query('COMMIT');
+        } catch (dbErr) {
+          await client.query('ROLLBACK');
+          console.error('PostgreSQL reset rollback:', dbErr.message);
+        } finally {
+          client.release();
+        }
+      } catch (poolErr) {
+        console.warn('PostgreSQL pool error during reset:', poolErr.message);
+      }
+    }
+
+    // 5. Audit Log
+    const audit = logAuditAction(
+      'RESET_FOLLOWER_DATABASE',
+      operator,
+      {
+        previousFollowersCleared: previousTotal,
+        submissionsPreservedAndReset: submissions.length,
+        submissionsStatusUpdated: resetCount,
+        note: 'Follower baseline cleared. Ready for Mode A: Initial Baseline Import.'
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Follower database successfully reset. You may now upload the complete follower list to establish a clean baseline.',
+      previousTotal,
+      submissionsPreserved: submissions.length,
+      auditId: audit.id
+    };
+  } finally {
+    isReconciliationLocked = false;
+  }
+}
+
+function upsertFollowersData(incomingData, mode = 'RECONCILIATION', operator = 'Admin') {
+  // Synchronous fallback or wrap executeReconciliationCommit
+  const items = extractItemsFromParsedJson(incomingData);
+  let countAdded = 0;
+  let countUpdated = 0;
+
+  for (const item of items) {
+    const norm = parseFollowerItem(item);
+    if (!norm) continue;
+
+    const existing = FOLLOWERS_MAP.get(norm.key);
+    const effTimestamp = norm.timestamp || (existing ? existing.timestamp : Math.floor(Date.now() / 1000));
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      username: norm.username,
+      key: norm.key,
+      href: norm.href,
+      status: 'active',
+      firstSeenAt: existing ? existing.firstSeenAt : nowIso,
+      lastSeenAt: nowIso,
+      lastFollowedAt: nowIso,
+      lastUnfollowedAt: existing ? existing.lastUnfollowedAt : null,
+      timestamp: effTimestamp,
+      followedAtFormatted: formatFollowerTimestamp(effTimestamp),
+      updatedAt: nowIso
+    };
+
+    if (!existing || existing.status === 'unfollowed') {
+      countAdded++;
+    } else {
+      countUpdated++;
+    }
+    FOLLOWERS_MAP.set(norm.key, record);
+  }
 
   try {
     const list = Array.from(FOLLOWERS_MAP.values());
@@ -293,8 +868,9 @@ function upsertFollowersData(incomingData) {
     console.error('Error saving followers file:', err.message);
   }
 
+  const activeCount = Array.from(FOLLOWERS_MAP.values()).filter(f => f.status === 'active').length;
   return {
-    total: FOLLOWERS_MAP.size,
+    total: activeCount,
     added: countAdded,
     updated: countUpdated
   };
@@ -485,6 +1061,56 @@ async function initDb() {
       ALTER TABLE submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE submissions ADD COLUMN IF NOT EXISTS date VARCHAR(20);
       ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_formatted_ist VARCHAR(20);
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS unfollowed_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS re_followed_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS last_reconciled_at TIMESTAMP WITH TIME ZONE;
+
+      CREATE TABLE IF NOT EXISTS instagram_followers (
+        username VARCHAR(150) PRIMARY KEY,
+        profile_url TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_followed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_unfollowed_at TIMESTAMP WITH TIME ZONE,
+        last_import_id VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS follower_imports (
+        id VARCHAR(100) PRIMARY KEY,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        mode VARCHAR(30) NOT NULL,
+        total_submitted INT DEFAULT 0,
+        valid_unique INT DEFAULT 0,
+        retained_followers INT DEFAULT 0,
+        new_followers INT DEFAULT 0,
+        new_unfollowers INT DEFAULT 0,
+        invalid_or_duplicate INT DEFAULT 0,
+        status VARCHAR(30) DEFAULT 'COMPLETED',
+        operator VARCHAR(100),
+        summary_notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS follower_events (
+        id VARCHAR(100) PRIMARY KEY,
+        username VARCHAR(150) NOT NULL,
+        event_type VARCHAR(20) NOT NULL,
+        import_id VARCHAR(100),
+        event_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS admin_audit_logs (
+        id VARCHAR(100) PRIMARY KEY,
+        action VARCHAR(100) NOT NULL,
+        operator VARCHAR(100),
+        details TEXT,
+        result VARCHAR(50),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
 
       CREATE TABLE IF NOT EXISTS tracking_links (
         id VARCHAR(50) PRIMARY KEY,
@@ -1577,24 +2203,228 @@ app.get('/api/links/clicks', handleAnalytics);
 // Instagram Followers Verification & Management APIs
 // ==========================================
 
-// Get follower stats & count
+// ==========================================
+// Instagram Followers Verification & Management APIs
+// ==========================================
+
+// Get follower stats & count (active only by default for accurate counts)
 app.get('/api/instagram/followers/stats', (req, res) => {
   try {
     const list = Array.from(FOLLOWERS_MAP.values());
-    const latestFollower = list.reduce((latest, f) => {
+    const activeList = list.filter(f => f.status === 'active' || !f.status);
+    const unfollowedList = list.filter(f => f.status === 'unfollowed');
+
+    const latestFollower = activeList.reduce((latest, f) => {
       return (!latest || f.timestamp > latest.timestamp) ? f : latest;
     }, null);
 
+    const imports = getStoredImports();
+    const latestImport = imports.length > 0 ? imports[0] : null;
+
     res.json({
       success: true,
-      total: FOLLOWERS_MAP.size,
+      total: activeList.length,
+      activeCount: activeList.length,
+      unfollowedCount: unfollowedList.length,
+      totalEverTracked: list.length,
       latestFollower: latestFollower ? {
         username: latestFollower.username,
         followedAtFormatted: latestFollower.followedAtFormatted,
         timestamp: latestFollower.timestamp
       } : null,
+      latestImport,
       lastUpdated: fs.existsSync(FOLLOWERS_FILE) ? fs.statSync(FOLLOWERS_FILE).mtime : new Date().toISOString()
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Comprehensive Reconciliation & Audit Statistics
+app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
+  try {
+    const list = Array.from(FOLLOWERS_MAP.values());
+    const activeFollowers = list.filter(f => f.status === 'active' || !f.status);
+    const unfollowedFollowers = list.filter(f => f.status === 'unfollowed');
+
+    const imports = getStoredImports();
+    const latestImport = imports.length > 0 ? imports[0] : null;
+
+    const submissions = getStoredSubmissions();
+    const activeSubs = submissions.filter(s => s.status === 'Valid Submission' || s.status === 'active' || s.isValid);
+    const unfollowedSubs = submissions.filter(s => s.status === 'unfollowed' || s.status === 'Unfollowed');
+    const pendingSubs = submissions.filter(s => s.status === 'Pending Submission' || s.status === 'pending_verification');
+
+    const statsObj = {
+      currentActiveFollowers: activeFollowers.length,
+      unfollowedFollowers: unfollowedFollowers.length,
+      unfollowedFollowersCount: unfollowedFollowers.length,
+      totalTrackedFollowers: list.length,
+      totalEverTracked: list.length,
+      activeSubmissionsCount: activeSubs.length,
+      totalActiveSubmissions: activeSubs.length,
+      unfollowedSubmissionsCount: unfollowedSubs.length,
+      totalUnfollowedSubmissions: unfollowedSubs.length,
+      pendingSubmissionsCount: pendingSubs.length,
+      pendingSubmissions: pendingSubs.length,
+      totalSubmissionsCount: submissions.length,
+      totalHistoricalSubmissions: submissions.length,
+      latestImport,
+      lastReconciliationTime: latestImport?.timestamp || null,
+      baselineEstablished: imports.some(imp => imp.mode === 'BASELINE') || list.length > 0
+    };
+
+    res.json({
+      success: true,
+      stats: statsObj,
+      ...statsObj
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Preview of Reconciliation (Non-destructive)
+app.post('/api/instagram/followers/reconcile-preview', (req, res) => {
+  try {
+    const rawPayload = req.body?.payload !== undefined ? req.body.payload : (req.body?.data !== undefined ? req.body.data : req.body);
+    const mode = req.body?.mode || 'RECONCILIATION';
+    if (!rawPayload) {
+      return res.status(400).json({ success: false, error: 'No follower data provided in request body' });
+    }
+    const preview = generateReconciliationPreview(rawPayload, mode);
+    if (!preview.success) {
+      return res.status(400).json(preview);
+    }
+    res.json(preview);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Commit Reconciliation Atomically
+app.post('/api/instagram/followers/reconcile-commit', async (req, res) => {
+  try {
+    const rawPayload = req.body?.payload !== undefined ? req.body.payload : (req.body?.data !== undefined ? req.body.data : req.body);
+    const mode = req.body?.mode || 'RECONCILIATION';
+    const operator = req.body?.operator || 'Admin';
+    if (!rawPayload) {
+      return res.status(400).json({ success: false, error: 'No follower data provided in request body' });
+    }
+    const result = await executeReconciliationCommit(rawPayload, mode, operator);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Protected Admin Reset Endpoint
+app.post('/api/admin/reset-followers-database', async (req, res) => {
+  try {
+    const { password, confirmation, operator } = req.body || {};
+    const configuredPassword = process.env.ADMIN_RESET_PASSWORD || 'Magni@3939';
+
+    if (!password || password !== configuredPassword) {
+      logAuditAction('UNAUTHORIZED_RESET_ATTEMPT', operator || 'Unknown', { ip: req.ip }, 'DENIED');
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: Invalid Administrator Reset Password.'
+      });
+    }
+
+    if (confirmation !== 'RESET') {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation mismatch. You must confirm by providing confirmation string "RESET".'
+      });
+    }
+
+    const result = await executeResetFollowerDatabase(operator || 'Administrator');
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Import History Snapshots
+app.get('/api/instagram/followers/imports', (req, res) => {
+  try {
+    const imports = getStoredImports();
+    res.json({ success: true, imports });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Follow / Unfollow Event Log
+app.get('/api/instagram/followers/events', (req, res) => {
+  try {
+    const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
+    const events = getStoredEvents().slice(0, limit);
+    res.json({ success: true, events });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Unfollowed Accounts List with Linked Submissions
+app.get('/api/instagram/followers/unfollowed', (req, res) => {
+  try {
+    const search = (req.query.search || '').trim().toLowerCase().replace(/^@+/, '');
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    let list = Array.from(FOLLOWERS_MAP.values()).filter(f => f.status === 'unfollowed');
+    if (search) {
+      list = list.filter(f => f.key.includes(search) || f.username.toLowerCase().includes(search));
+    }
+
+    list.sort((a, b) => new Date(b.lastUnfollowedAt || 0) - new Date(a.lastUnfollowedAt || 0));
+
+    const total = list.length;
+    const startIndex = (page - 1) * limit;
+    const items = list.slice(startIndex, startIndex + limit);
+
+    // Cross-reference with submissions
+    const submissions = getStoredSubmissions();
+    const subsByUsername = new Map();
+    submissions.forEach(s => {
+      if (s.username) {
+        subsByUsername.set(s.username.toLowerCase().trim().replace(/^@+/, ''), s);
+      }
+    });
+
+    const enrichedItems = items.map(f => {
+      const linkedSub = subsByUsername.get(f.key);
+      return {
+        ...f,
+        linkedSubmission: linkedSub ? {
+          id: linkedSub.id,
+          employeeId: linkedSub.employeeId,
+          employeeName: linkedSub.employeeName,
+          submittedAt: linkedSub.submittedAt
+        } : null
+      };
+    });
+
+    res.json({
+      success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      unfollowed: enrichedItems
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Admin Audit Logs
+app.get('/api/admin/audit-logs', (req, res) => {
+  try {
+    const logs = getStoredAuditLogs();
+    res.json({ success: true, logs });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1608,6 +2438,7 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
     const follower = FOLLOWERS_MAP.get(clean);
 
     if (follower) {
+      const isActive = follower.status === 'active' || !follower.status;
       const formattedDate = follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp);
       const subTime = req.query.submittedAt ? new Date(req.query.submittedAt).getTime() : Date.now();
       const followTime = Number(follower.timestamp) * 1000;
@@ -1618,14 +2449,18 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
       return res.json({
         success: true,
         exists: true,
-        isFollower: true,
+        isFollower: isActive,
+        isUnfollowed: !isActive,
+        status: follower.status || 'active',
         isPreExisting,
         isInsideWindow,
         follower: {
           username: follower.username,
           href: follower.href,
           timestamp: follower.timestamp,
-          followedAtFormatted: formattedDate
+          status: follower.status || 'active',
+          followedAtFormatted: formattedDate,
+          lastUnfollowedAt: follower.lastUnfollowedAt
         }
       });
     }
@@ -1634,6 +2469,7 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
       success: true,
       exists: false,
       isFollower: false,
+      isUnfollowed: false,
       username: clean
     });
   } catch (err) {
@@ -1662,6 +2498,24 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
         };
       }
 
+      if (follower.status === 'unfollowed') {
+        return {
+          username: clean,
+          exists: true,
+          isFollower: false,
+          isUnfollowed: true,
+          status: 'unfollowed',
+          follower: {
+            username: follower.username,
+            href: follower.href,
+            timestamp: follower.timestamp,
+            status: 'unfollowed',
+            lastUnfollowedAt: follower.lastUnfollowedAt,
+            followedAtFormatted: follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp)
+          }
+        };
+      }
+
       const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
       const followTime = Number(follower.timestamp) * 1000;
       const isPreExisting = followTime < (subTime - WINDOW_MS);
@@ -1680,6 +2534,7 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
           username: follower.username,
           href: follower.href,
           timestamp: follower.timestamp,
+          status: 'active',
           followedAtFormatted: follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp)
         },
         isPreExisting,
@@ -1693,18 +2548,19 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
   }
 });
 
-// Upsert / Import new Instagram followers JSON
-app.post('/api/instagram/followers/upsert', (req, res) => {
+// Upsert / Import new Instagram followers JSON (backward-compatible wrapper)
+app.post('/api/instagram/followers/upsert', async (req, res) => {
   try {
     const payload = req.body;
     if (!payload) {
       return res.status(400).json({ success: false, error: 'No follower data provided in request body' });
     }
 
-    const result = upsertFollowersData(payload);
+    const mode = req.query.mode || 'RECONCILIATION';
+    const result = await executeReconciliationCommit(payload, mode, req.body.operator || 'Admin');
     res.json({
       success: true,
-      message: `Successfully upserted ${result.total} followers (+${result.added} new, +${result.updated} updated).`,
+      message: `Successfully reconciled ${result.validUnique} followers (+${result.newFollowers} new, -${result.newUnfollowers} unfollowed).`,
       ...result
     });
   } catch (err) {
@@ -1712,14 +2568,21 @@ app.post('/api/instagram/followers/upsert', (req, res) => {
   }
 });
 
-// Search & Paginate Followers
+// Search & Paginate Followers (supports ?status=active|unfollowed|all)
 app.get('/api/instagram/followers', (req, res) => {
   try {
     const search = (req.query.search || '').trim().toLowerCase().replace(/^@+/, '');
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const statusFilter = (req.query.status || 'active').toLowerCase();
 
     let list = Array.from(FOLLOWERS_MAP.values());
+    if (statusFilter === 'active') {
+      list = list.filter(f => f.status === 'active' || !f.status);
+    } else if (statusFilter === 'unfollowed') {
+      list = list.filter(f => f.status === 'unfollowed');
+    }
+
     if (search) {
       list = list.filter(f => f.key.includes(search) || f.username.toLowerCase().includes(search));
     }
@@ -1736,13 +2599,14 @@ app.get('/api/instagram/followers', (req, res) => {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
       followers: items
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 // Serve React Production Build Static Files (Express 5 compatible)
 const distPath = path.join(__dirname, 'dist');

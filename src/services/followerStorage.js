@@ -358,6 +358,134 @@ export const followerStorage = {
   },
 
   /**
+   * Clear local IndexedDB and memory cache
+   */
+  async clearLocalFollowers() {
+    memoryMap.clear();
+    const db = await openIndexedDB();
+    if (db) {
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          store.clear();
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch (_) {
+          resolve();
+        }
+      });
+    }
+  },
+
+  /**
+   * Reset follower database on server (requires server password)
+   */
+  async resetDatabase(password, confirmation) {
+    const res = await fetch('/api/admin/reset-followers-database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, confirmation })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to reset follower database.');
+    }
+    await this.clearLocalFollowers();
+    return data;
+  },
+
+  /**
+   * Generate non-mutating preview of reconciliation before committing
+   */
+  async generatePreview(payload, mode = 'RECONCILIATION') {
+    const res = await fetch('/api/instagram/followers/reconcile-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, payload })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to generate reconciliation preview.');
+    }
+    return data;
+  },
+
+  /**
+   * Commit reconciliation atomically to database
+   */
+  async commitReconciliation(payload, mode = 'RECONCILIATION', operator = 'Admin') {
+    const res = await fetch('/api/instagram/followers/reconcile-commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, operator, payload })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to commit follower reconciliation.');
+    }
+    // Refresh local cache from authoritative backend
+    await this.reloadFromBackend();
+    return data;
+  },
+
+  /**
+   * Reload all followers from backend into client storage
+   */
+  async reloadFromBackend() {
+    try {
+      const res = await fetch('/api/instagram/followers?status=all&limit=200000');
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          if (data && data.followers) {
+            await this.clearLocalFollowers();
+            await this.saveRecordsToIndexedDB(data.followers);
+          }
+        }
+      }
+    } catch (_) {}
+  },
+
+  /**
+   * Get reconciliation stats
+   */
+  async getReconciliationStats() {
+    const res = await fetch('/api/instagram/followers/reconciliation/stats');
+    if (!res.ok) throw new Error('Failed to fetch reconciliation stats');
+    return await res.json();
+  },
+
+  /**
+   * Get historical imports list
+   */
+  async getImportHistory() {
+    const res = await fetch('/api/instagram/followers/imports');
+    if (!res.ok) throw new Error('Failed to fetch import history');
+    return await res.json();
+  },
+
+  /**
+   * Get unfollowed list with pagination
+   */
+  async getUnfollowedList(search = '', page = 1, limit = 50) {
+    const params = new URLSearchParams({ search, page, limit });
+    const res = await fetch(`/api/instagram/followers/unfollowed?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch unfollowed list');
+    return await res.json();
+  },
+
+  /**
+   * Get admin audit logs
+   */
+  async getAuditLogs() {
+    const res = await fetch('/api/admin/audit-logs');
+    if (!res.ok) throw new Error('Failed to fetch audit logs');
+    return await res.json();
+  },
+
+  /**
    * Instant O(1) follower check
    */
   async checkFollower(username) {
@@ -370,16 +498,19 @@ export const followerStorage = {
     // Check memory cache first
     const cached = memoryMap.get(clean);
     if (cached) {
+      const isActive = cached.status === 'active' || !cached.status;
       const formatted = cached.followedAtFormatted || formatFollowerTimestamp(cached.timestamp);
       const followerObj = {
         username: cached.username,
         href: cached.href,
         timestamp: cached.timestamp,
+        status: cached.status || 'active',
         followedAtFormatted: formatted
       };
       return {
-        exists: true,
-        isFollower: true,
+        exists: isActive,
+        isFollower: isActive,
+        status: cached.status || 'active',
         username: cached.username,
         href: cached.href,
         timestamp: cached.timestamp,
@@ -403,6 +534,7 @@ export const followerStorage = {
             username: data.username || clean,
             href: data.href,
             timestamp: data.timestamp,
+            status: data.status || 'active',
             followedAtFormatted: data.followedAtFormatted
           });
         }

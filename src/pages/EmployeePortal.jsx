@@ -123,9 +123,24 @@ export function EmployeePortal({ session, onLogout }) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [submissionTab, setSubmissionTab] = useState('today'); // 'today' | 'previous'
+  const [subStatusFilter, setSubStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'UNFOLLOWED' | 'PENDING'
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
   const [showPatternHelp, setShowPatternHelp] = useState(false);
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
+
+  // All-time historical metrics for this employee
+  const empAllSubs = useMemo(() => {
+    const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+    const all = dbService.getSubmissions();
+    return all.filter(s => s.employeeId && s.employeeId.toUpperCase() === empId.toUpperCase());
+  }, [employee, session, taskStats]);
+
+  const empTotalSubmissionsEver = empAllSubs.length;
+  const empActiveSubmissionsEver = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+  const empUnfollowedSubmissionsEver = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
+  const empPendingSubmissionsEver = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+  const empRefollowedSubmissionsEver = empAllSubs.filter(s => !!s.re_followed_at).length;
+  const empNetActiveSubmissionsEver = empActiveSubmissionsEver;
 
   useEffect(() => {
     loadData();
@@ -1311,285 +1326,410 @@ export function EmployeePortal({ session, onLogout }) {
                   </form>
                 </div>
 
-                {/* 4. SUBMISSIONS LOG (WITH TABS FOR TODAY & PREVIOUS SUBMISSIONS) */}
-                <div className="dashboard-section-card portal-area-history">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-                      Submissions History
-                    </h3>
+                  {/* 4. SUBMISSIONS LOG (WITH 5 EMPLOYEE STATS, STATUS FILTERS, AND UNFOLLOWED METRICS) */}
+                  <div className="dashboard-section-card portal-area-history">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
+                          Submissions & Attribution History
+                        </h3>
+                        <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                          Verified against authoritative Instagram follower snapshots.
+                        </p>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={handleSyncFollowers}
-                      disabled={isSyncingFollowers}
-                      title="Cross-check all submissions with official Instagram followers JSON"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        padding: '5px 12px',
-                        borderRadius: '9999px',
-                        backgroundColor: '#f1f5f9',
-                        color: '#334155',
-                        border: '1px solid #cbd5e1',
-                        cursor: isSyncingFollowers ? 'wait' : 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
-                      <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Follower Status'}</span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={handleSyncFollowers}
+                        disabled={isSyncingFollowers}
+                        title="Cross-check all submissions with official Instagram followers JSON"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          padding: '5px 12px',
+                          borderRadius: '9999px',
+                          backgroundColor: '#f1f5f9',
+                          color: '#334155',
+                          border: '1px solid #cbd5e1',
+                          cursor: isSyncingFollowers ? 'wait' : 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
+                        <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Follower Status'}</span>
+                      </button>
+                    </div>
 
-                  {/* Submissions Navigation Tabs */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '6px',
-                    backgroundColor: '#f1f5f9',
-                    padding: '4px',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    marginBottom: '14px'
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => setSubmissionTab('today')}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: '9px',
-                        fontSize: '12px',
-                        fontWeight: submissionTab === 'today' ? 700 : 500,
-                        backgroundColor: submissionTab === 'today' ? '#ffffff' : 'transparent',
-                        color: submissionTab === 'today' ? '#0f172a' : '#64748b',
-                        border: 'none',
-                        boxShadow: submissionTab === 'today' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      Today ({taskStats?.todaySubmissions?.length || 0})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSubmissionTab('previous')}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: '9px',
-                        fontSize: '12px',
-                        fontWeight: submissionTab === 'previous' ? 700 : 500,
-                        backgroundColor: submissionTab === 'previous' ? '#ffffff' : 'transparent',
-                        color: submissionTab === 'previous' ? '#0f172a' : '#64748b',
-                        border: 'none',
-                        boxShadow: submissionTab === 'previous' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      Previous ({previousSubmissions.length})
-                    </button>
-                  </div>
+                    {/* 5 KPI STATISTICS CARDS */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                      gap: '8px',
+                      marginBottom: '14px'
+                    }}>
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Total Ever</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>{empTotalSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>All-time history</div>
+                      </div>
 
-                  {/* TAB 1: TODAY'S SUBMISSIONS */}
-                  {submissionTab === 'today' && (
-                    <div>
-                      {taskStats?.todaySubmissions?.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {taskStats.todaySubmissions.map((sub, idx) => {
-                            const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
-                            const isStatusPending = sub.status === 'Pending Submission';
-                            const isStatusDuplicateOrInvalid = sub.isDuplicate || sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Invalid Submission';
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#15803d', textTransform: 'uppercase' }}>Net Active</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>{empNetActiveSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#16a34a' }}>Credited follows</div>
+                      </div>
 
-                            return (
-                              <div
-                                key={sub.id || idx}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '10px 14px',
-                                  backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                  borderRadius: '12px',
-                                  border: '1px solid #e2e8f0',
-                                  gap: '10px'
-                                }}
-                              >
-                                {/* Single Line: Entry / Name */}
-                                <div style={{
-                                  fontFamily: 'monospace',
-                                  fontWeight: 700,
-                                  fontSize: '13.5px',
-                                  color: '#0f172a',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  minWidth: 0,
-                                  flex: 1
-                                }}>
-                                  @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
-                                </div>
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#b91c1c', textTransform: 'uppercase' }}>Unfollowed</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#991b1b', marginTop: '2px' }}>{empUnfollowedSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#dc2626' }}>Credit deducted</div>
+                      </div>
 
-                                {/* Color-Coded Status Badge (Valid: Green+White, Invalid/Dup: Red+White, Pending: Orange+White) + Info Icon */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                                  <span style={{
-                                    padding: '3px 10px',
-                                    borderRadius: '9999px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
-                                    color: '#ffffff',
-                                    whiteSpace: 'nowrap',
-                                    boxShadow: isStatusValid
-                                      ? '0 1px 4px rgba(22, 163, 74, 0.25)'
-                                      : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
-                                  }}>
-                                    {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
-                                  </span>
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fff7ed', border: '1px solid #ffedd5' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#c2410c', textTransform: 'uppercase' }}>Pending</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#9a3412', marginTop: '2px' }}>{empPendingSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#ea580c' }}>Awaiting match</div>
+                      </div>
 
-                                  {/* Tooltip / Info Popover Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedSubForInfo(sub)}
-                                    title="Click to view follower verification status & time details"
-                                    aria-label="View details"
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#1d4ed8', textTransform: 'uppercase' }}>Re-Followed</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#1e40af', marginTop: '2px' }}>{empRefollowedSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#2563eb' }}>Reactivated</div>
+                      </div>
+                    </div>
+
+                    {/* Submissions Navigation Tabs: Today vs Previous */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '6px',
+                      backgroundColor: '#f1f5f9',
+                      padding: '4px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      marginBottom: '10px'
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionTab('today')}
+                        style={{
+                          flex: 1,
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12px',
+                          fontWeight: submissionTab === 'today' ? 700 : 500,
+                          backgroundColor: submissionTab === 'today' ? '#ffffff' : 'transparent',
+                          color: submissionTab === 'today' ? '#0f172a' : '#64748b',
+                          border: 'none',
+                          boxShadow: submissionTab === 'today' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Today ({taskStats?.todaySubmissions?.length || 0})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionTab('previous')}
+                        style={{
+                          flex: 1,
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12px',
+                          fontWeight: submissionTab === 'previous' ? 700 : 500,
+                          backgroundColor: submissionTab === 'previous' ? '#ffffff' : 'transparent',
+                          color: submissionTab === 'previous' ? '#0f172a' : '#64748b',
+                          border: 'none',
+                          boxShadow: submissionTab === 'previous' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Previous ({previousSubmissions.length})
+                      </button>
+                    </div>
+
+                    {/* Status Filter Pills: All, Active, Unfollowed, Pending */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginBottom: '14px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginRight: '4px' }}>Filter:</span>
+                      {[
+                        { key: 'ALL', label: 'All' },
+                        { key: 'ACTIVE', label: 'Active / Verified' },
+                        { key: 'UNFOLLOWED', label: 'Unfollowed' },
+                        { key: 'PENDING', label: 'Pending' }
+                      ].map(filter => {
+                        const isSelected = subStatusFilter === filter.key;
+                        return (
+                          <button
+                            key={filter.key}
+                            type="button"
+                            onClick={() => setSubStatusFilter(filter.key)}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              border: isSelected ? '1px solid #0071e3' : '1px solid #e2e8f0',
+                              backgroundColor: isSelected ? '#0071e3' : '#ffffff',
+                              color: isSelected ? '#ffffff' : '#475569',
+                              fontSize: '11px',
+                              fontWeight: isSelected ? 700 : 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {filter.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* TAB 1: TODAY'S SUBMISSIONS */}
+                    {submissionTab === 'today' && (() => {
+                      const rawList = taskStats?.todaySubmissions || [];
+                      const filteredList = rawList.filter(s => {
+                        if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
+                        if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
+                        if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
+                        return true;
+                      });
+
+                      return (
+                        <div>
+                          {filteredList.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {filteredList.map((sub, idx) => {
+                                const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                                const isStatusPending = sub.status === 'Pending Submission';
+                                const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
+
+                                return (
+                                  <div
+                                    key={sub.id || idx}
                                     style={{
-                                      width: '28px',
-                                      height: '28px',
-                                      borderRadius: '50%',
-                                      backgroundColor: '#f1f5f9',
-                                      border: '1px solid #cbd5e1',
                                       display: 'flex',
                                       alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: '#475569',
-                                      cursor: 'pointer',
-                                      padding: 0,
-                                      flexShrink: 0,
-                                      transition: 'all 0.15s ease'
+                                      justifyContent: 'space-between',
+                                      padding: '10px 14px',
+                                      backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                      borderRadius: '12px',
+                                      border: isStatusUnfollowed ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                                      gap: '10px'
                                     }}
                                   >
-                                    <Info size={15} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                      <div style={{
+                                        fontFamily: 'monospace',
+                                        fontWeight: 700,
+                                        fontSize: '13.5px',
+                                        color: isStatusUnfollowed ? '#991b1b' : '#0f172a',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                      }}>
+                                        @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                                      </div>
+
+                                      {/* Sub-label for status detection */}
+                                      {isStatusUnfollowed ? (
+                                        <div style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                          Unfollowed: {sub.unfollowed_at ? (formatIST(sub.unfollowed_at) + ' IST') : 'Missing from reconciled snapshot'}
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px' }}>
+                                              • Re-followed: {formatIST(sub.re_followed_at)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
+                                          Submitted at {formatIST(sub.submittedAt, { timeOnly: true })} IST
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px', fontWeight: 600 }}>
+                                              • Reactivated
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Color-Coded Status Badge */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{
+                                        padding: '3px 10px',
+                                        borderRadius: '9999px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        backgroundColor: isStatusValid
+                                          ? '#16a34a'
+                                          : (isStatusPending ? '#ea580c' : (isStatusUnfollowed ? '#dc2626' : '#64748b')),
+                                        color: '#ffffff',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusUnfollowed ? 'Unfollowed' : sub.status))}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedSubForInfo(sub)}
+                                        title="Click to view follower verification status & time details"
+                                        aria-label="View details"
+                                        style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#f1f5f9',
+                                          border: '1px solid #cbd5e1',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#475569',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        <Info size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b' }}>
+                              <p style={{ fontSize: '12.5px', margin: 0, fontWeight: 500 }}>
+                                No entries match the filter "{subStatusFilter}" for today.
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
-                          <p style={{ fontSize: '13px', margin: 0, fontWeight: 500 }}>
-                            No entries submitted yet today for this task.
-                          </p>
-                          <p style={{ fontSize: '11.5px', marginTop: '4px', color: '#94a3b8' }}>
-                            Use the submission entry box above to record your first entry.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      );
+                    })()}
 
-                  {/* TAB 2: PREVIOUS SUBMISSIONS (ALL TIME EXCLUDING TODAY) */}
-                  {submissionTab === 'previous' && (
-                    <div>
-                      {previousSubmissions.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {previousSubmissions.map((sub, idx) => {
-                            const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
-                            const isStatusPending = sub.status === 'Pending Submission';
+                    {/* TAB 2: PREVIOUS SUBMISSIONS */}
+                    {submissionTab === 'previous' && (() => {
+                      const rawList = previousSubmissions || [];
+                      const filteredList = rawList.filter(s => {
+                        if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
+                        if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
+                        if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
+                        return true;
+                      });
 
-                            return (
-                              <div
-                                key={sub.id || idx}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '10px 14px',
-                                  backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                  borderRadius: '12px',
-                                  border: '1px solid #e2e8f0',
-                                  gap: '10px'
-                                }}
-                              >
-                                {/* Single Line: Entry + Date */}
-                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                                  <span style={{
-                                    fontFamily: 'monospace',
-                                    fontWeight: 700,
-                                    fontSize: '13.5px',
-                                    color: '#0f172a',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                  }}>
-                                    @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
-                                  </span>
-                                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                                    {sub.date || formatIST(sub.submittedAt, { dateOnly: true })} • {formatIST(sub.submittedAt, { timeOnly: true })} IST
-                                  </span>
-                                </div>
+                      return (
+                        <div>
+                          {filteredList.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {filteredList.map((sub, idx) => {
+                                const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                                const isStatusPending = sub.status === 'Pending Submission';
+                                const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
 
-                                {/* Color-Coded Status Badge + Info Button */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                                  <span style={{
-                                    padding: '3px 10px',
-                                    borderRadius: '9999px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    backgroundColor: isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626'),
-                                    color: '#ffffff',
-                                    whiteSpace: 'nowrap',
-                                    boxShadow: isStatusValid
-                                      ? '0 1px 4px rgba(22, 163, 74, 0.25)'
-                                      : (isStatusPending ? '0 1px 4px rgba(234, 88, 12, 0.25)' : '0 1px 4px rgba(220, 38, 38, 0.25)')
-                                  }}>
-                                    {isStatusValid ? 'Valid' : (isStatusPending ? 'Pending' : (sub.isDuplicate || sub.status === 'Already Followed' ? 'Duplicate' : 'Invalid'))}
-                                  </span>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedSubForInfo(sub)}
-                                    title="Click to view follower verification status & time details"
-                                    aria-label="View details"
+                                return (
+                                  <div
+                                    key={sub.id || idx}
                                     style={{
-                                      width: '28px',
-                                      height: '28px',
-                                      borderRadius: '50%',
-                                      backgroundColor: '#f1f5f9',
-                                      border: '1px solid #cbd5e1',
                                       display: 'flex',
                                       alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: '#475569',
-                                      cursor: 'pointer',
-                                      padding: 0,
-                                      flexShrink: 0,
-                                      transition: 'all 0.15s ease'
+                                      justifyContent: 'space-between',
+                                      padding: '10px 14px',
+                                      backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                      borderRadius: '12px',
+                                      border: isStatusUnfollowed ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                                      gap: '10px'
                                     }}
                                   >
-                                    <Info size={15} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                      <div style={{
+                                        fontFamily: 'monospace',
+                                        fontWeight: 700,
+                                        fontSize: '13.5px',
+                                        color: isStatusUnfollowed ? '#991b1b' : '#0f172a',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                      }}>
+                                        @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                                      </div>
+
+                                      {isStatusUnfollowed ? (
+                                        <div style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                          Unfollowed: {sub.unfollowed_at ? (formatIST(sub.unfollowed_at) + ' IST') : 'Missing from reconciled snapshot'}
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px' }}>
+                                              • Re-followed: {formatIST(sub.re_followed_at)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
+                                          {sub.date || formatIST(sub.submittedAt, { dateOnly: true })} • {formatIST(sub.submittedAt, { timeOnly: true })} IST
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px', fontWeight: 600 }}>
+                                              • Reactivated
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Color-Coded Status Badge */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{
+                                        padding: '3px 10px',
+                                        borderRadius: '9999px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        backgroundColor: isStatusValid
+                                          ? '#16a34a'
+                                          : (isStatusPending ? '#ea580c' : (isStatusUnfollowed ? '#dc2626' : '#64748b')),
+                                        color: '#ffffff',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusUnfollowed ? 'Unfollowed' : sub.status))}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedSubForInfo(sub)}
+                                        title="Click to view follower verification status & time details"
+                                        aria-label="View details"
+                                        style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#f1f5f9',
+                                          border: '1px solid #cbd5e1',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#475569',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        <Info size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b' }}>
+                              <p style={{ fontSize: '12.5px', margin: 0, fontWeight: 500 }}>
+                                No previous entries match the filter "{subStatusFilter}".
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
-                          <p style={{ fontSize: '13px', margin: 0, fontWeight: 500 }}>
-                            No previous submissions recorded prior to today.
-                          </p>
-                          <p style={{ fontSize: '11.5px', marginTop: '4px', color: '#94a3b8' }}>
-                            All previous completed submissions will appear in this history tab.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      );
+                    })()}
+                  </div>
               </div>
             </div>
           </div>

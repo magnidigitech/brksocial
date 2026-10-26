@@ -963,13 +963,24 @@ export const dbService = {
     // Only 'Valid Submission' (or legacy 'Valid') counts towards target
     const validSubs = subs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
     const pendingSubs = subs.filter(s => s.status === 'Pending Submission');
+    const unfollowedSubs = subs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
     const alreadyFollowedSubs = subs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
 
     const validCount = validSubs.length;
+    const netActiveCount = validCount; // Net Active Submissions = Number of currently active, verified, credited submissions
+    const unfollowedCount = unfollowedSubs.length;
     const target = activeCycle.target || 10;
     const remaining = Math.max(0, target - validCount);
     const progressPercent = Math.min(100, Math.round((validCount / target) * 100));
+
+    // All-time historical metrics for this employee
+    const empAllSubs = allSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === employeeId.toUpperCase());
+    const allTimeTotal = empAllSubs.length;
+    const allTimeActive = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+    const allTimeUnfollowed = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
+    const allTimePending = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+    const allTimeRefollowed = empAllSubs.filter(s => !!s.re_followed_at).length;
 
     let status = 'Not Started';
     if (validCount >= target) {
@@ -982,10 +993,18 @@ export const dbService = {
       task,
       target,
       validCount,
+      netActiveCount,
+      unfollowedCount,
       pendingCount: pendingSubs.length,
       alreadyFollowedCount: alreadyFollowedSubs.length,
       invalidCount: invalidSubs.length,
       totalSubmittedCount: subs.length,
+      allTimeTotal,
+      allTimeActive,
+      allTimeUnfollowed,
+      allTimePending,
+      allTimeRefollowed,
+      allTimeNetActive: allTimeActive,
       remaining,
       progressPercent,
       duplicateCount: alreadyFollowedSubs.length,
@@ -1004,6 +1023,7 @@ export const dbService = {
       periodSubmissions: subs,
       validSubs,
       pendingSubs,
+      unfollowedSubs,
       alreadyFollowedSubs,
       invalidSubs
     };
@@ -1044,6 +1064,7 @@ export const dbService = {
 
     const validSubs = periodSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
     const pendingSubs = periodSubs.filter(s => s.status === 'Pending Submission');
+    const unfollowedSubs = periodSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
     const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = periodSubs.filter(s => s.status === 'Invalid Submission');
 
@@ -1060,6 +1081,7 @@ export const dbService = {
       const empSubs = periodSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === emp.id.toUpperCase());
       const empValid = empSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
       const empPending = empSubs.filter(s => s.status === 'Pending Submission').length;
+      const empUnfollowed = empSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
       const empAlready = empSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated').length;
       const empInvalid = empSubs.filter(s => s.status === 'Invalid Submission').length;
       const target = targetPerEmp;
@@ -1081,6 +1103,7 @@ export const dbService = {
         target,
         valid: empValid,
         pending: empPending,
+        unfollowed: empUnfollowed,
         alreadyFollowed: empAlready,
         invalid: empInvalid,
         duplicate: empAlready,
@@ -1110,10 +1133,15 @@ export const dbService = {
       targetSubmissions: totalTarget,
       validSubmissions: validCount,
       pendingSubmissions: pendingSubs.length,
+      unfollowedSubmissions: unfollowedSubs.length,
       alreadyFollowed: alreadyFollowedSubs.length,
       invalidSubmissions: invalidSubs.length,
       duplicates: alreadyFollowedSubs.length,
       rejected: invalidSubs.length,
+      totalAllTimeSubmissions: allSubs.length,
+      totalAllTimeValid: allSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length,
+      totalAllTimeUnfollowed: allSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length,
+      totalAllTimePending: allSubs.filter(s => s.status === 'Pending Submission').length,
       remaining: remainingCount,
       completedEmpCount,
       inProgressEmpCount,

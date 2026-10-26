@@ -145,7 +145,8 @@ export default function VerificationBottomSheet({ submission, onClose }) {
   // Status color calculation
   const isStatusValid = submission.status === 'Valid Submission' || submission.status === 'Valid';
   const isStatusPending = submission.status === 'Pending Submission';
-  const statusBg = isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : '#dc2626');
+  const isStatusUnfollowed = submission.status === 'Unfollowed' || submission.status === 'unfollowed';
+  const statusBg = isStatusValid ? '#16a34a' : (isStatusPending ? '#ea580c' : (isStatusUnfollowed ? '#64748b' : '#dc2626'));
 
   // Sheet transform
   const sheetTransform = !isOpen || isClosing 
@@ -353,6 +354,26 @@ export default function VerificationBottomSheet({ submission, onClose }) {
               {submission.followedAtFormatted || (submission.isFollower ? 'Verified' : 'Pending JSON Sync')}
             </span>
           </div>
+
+          {/* Unfollow Detection Date */}
+          {(submission.unfollowed_at || isStatusUnfollowed) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#dc2626', fontWeight: 600 }}>Unfollow Detected:</span>
+              <span style={{ fontWeight: 700, color: '#dc2626' }}>
+                {submission.unfollowed_at ? `${formatIST(submission.unfollowed_at)} IST` : 'Omitted from latest complete list'}
+              </span>
+            </div>
+          )}
+
+          {/* Re-Follow Date */}
+          {submission.re_followed_at && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#16a34a', fontWeight: 600 }}>Re-Followed Date:</span>
+              <span style={{ fontWeight: 700, color: '#16a34a' }}>
+                {formatIST(submission.re_followed_at)} IST
+              </span>
+            </div>
+          )}
 
           {/* Verification Info Box */}
           {submission.verificationBadge && (
