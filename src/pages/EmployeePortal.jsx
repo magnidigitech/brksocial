@@ -410,7 +410,7 @@ export function EmployeePortal({ session, onLogout }) {
       }} />
 
       {/* Main Container Frame */}
-      <div className="dashboard-main-frame" style={{ maxWidth: '1000px' }}>
+      <div className="dashboard-main-frame" style={{ maxWidth: '1440px' }}>
         {/* Compact Top Header Bar */}
         <div style={{
           display: 'flex',
@@ -525,11 +525,13 @@ export function EmployeePortal({ session, onLogout }) {
           </div>
         )}
 
-        {/* ACTIVE TASK CARD & PROGRESS BAR */}
+        {/* ACTIVE TASK & SUBMISSIONS 2-COLUMN DESKTOP GRID */}
         {activeTask ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* 1. Task Overview Box with Daily Completion Progress */}
-            <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
+          <div className="portal-content-grid">
+            {/* LEFT COLUMN: Task Details, Entry Form & Outreach Tracking Link */}
+            <div className="portal-left-column">
+              {/* 1. Task Overview Box with Daily Completion Progress */}
+              <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {/* Perfectly Round Platform Icon */}
@@ -1153,9 +1155,12 @@ export function EmployeePortal({ session, onLogout }) {
                 </div>
               </div>
             )}
+            </div>
 
-            {/* 4. SUBMISSIONS LOG (WITH TABS FOR TODAY & PREVIOUS SUBMISSIONS) */}
-            <div className="dashboard-section-card">
+            {/* RIGHT COLUMN: Submissions History (Today & Previous Tabs) */}
+            <div className="portal-right-column">
+              {/* 4. SUBMISSIONS LOG (WITH TABS FOR TODAY & PREVIOUS SUBMISSIONS) */}
+              <div className="dashboard-section-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
                   Submissions History
@@ -1434,6 +1439,7 @@ export function EmployeePortal({ session, onLogout }) {
               )}
             </div>
           </div>
+        </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '60px 24px' }}>
             <Award size={40} style={{ color: '#d1d5db', marginBottom: '12px' }} />
