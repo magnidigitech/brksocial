@@ -31,7 +31,8 @@ import {
   X,
   Menu,
   Info,
-  Phone
+  Phone,
+  HelpCircle
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { normalizeInstagramUsername } from '../services/normalization.js';
@@ -66,6 +67,7 @@ export function EmployeePortal({ session, onLogout }) {
   const [showMenu, setShowMenu] = useState(false);
   const [submissionTab, setSubmissionTab] = useState('today'); // 'today' | 'previous'
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
+  const [showPatternHelp, setShowPatternHelp] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -667,30 +669,170 @@ export function EmployeePortal({ session, onLogout }) {
 
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                  <input
-                    type="text"
-                    required
-                    disabled={isSubmitting}
-                    placeholder={
-                      activeTask.submissionType === 'Mobile Number'
-                        ? 'Enter 10-digit voter mobile number...'
-                        : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
-                    }
-                    value={inputVal}
-                    onChange={(e) => setInputVal(e.target.value)}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: '12px 18px',
-                      borderRadius: '980px',
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: '13.5px',
-                      fontWeight: 500,
-                      outline: 'none',
-                      backgroundColor: 'rgba(118, 118, 128, 0.06)',
-                      color: '#1d1d1f'
-                    }}
-                  />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type="text"
+                      required
+                      disabled={isSubmitting}
+                      placeholder={
+                        activeTask.submissionType === 'Mobile Number'
+                          ? 'Enter 10-digit voter mobile number...'
+                          : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
+                      }
+                      value={inputVal}
+                      onChange={(e) => setInputVal(e.target.value)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '12px 44px 12px 18px',
+                        borderRadius: '980px',
+                        border: '1px solid rgba(0, 0, 0, 0.1)',
+                        fontSize: '13.5px',
+                        fontWeight: 500,
+                        outline: 'none',
+                        backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                        color: '#1d1d1f'
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPatternHelp(prev => !prev)}
+                      title="View sample username & URL patterns"
+                      aria-label="View sample username & URL patterns"
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: showPatternHelp ? '#0071e3' : '#64748b',
+                        cursor: 'pointer',
+                        borderRadius: '50%',
+                        transition: 'color 0.15s ease'
+                      }}
+                    >
+                      <HelpCircle size={18} />
+                    </button>
+                  </div>
+
+                  {showPatternHelp && (
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                      padding: '14px 16px',
+                      fontSize: '12.5px',
+                      color: '#334155'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0f172a' }}>
+                          <Info size={15} style={{ color: '#0071e3' }} />
+                          <span>Accepted Username & URL Patterns</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPatternHelp(false)}
+                          aria-label="Close pattern help"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            padding: '2px',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+
+                      <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
+                        Tap any pattern below to autofill sample:
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div
+                          onClick={() => { setInputVal('@lakshmisettylavanya'); setShowPatternHelp(false); }}
+                          style={{
+                            padding: '7px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>@lakshmisettylavanya</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>With @ prefix</span>
+                        </div>
+
+                        <div
+                          onClick={() => { setInputVal('lakshmisettylavanya'); setShowPatternHelp(false); }}
+                          style={{
+                            padding: '7px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>lakshmisettylavanya</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>Plain handle</span>
+                        </div>
+
+                        <div
+                          onClick={() => { setInputVal('https://instagram.com/lakshmisettylavanya'); setShowPatternHelp(false); }}
+                          style={{
+                            padding: '7px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11.5px', wordBreak: 'break-all' }}>
+                            https://instagram.com/lakshmisettylavanya
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Profile URL</span>
+                        </div>
+
+                        <div
+                          onClick={() => { setInputVal('https://www.instagram.com/lakshmisettylavanya?igsh=MXR3N3N0'); setShowPatternHelp(false); }}
+                          style={{
+                            padding: '7px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all' }}>
+                            ...instagram.com/lakshmisettylavanya?igsh=...
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>Share URL</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <button
                     type="submit"
