@@ -687,15 +687,38 @@ function mergeSubmissions(serverList, clientList) {
     if (!norm || !norm.username) return;
 
     if (!map.has(norm.id)) {
-      // Check if duplicate submission under same task & username exists
-      const existingSameUser = Array.from(map.values()).find(s => 
+      // Check if this exact employee already submitted this handle on the server
+      const existingSameEmpSub = Array.from(map.values()).find(s => 
+        s.taskId === norm.taskId &&
+        s.employeeId === norm.employeeId &&
+        String(s.username).toLowerCase() === norm.username.toLowerCase()
+      );
+
+      if (existingSameEmpSub) {
+        // Same employee, update status if client has newer verification
+        if (existingSameEmpSub.status === 'Pending Submission' && (norm.status === 'Valid Submission' || norm.status === 'Already Followed')) {
+          map.set(existingSameEmpSub.id, { ...existingSameEmpSub, ...norm, id: existingSameEmpSub.id });
+          updatedCount++;
+        }
+        return;
+      }
+
+      // Check if another staff member already submitted this handle (cross-staff duplicate)
+      const existingOtherSub = Array.from(map.values()).find(s => 
         s.taskId === norm.taskId &&
         String(s.username).toLowerCase() === norm.username.toLowerCase()
       );
 
-      if (existingSameUser) {
-        // If already exists under another ID, keep the earlier/authoritative one
-        return;
+      if (existingOtherSub) {
+        // Tag as duplicate submission, but KEEP the record so staff entry is never lost!
+        norm.isDuplicate = true;
+        norm.duplicateOf = existingOtherSub.id;
+        if (!norm.verificationBadge || norm.status === 'Valid Submission') {
+          norm.status = 'Already Followed';
+          norm.isValid = false;
+          norm.verificationBadge = 'Duplicate Submission';
+          norm.verificationNote = `Already submitted by ${existingOtherSub.employeeName || existingOtherSub.employeeId}`;
+        }
       }
 
       map.set(norm.id, norm);
@@ -992,7 +1015,14 @@ app.post('/api/submissions/sync', async (req, res) => {
                 is_duplicate, duplicate_of, followed_at_formatted, followed_at_timestamp,
                 verification_badge, verification_note, submitted_at, date, time_formatted_ist
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
-              ON CONFLICT (id) DO NOTHING`,
+              ON CONFLICT (id) DO UPDATE SET
+                status = EXCLUDED.status,
+                is_valid = EXCLUDED.is_valid,
+                is_follower = EXCLUDED.is_follower,
+                verification_badge = EXCLUDED.verification_badge,
+                verification_note = EXCLUDED.verification_note,
+                followed_at_formatted = EXCLUDED.followed_at_formatted,
+                followed_at_timestamp = EXCLUDED.followed_at_timestamp`,
               [
                 norm.id, norm.taskId, norm.employeeId, norm.employeeName, norm.supportCode, norm.staffId,
                 norm.parliamentCode, norm.parliamentName, norm.assemblyCode, norm.assemblyName,

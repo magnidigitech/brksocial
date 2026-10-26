@@ -163,17 +163,34 @@ export const dbService = {
       } catch (err) {}
     }
 
-    // PURGE ALL DUMMY DATA: Start completely clean with real tracking only
-    if (!localStorage.getItem('brk_clean_real_data_v4')) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
-      localStorage.setItem('brk_clean_real_data_v4', 'true');
-    }
-
+    // SAFE STORAGE INITIALIZATION: Never wipe existing staff data from localStorage
     if (!localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
-    } else {
+      // Check legacy keys in case older version stored submissions under different key
+      const legacySubs = localStorage.getItem('brk_submissions') || localStorage.getItem('submissions');
+      if (legacySubs) {
+        try {
+          const parsed = JSON.parse(legacySubs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(parsed));
+          } else {
+            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+          }
+        } catch (_) {
+          localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+        }
+      } else {
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+      }
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) {
+      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
+      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
+    }
+    localStorage.setItem('brk_clean_real_data_v4', 'true');
+
+    if (localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
       // Migrate submissions to strict 4 statuses
       try {
         const subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
@@ -1138,13 +1155,25 @@ export const dbService = {
             : (Array.isArray(data) ? data : null);
 
           if (serverSubs) {
+            // SAFE UNION: Never lose any submission existing in client's localStorage
+            const freshLocal = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+            const serverIdMap = new Map();
+            serverSubs.forEach(s => {
+              if (s && s.id) serverIdMap.set(String(s.id), s);
+            });
+
+            // Keep any local submissions that haven't appeared in the server response yet
+            const unmergedLocal = freshLocal.filter(s => s && s.id && !serverIdMap.has(String(s.id)));
+            const fullMerged = [...serverSubs, ...unmergedLocal];
+            fullMerged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+
             const currentStr = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]';
-            const serverStr = JSON.stringify(serverSubs);
+            const serverStr = JSON.stringify(fullMerged);
             if (currentStr !== serverStr) {
               localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, serverStr);
-              broadcastSyncEvent('brk_submission_event', { submissions: serverSubs });
+              broadcastSyncEvent('brk_submission_event', { submissions: fullMerged });
             }
-            return serverSubs;
+            return fullMerged;
           }
         }
       }
