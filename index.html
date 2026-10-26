@@ -49,11 +49,13 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('BRK TaskHub PWA SW registered:', reg.scope))
+            .then(reg => {
+              console.log('BRK TaskHub PWA SW registered:', reg.scope);
+              if (reg.update) reg.update();
+            })
             .catch(err => console.warn('PWA SW registration error:', err));
         });
       }
     </script>
-  </body>
   </body>
 </html>

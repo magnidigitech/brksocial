@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brk-taskhub-pwa-v2';
+const CACHE_NAME = 'brk-taskhub-pwa-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
