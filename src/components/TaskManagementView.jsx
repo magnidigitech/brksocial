@@ -234,82 +234,93 @@ export function TaskManagementView() {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
-
-    let targetCodes = [];
-    let targetName = 'All Staff & Constituencies';
-
-    if (formData.scopeType === 'ALL_ASSEMBLIES') {
-      targetName = 'All 175 Assemblies';
-    } else if (formData.scopeType === 'ALL_PARLIAMENTS') {
-      targetName = 'All 25 Parliaments';
-    } else if (formData.scopeType === 'SPECIFIC_PARLIAMENT' || formData.scopeType === 'SELECTED_PARLIAMENTS') {
-      targetCodes = selectedParliaments;
-      if (selectedParliaments.length === 0) {
-        alert('Please check at least one Parliament constituency.');
-        return;
-      }
-      if (selectedParliaments.length === 1) {
-        const pObj = AP_CONSTITUENCIES.find(p => p.code === selectedParliaments[0]);
-        targetName = pObj ? `${pObj.code} - ${pObj.name} Parliament` : selectedParliaments[0];
-      } else {
-        targetName = `${selectedParliaments.length} Parliaments Selected (${selectedParliaments.slice(0, 3).join(', ')}${selectedParliaments.length > 3 ? '...' : ''})`;
-      }
-    } else if (formData.scopeType === 'SPECIFIC_ASSEMBLY' || formData.scopeType === 'SELECTED_ASSEMBLIES') {
-      targetCodes = selectedAssemblies;
-      if (selectedAssemblies.length === 0) {
-        alert('Please check at least one Assembly constituency.');
-        return;
-      }
-      if (selectedAssemblies.length === 1) {
-        const aObj = allAssembliesList.find(a => a.code === selectedAssemblies[0]);
-        targetName = aObj ? `${aObj.code} - ${aObj.name} Assembly` : selectedAssemblies[0];
-      } else {
-        targetName = `${selectedAssemblies.length} Assemblies Selected (${selectedAssemblies.slice(0, 3).join(', ')}${selectedAssemblies.length > 3 ? '...' : ''})`;
-      }
+    if (!formData.name.trim()) {
+      alert('Please enter a Task Name.');
+      return;
     }
 
-    const cleanSlug = (formData.urlSlug || 'go')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9_-]/g, '') || 'go';
+    try {
+      let targetCodes = [];
+      let targetName = 'All Staff & Constituencies';
 
-    const payload = {
-      id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
-      name: formData.name,
-      description: formData.description,
-      platform: formData.platform,
-      submissionType: formData.submissionType,
-      targetUrl: formData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
-      urlSlug: cleanSlug,
-      dailyTarget: Number(formData.dailyTarget),
-      frequency: formData.frequency,
-      assignmentScope: {
-        scopeType: normalizedScopeType,
-        targetCodes,
-        targetCode: targetCodes.length > 0 ? targetCodes[0] : null,
-        targetName
-      },
-      rules: {
-        duplicateScope: formData.duplicateScope,
-        allowExtraSubmissions: formData.allowExtraSubmissions,
-        requireProof: formData.requireProof
-      },
-      duplicateScope: formData.duplicateScope,
-      allowExtraSubmissions: formData.allowExtraSubmissions,
-      requireProof: formData.requireProof,
-      status: editingTask ? editingTask.status : 'Active',
-      createdDate: editingTask ? editingTask.createdDate : new Date().toISOString().split('T')[0]
-    };
+      if (formData.scopeType === 'ALL_ASSEMBLIES') {
+        targetName = 'All 175 Assemblies';
+      } else if (formData.scopeType === 'ALL_PARLIAMENTS') {
+        targetName = 'All 25 Parliaments';
+      } else if (formData.scopeType === 'SPECIFIC_PARLIAMENT' || formData.scopeType === 'SELECTED_PARLIAMENTS') {
+        targetCodes = selectedParliaments;
+        if (selectedParliaments.length === 0) {
+          alert('Please check at least one Parliament constituency.');
+          return;
+        }
+        if (selectedParliaments.length === 1) {
+          const pObj = AP_CONSTITUENCIES.find(p => p.code === selectedParliaments[0]);
+          targetName = pObj ? `${pObj.code} - ${pObj.name} Parliament` : selectedParliaments[0];
+        } else {
+          targetName = `${selectedParliaments.length} Parliaments Selected (${selectedParliaments.slice(0, 3).join(', ')}${selectedParliaments.length > 3 ? '...' : ''})`;
+        }
+      } else if (formData.scopeType === 'SPECIFIC_ASSEMBLY' || formData.scopeType === 'SELECTED_ASSEMBLIES') {
+        targetCodes = selectedAssemblies;
+        if (selectedAssemblies.length === 0) {
+          alert('Please check at least one Assembly constituency.');
+          return;
+        }
+        if (selectedAssemblies.length === 1) {
+          const aObj = allAssembliesList.find(a => a.code === selectedAssemblies[0]);
+          targetName = aObj ? `${aObj.code} - ${aObj.name} Assembly` : selectedAssemblies[0];
+        } else {
+          targetName = `${selectedAssemblies.length} Assemblies Selected (${selectedAssemblies.slice(0, 3).join(', ')}${selectedAssemblies.length > 3 ? '...' : ''})`;
+        }
+      }
 
-    if (editingTask) {
-      dbService.updateTask(payload);
-    } else {
-      dbService.addTask(payload);
+      const cleanSlug = (formData.urlSlug || 'go')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9_-]/g, '') || 'go';
+
+      const normalizedScopeType = formData.scopeType === 'SPECIFIC_PARLIAMENT' ? 'SELECTED_PARLIAMENTS' : 
+                                 (formData.scopeType === 'SPECIFIC_ASSEMBLY' ? 'SELECTED_ASSEMBLIES' : (formData.scopeType || 'ALL_STAFF'));
+
+      const payload = {
+        id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || '',
+        platform: formData.platform || 'Instagram',
+        submissionType: formData.submissionType || 'Instagram Handle',
+        targetUrl: formData.targetUrl?.trim() || 'https://www.instagram.com/ramakrishnabhashyam/',
+        urlSlug: cleanSlug,
+        dailyTarget: Number(formData.dailyTarget) || 10,
+        frequency: formData.frequency || 'Daily',
+        assignmentScope: {
+          scopeType: normalizedScopeType,
+          targetCodes,
+          targetCode: targetCodes.length > 0 ? targetCodes[0] : null,
+          targetName
+        },
+        rules: {
+          duplicateScope: formData.duplicateScope || 'Entire Campaign',
+          allowExtraSubmissions: formData.allowExtraSubmissions ?? true,
+          requireProof: formData.requireProof ?? false
+        },
+        duplicateScope: formData.duplicateScope || 'Entire Campaign',
+        allowExtraSubmissions: formData.allowExtraSubmissions ?? true,
+        requireProof: formData.requireProof ?? false,
+        status: editingTask ? editingTask.status : 'Active',
+        createdDate: editingTask ? editingTask.createdDate : new Date().toISOString().split('T')[0]
+      };
+
+      if (editingTask) {
+        dbService.updateTask(payload);
+      } else {
+        dbService.addTask(payload);
+      }
+
+      setIsModalOpen(false);
+      loadTasks();
+    } catch (err) {
+      console.error('Failed to save task:', err);
+      alert('Failed to save task: ' + err.message);
     }
-
-    setIsModalOpen(false);
-    loadTasks();
   };
 
   const filteredTasks = tasks.filter(t => {

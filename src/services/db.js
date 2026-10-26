@@ -431,11 +431,13 @@ export const dbService = {
   addTask(taskData) {
     const tasks = this.getTasks();
     const newTask = {
-      id: `TASK-${Date.now()}`,
+      id: taskData.id || `TASK-${Date.now()}`,
       name: taskData.name || 'New Task',
       description: taskData.description || '',
       platform: taskData.platform || 'Instagram',
       submissionType: taskData.submissionType || 'Instagram Handle',
+      targetUrl: taskData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
+      urlSlug: taskData.urlSlug || 'go',
       dailyTarget: Number(taskData.dailyTarget) || 10,
       frequency: taskData.frequency || 'Daily',
       assignmentScope: taskData.assignmentScope || {
@@ -452,10 +454,20 @@ export const dbService = {
       allowExtraSubmissions: taskData.rules?.allowExtraSubmissions ?? true,
       requireProof: taskData.rules?.requireProof ?? false,
       status: taskData.status || 'Active',
-      createdDate: new Date().toISOString().split('T')[0]
+      createdDate: taskData.createdDate || new Date().toISOString().split('T')[0]
     };
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+
+    // Background sync to server if available
+    try {
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask)
+      }).catch(() => {});
+    } catch (_) {}
+
     return newTask;
   },
 
@@ -465,6 +477,15 @@ export const dbService = {
     if (idx !== -1) {
       tasks[idx] = { ...tasks[idx], ...updatedTask };
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+
+      try {
+        fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tasks[idx])
+        }).catch(() => {});
+      } catch (_) {}
+
       return tasks[idx];
     }
     return null;
