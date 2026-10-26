@@ -1555,15 +1555,33 @@ export const dbService = {
     const tasks = this.getTasks();
     const targetTask = taskId && taskId !== 'ALL' ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
 
-    let filteredClicks = allClicks;
+    const endDate = filter.endDate;
 
-    // Filter by specific date (e.g. TODAY or YESTERDAY)
-    if (date && date !== 'ALL') {
-      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp.startsWith(date));
-    }
-    // Filter by startDate (e.g. Last 7 Days)
-    if (startDate) {
-      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp >= startDate);
+    // Filter by date range (startDate & endDate, startDate, endDate, or exact date)
+    if (startDate && endDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate >= startDate && cDate <= endDate;
+      });
+    } else if (startDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate >= startDate;
+      });
+    } else if (endDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate <= endDate;
+      });
+    } else if (date && date !== 'ALL') {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate === date || c.timestamp.startsWith(date);
+      });
     }
     // Filter by task
     if (targetTask && taskId && taskId !== 'ALL') {

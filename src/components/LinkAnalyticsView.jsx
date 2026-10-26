@@ -26,11 +26,17 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getTodayISTDateString, getISTDateOffset } from '../services/istUtils.js';
+import { DateRangePicker, getPresetDateRange } from './DateRangePicker.jsx';
 
 export function LinkAnalyticsView() {
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('ALL'); // 'TODAY', 'YESTERDAY', '7DAYS', 'ALL'
+  const [dateRange, setDateRange] = useState({
+    startDate: null,
+    endDate: null,
+    preset: 'ALL',
+    label: 'All Time'
+  });
   
   // Parliament filter states: multi-select support
   const [isMultiParliament, setIsMultiParliament] = useState(false);
@@ -101,30 +107,27 @@ export function LinkAnalyticsView() {
 
   // Compute analytics based on current filters
   const analyticsData = useMemo(() => {
-    const today = getTodayISTDateString();
-    const yesterdayDate = getISTDateOffset(-1);
-    const sevenDaysAgoDate = getISTDateOffset(-7);
-
     let targetDate = null;
-    let startDate = null;
+    let startDate = dateRange.startDate;
+    let endDate = dateRange.endDate;
 
-    if (dateFilter === 'TODAY') {
-      targetDate = today;
-    } else if (dateFilter === 'YESTERDAY') {
-      targetDate = yesterdayDate;
-    } else if (dateFilter === '7DAYS') {
-      startDate = sevenDaysAgoDate;
+    // If start & end date are identical single day (e.g. Today or Yesterday)
+    if (startDate && startDate === endDate) {
+      targetDate = startDate;
+      startDate = null;
+      endDate = null;
     }
 
     const data = dbService.getLinkAnalytics({
       taskId: selectedTaskId !== 'ALL' ? selectedTaskId : null,
       date: targetDate,
       startDate: startDate,
+      endDate: endDate,
       allClicks: serverClicks
     });
 
     return data;
-  }, [selectedTaskId, dateFilter, serverClicks, refreshKey]);
+  }, [selectedTaskId, dateRange, serverClicks, refreshKey]);
 
   // Flattened assemblies list
   const assembliesForSelection = useMemo(() => {
@@ -480,44 +483,57 @@ export function LinkAnalyticsView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Top Row: Date Range & Task Selector */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            {/* Apple Segmented Control for Period */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '2px',
-              padding: '3px',
-              borderRadius: '10px',
-              backgroundColor: 'rgba(118, 118, 128, 0.08)',
-              border: '1px solid rgba(0, 0, 0, 0.04)'
-            }}>
-              {[
-                { id: 'ALL', label: 'All Time' },
-                { id: 'TODAY', label: 'Today' },
-                { id: 'YESTERDAY', label: 'Yesterday' },
-                { id: '7DAYS', label: 'Last 7 Days' }
-              ].map(d => {
-                const isActive = dateFilter === d.id;
-                return (
-                  <button
-                    key={d.id}
-                    onClick={() => setDateFilter(d.id)}
-                    style={{
-                      padding: '5px 14px',
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: isActive ? 600 : 500,
-                      cursor: 'pointer',
-                      border: 'none',
-                      backgroundColor: isActive ? '#ffffff' : 'transparent',
-                      color: isActive ? '#1d1d1f' : '#86868b',
-                      boxShadow: isActive ? '0 1px 3px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.08)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
+            {/* Reusable Date Range Picker with Presets & Interactive 2-Date Selection */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Date Range:
+              </span>
+              <DateRangePicker
+                value={dateRange}
+                onChange={(newRange) => setDateRange(newRange)}
+                align="left"
+              />
+
+              {/* Quick inline shortcut pills */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                padding: '2px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(118, 118, 128, 0.08)',
+                border: '1px solid rgba(0, 0, 0, 0.04)'
+              }}>
+                {[
+                  { id: 'ALL', label: 'All Time' },
+                  { id: 'TODAY', label: 'Today' },
+                  { id: 'THIS_WEEK', label: 'This Week' },
+                  { id: 'THIS_MONTH', label: 'This Month' }
+                ].map(shortcut => {
+                  const isActive = dateRange.preset === shortcut.id;
+                  return (
+                    <button
+                      key={shortcut.id}
+                      type="button"
+                      onClick={() => setDateRange(getPresetDateRange(shortcut.id))}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: isActive ? 600 : 500,
+                        cursor: 'pointer',
+                        border: 'none',
+                        backgroundColor: isActive ? '#ffffff' : 'transparent',
+                        color: isActive ? '#0f172a' : '#64748b',
+                        boxShadow: isActive ? '0 1px 2px rgba(0, 0, 0, 0.06)' : 'none',
+                        transition: 'all 0.12s ease'
+                      }}
+                    >
+                      {shortcut.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Campaign Task Selector */}

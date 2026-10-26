@@ -1050,6 +1050,46 @@ input::-ms-clear {
   -moz-appearance: textfield !important;
 }
 
+/* Date Range Picker Popover Animation */
+@keyframes datePickerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 520px) {
+  .date-range-picker-container > div[style*="position: absolute"] {
+    flex-direction: column !important;
+    width: min(340px, calc(100vw - 20px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+    padding: 8px 10px !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child > div:first-child {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child > div:first-child button {
+    white-space: nowrap !important;
+    width: auto !important;
+    padding: 4px 10px !important;
+  }
+}
+
+
 
 
 
