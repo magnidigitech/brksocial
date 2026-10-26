@@ -1,5 +1,13 @@
 [
   {
+    "id": "AUD_1793049626782_42ods",
+    "action": "RESET_FOLLOWER_DATABASE",
+    "operator": "Administrator",
+    "details": "{\"previousFollowersCleared\":0,\"submissionsPreservedAndReset\":12,\"submissionsStatusUpdated\":9,\"note\":\"Follower baseline cleared. Ready for Mode A: Initial Baseline Import.\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-10-26T21:20:26.782Z"
+  },
+  {
     "id": "AUD_1793048618242_atnvd",
     "action": "RESET_FOLLOWER_DATABASE",
     "operator": "Administrator",

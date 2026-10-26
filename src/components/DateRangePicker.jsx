@@ -551,7 +551,7 @@ export function DateRangePicker({
             animation: 'datePickerFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
-          {/* Left Sidebar: Presets & Apply Button */}
+          {/* Left Sidebar: Presets */}
           <div
             style={{
               width: '140px',
@@ -561,7 +561,6 @@ export function DateRangePicker({
               padding: '12px 10px',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'space-between',
               boxSizing: 'border-box'
             }}
           >
@@ -612,35 +611,6 @@ export function DateRangePicker({
                   </button>
                 );
               })}
-            </div>
-
-            {/* Bottom Apply Action */}
-            <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(0, 0, 0, 0.06)' }}>
-              <button
-                type="button"
-                onClick={handleApply}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: '#0f172a',
-                  color: '#ffffff',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  boxShadow: '0 2px 4px rgba(15, 23, 42, 0.2)',
-                  transition: 'background-color 0.15s ease'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0f172a'}
-              >
-                Apply
-              </button>
             </div>
           </div>
 
@@ -854,56 +824,93 @@ export function DateRangePicker({
               })}
             </div>
 
-            {/* Selection Status Summary */}
+            {/* Selection Status Summary & Full-Width Fill Apply Button */}
             <div
               style={{
                 marginTop: '12px',
                 paddingTop: '10px',
                 borderTop: '1px solid rgba(0, 0, 0, 0.06)',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                color: '#64748b'
+                flexDirection: 'column',
+                gap: '10px'
               }}
             >
-              <span>
-                {draftStart && draftEnd ? (
-                  <>
-                    <strong style={{ color: '#0f172a' }}>Range:</strong>{' '}
-                    {formatDisplayDate(draftStart)} – {formatDisplayDate(draftEnd)}
-                  </>
-                ) : draftStart ? (
-                  <>
-                    <strong style={{ color: '#0f172a' }}>Start:</strong> {formatDisplayDate(draftStart)} (select end date)
-                  </>
-                ) : (
-                  'Select start and end date'
-                )}
-              </span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: '#64748b'
+                }}
+              >
+                <span>
+                  {draftStart && draftEnd ? (
+                    <>
+                      <strong style={{ color: '#0f172a' }}>Range:</strong>{' '}
+                      {formatDisplayDate(draftStart)} – {formatDisplayDate(draftEnd)}
+                    </>
+                  ) : draftStart ? (
+                    <>
+                      <strong style={{ color: '#0f172a' }}>Start:</strong> {formatDisplayDate(draftStart)} (select end date)
+                    </>
+                  ) : draftPreset === 'ALL' ? (
+                    <strong style={{ color: '#0f172a' }}>Range: All Time</strong>
+                  ) : (
+                    'Select start and end date'
+                  )}
+                </span>
 
-              {draftStart && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftStart(null);
-                    setDraftEnd(null);
-                    setDraftPreset('ALL');
-                  }}
-                  style={{
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    color: '#94a3b8',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+                {(draftStart || (draftPreset && draftPreset !== 'ALL')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftStart(null);
+                      setDraftEnd(null);
+                      setDraftPreset('ALL');
+                    }}
+                    style={{
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      padding: 0
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Full-width Fill Apply Button on Calendar Side */}
+              <button
+                type="button"
+                onClick={handleApply}
+                style={{
+                  width: '100%',
+                  padding: '9px 16px',
+                  borderRadius: '9px',
+                  border: 'none',
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 5px rgba(15, 23, 42, 0.22)',
+                  transition: 'background-color 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0f172a'}
+              >
+                Apply
+              </button>
             </div>
           </div>
         </div>

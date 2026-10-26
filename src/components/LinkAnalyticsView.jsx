@@ -26,7 +26,7 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getTodayISTDateString, getISTDateOffset } from '../services/istUtils.js';
-import { DateRangePicker, getPresetDateRange } from './DateRangePicker.jsx';
+import { DateRangePicker } from './DateRangePicker.jsx';
 
 export function LinkAnalyticsView() {
   const [tasks, setTasks] = useState([]);
@@ -484,57 +484,11 @@ export function LinkAnalyticsView() {
           {/* Top Row: Date Range & Task Selector */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
             {/* Reusable Date Range Picker with Presets & Interactive 2-Date Selection */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Date Range:
-              </span>
-              <DateRangePicker
-                value={dateRange}
-                onChange={(newRange) => setDateRange(newRange)}
-                align="left"
-              />
-
-              {/* Quick inline shortcut pills */}
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '2px',
-                padding: '2px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(118, 118, 128, 0.08)',
-                border: '1px solid rgba(0, 0, 0, 0.04)'
-              }}>
-                {[
-                  { id: 'ALL', label: 'All Time' },
-                  { id: 'TODAY', label: 'Today' },
-                  { id: 'THIS_WEEK', label: 'This Week' },
-                  { id: 'THIS_MONTH', label: 'This Month' }
-                ].map(shortcut => {
-                  const isActive = dateRange.preset === shortcut.id;
-                  return (
-                    <button
-                      key={shortcut.id}
-                      type="button"
-                      onClick={() => setDateRange(getPresetDateRange(shortcut.id))}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: isActive ? 600 : 500,
-                        cursor: 'pointer',
-                        border: 'none',
-                        backgroundColor: isActive ? '#ffffff' : 'transparent',
-                        color: isActive ? '#0f172a' : '#64748b',
-                        boxShadow: isActive ? '0 1px 2px rgba(0, 0, 0, 0.06)' : 'none',
-                        transition: 'all 0.12s ease'
-                      }}
-                    >
-                      {shortcut.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <DateRangePicker
+              value={dateRange}
+              onChange={(newRange) => setDateRange(newRange)}
+              align="left"
+            />
 
             {/* Campaign Task Selector */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
