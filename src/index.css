@@ -1040,6 +1040,17 @@ input::-ms-clear {
   }
 }
 
+/* Hide number input spinners for custom steppers */
+.no-spinners::-webkit-inner-spin-button,
+.no-spinners::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.no-spinners {
+  -moz-appearance: textfield !important;
+}
+
+
 
 
 

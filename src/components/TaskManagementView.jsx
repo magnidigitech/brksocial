@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  Minus,
   Plus, 
   Sliders, 
   CheckCircle2, 
@@ -1066,24 +1067,92 @@ export function TaskManagementView() {
                      formData.frequency === 'Campaign Total' ? 'Campaign Total Target (per employee)' :
                      'Daily Target (per employee)'}
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000"
-                    required
-                    value={formData.dailyTarget}
-                    onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(0, 0, 0, 0.12)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    overflow: 'hidden',
+                    height: '37px',
+                    boxSizing: 'border-box'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const step = formData.frequency === 'Daily' ? 1 : 5;
+                        const curr = Number(formData.dailyTarget) || 10;
+                        setFormData({ ...formData, dailyTarget: Math.max(1, curr - step) });
+                      }}
+                      title="Decrease Target"
+                      style={{
+                        width: '34px',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        color: '#1d1d1f',
+                        cursor: 'pointer',
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.04)'}
+                    >
+                      <Minus size={13} strokeWidth={2.5} />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      required
+                      value={formData.dailyTarget}
+                      onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
+                      style={{
+                        flex: 1,
+                        width: '100%',
+                        textAlign: 'center',
+                        border: 'none',
+                        padding: '0 4px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#1d1d1f',
+                        outline: 'none',
+                        backgroundColor: 'transparent'
+                      }}
+                      className="no-spinners"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const step = formData.frequency === 'Daily' ? 1 : 5;
+                        const curr = Number(formData.dailyTarget) || 10;
+                        setFormData({ ...formData, dailyTarget: Math.min(10000, curr + step) });
+                      }}
+                      title="Increase Target"
+                      style={{
+                        width: '34px',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        color: '#1d1d1f',
+                        cursor: 'pointer',
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.04)'}
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1255,26 +1324,93 @@ export function TaskManagementView() {
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#9333ea', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                           🔄 Repeat For (N Days)
                         </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="90"
-                          required
-                          value={formData.cycleDays || 10}
-                          onChange={(e) => setFormData({ ...formData, cycleDays: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(147, 51, 234, 0.3)',
-                            fontSize: '12.5px',
-                            fontWeight: 600,
-                            color: '#1d1d1f',
-                            backgroundColor: '#ffffff',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '8px',
+                          border: '1.5px solid rgba(147, 51, 234, 0.4)',
+                          overflow: 'hidden',
+                          height: '35px',
+                          boxSizing: 'border-box',
+                          boxShadow: '0 1px 2px rgba(147, 51, 234, 0.05)'
+                        }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = Number(formData.cycleDays) || 10;
+                              setFormData({ ...formData, cycleDays: Math.max(1, curr - 1) });
+                            }}
+                            title="Decrease days (-1)"
+                            style={{
+                              width: '34px',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: 'none',
+                              backgroundColor: 'rgba(147, 51, 234, 0.08)',
+                              color: '#9333ea',
+                              cursor: 'pointer',
+                              padding: 0,
+                              flexShrink: 0,
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.08)'}
+                          >
+                            <Minus size={14} strokeWidth={2.5} />
+                          </button>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            required
+                            value={formData.cycleDays || 10}
+                            onChange={(e) => setFormData({ ...formData, cycleDays: e.target.value })}
+                            style={{
+                              flex: 1,
+                              width: '100%',
+                              textAlign: 'center',
+                              border: 'none',
+                              padding: '0 4px',
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              color: '#1d1d1f',
+                              backgroundColor: 'transparent',
+                              outline: 'none'
+                            }}
+                            className="no-spinners"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = Number(formData.cycleDays) || 10;
+                              setFormData({ ...formData, cycleDays: Math.min(365, curr + 1) });
+                            }}
+                            title="Increase days (+1)"
+                            style={{
+                              width: '34px',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: 'none',
+                              backgroundColor: 'rgba(147, 51, 234, 0.08)',
+                              color: '#9333ea',
+                              cursor: 'pointer',
+                              padding: 0,
+                              flexShrink: 0,
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.08)'}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
