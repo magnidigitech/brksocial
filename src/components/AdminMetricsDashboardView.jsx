@@ -197,9 +197,7 @@ export function AdminMetricsDashboardView() {
     if (!isMultiSelect) {
       return selectedParliaments.length === 0 || selectedParliaments.includes('ALL');
     }
-    return selectedParliaments.length === 0 || 
-      selectedParliaments.includes('ALL') || 
-      selectedParliaments.length === AP_CONSTITUENCIES.length;
+    return selectedParliaments.includes('ALL') || selectedParliaments.length === AP_CONSTITUENCIES.length;
   }, [isMultiSelect, selectedParliaments]);
 
   // Set of actively selected parliament codes when filtered
@@ -211,7 +209,7 @@ export function AdminMetricsDashboardView() {
   // Multi-select toggle helpers
   const toggleParliamentInMultiSelect = (code) => {
     setSelectedParliaments(prev => {
-      const isCurrentlyAll = prev.length === 0 || prev.includes('ALL') || prev.length === AP_CONSTITUENCIES.length;
+      const isCurrentlyAll = prev.includes('ALL') || prev.length === AP_CONSTITUENCIES.length;
       if (isCurrentlyAll) {
         const allCodes = AP_CONSTITUENCIES.map(p => p.code);
         return allCodes.filter(c => c !== code);
@@ -263,8 +261,23 @@ export function AdminMetricsDashboardView() {
     const list = rawStats.employeeProgressList || [];
 
     // If All 25 Parliaments selected, use the global rawStats
-    if (isAllSelected || !activeParliamentCodes || activeParliamentCodes.size === 0) {
+    if (isAllSelected) {
       return rawStats;
+    }
+
+    if (!activeParliamentCodes || activeParliamentCodes.size === 0) {
+      return {
+        ...rawStats,
+        activeEmployees: 0,
+        targetSubmissions: 0,
+        validSubmissions: 0,
+        duplicates: 0,
+        remaining: 0,
+        completedEmpCount: 0,
+        inProgressEmpCount: 0,
+        notStartedEmpCount: 0,
+        employeeProgressList: []
+      };
     }
 
     // Filter staff members belonging ONLY to the selected parliament(s)
@@ -367,7 +380,10 @@ export function AdminMetricsDashboardView() {
   const filteredEmployees = useMemo(() => {
     let list = rawStats.employeeProgressList || [];
 
-    if (!isAllSelected && activeParliamentCodes && activeParliamentCodes.size > 0) {
+    if (!isAllSelected) {
+      if (!activeParliamentCodes || activeParliamentCodes.size === 0) {
+        return [];
+      }
       list = list.filter(e => {
         const code = e.parliamentCode || (e.id?.startsWith('APP') ? e.id.substring(0, 5) : null);
         return code && activeParliamentCodes.has(code);
