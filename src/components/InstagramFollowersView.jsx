@@ -9,8 +9,43 @@ import { dbService } from '../services/db.js';
 import { followerStorage, extractItemsFromParsedJson, formatFollowerTimestamp } from '../services/followerStorage.js';
 
 export function InstagramFollowersView() {
+  const validSubtabs = ['ACTIVE', 'UNFOLLOWED', 'HISTORY', 'AUDIT', 'CHECKER'];
+  const getInitialSubtab = () => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('subtab')?.toUpperCase();
+      if (param && validSubtabs.includes(param)) return param;
+      const saved = localStorage.getItem('brk_followers_subtab')?.toUpperCase();
+      if (saved && validSubtabs.includes(saved)) return saved;
+    }
+    return 'ACTIVE';
+  };
+
   // Navigation Tabs: 'ACTIVE' | 'UNFOLLOWED' | 'HISTORY' | 'AUDIT' | 'CHECKER'
-  const [activeTab, setActiveTab] = useState('ACTIVE');
+  const [activeTab, setActiveTab] = useState(getInitialSubtab);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('brk_followers_subtab', activeTab);
+      const url = new URL(window.location.href);
+      if (activeTab === 'ACTIVE') {
+        url.searchParams.delete('subtab');
+      } else {
+        url.searchParams.set('subtab', activeTab.toLowerCase());
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {}
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      const param = new URLSearchParams(window.location.search).get('subtab')?.toUpperCase();
+      if (param && validSubtabs.includes(param)) {
+        setActiveTab(param);
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
 
   // Stats from reconciliation engine & followerStorage
   const [stats, setStats] = useState({ total: 0, latestFollower: null, lastUpdated: null });

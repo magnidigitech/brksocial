@@ -9,24 +9,86 @@ import { dbService } from '../services/db.js';
 import { exportSubmissionsReport, exportDailyEmployeeReport, exportDuplicateAuditReport } from '../services/exporter.js';
 import { getTodayISTDateString } from '../services/istUtils.js';
 
+const ADMIN_TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'links', label: 'Link Analytics', icon: MousePointerClick },
+  { id: 'followers', label: 'Followers DB', icon: Instagram },
+  { id: 'rules', label: 'Tasks & Rules', icon: Sliders },
+  { id: 'staff', label: 'Staff Directory', icon: Users },
+  { id: 'audit', label: 'Audit Trail', icon: ShieldAlert },
+  { id: 'reports', label: 'Export Reports', icon: FileSpreadsheet }
+];
+
+const VALID_TAB_IDS = ADMIN_TABS.map(t => t.id);
+
 export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const getResolvedTab = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const queryTab = params.get('tab');
+      if (queryTab && VALID_TAB_IDS.includes(queryTab)) return queryTab;
 
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
+      const path = window.location.pathname;
+      if (path === '/admin/link-analytics' || path === '/admin/links') return 'links';
+      if (path === '/admin/followers' || path === '/admin/instagram') return 'followers';
+      if (path === '/admin/staff' || path === '/admin/employees') return 'staff';
+      if (path === '/admin/rules' || path === '/admin/tasks') return 'rules';
+      if (path === '/admin/audit') return 'audit';
+      if (path === '/admin/reports') return 'reports';
+
+      const savedTab = localStorage.getItem('brk_active_admin_tab');
+      if (savedTab && VALID_TAB_IDS.includes(savedTab)) return savedTab;
     }
-  }, [initialTab]);
+    return initialTab && VALID_TAB_IDS.includes(initialTab) ? initialTab : 'dashboard';
+  };
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'links', label: 'Link Analytics', icon: MousePointerClick },
-    { id: 'followers', label: 'Followers DB', icon: Instagram },
-    { id: 'rules', label: 'Tasks & Rules', icon: Sliders },
-    { id: 'staff', label: 'Staff Directory', icon: Users },
-    { id: 'audit', label: 'Audit Trail', icon: ShieldAlert },
-    { id: 'reports', label: 'Export Reports', icon: FileSpreadsheet }
-  ];
+  const [activeTab, setActiveTab] = useState(getResolvedTab);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    try {
+      localStorage.setItem('brk_active_admin_tab', tabId);
+      const url = new URL(window.location.href);
+      if (tabId === 'dashboard') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', tabId);
+      }
+      if (tabId !== 'followers') {
+        url.searchParams.delete('subtab');
+      }
+      window.history.replaceState({ tab: tabId }, '', url.toString());
+    } catch (e) {}
+  };
+
+  // Sync tab change to URL and localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('brk_active_admin_tab', activeTab);
+      const url = new URL(window.location.href);
+      if (activeTab === 'dashboard') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', activeTab);
+      }
+      if (activeTab !== 'followers') {
+        url.searchParams.delete('subtab');
+      }
+      window.history.replaceState({ tab: activeTab }, '', url.toString());
+    } catch (e) {}
+  }, [activeTab]);
+
+  // Handle browser back and forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const resolved = getResolvedTab();
+      setActiveTab(resolved);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const tabs = ADMIN_TABS;
 
   return (
     <div className="dashboard-page-wrapper">
@@ -147,7 +209,7 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

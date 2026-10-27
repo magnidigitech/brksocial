@@ -1,8 +1,11 @@
-const CACHE_NAME = 'brk-taskhub-pwa-v3';
+const CACHE_NAME = 'brk-taskhub-pwa-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/favicon.ico',
+  '/favicon.png',
+  '/favicon-32x32.png',
   '/icon.svg',
   '/icon-192.png',
   '/icon-512.png',

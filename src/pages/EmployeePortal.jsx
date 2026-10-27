@@ -121,8 +121,22 @@ export function EmployeePortal({ session, onLogout }) {
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [submissionTab, setSubmissionTab] = useState('today'); // 'today' | 'previous'
+  const [submissionTab, setSubmissionTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('subtab');
+      if (q === 'previous' || q === 'today') return q;
+      const saved = localStorage.getItem('brk_emp_sub_tab');
+      if (saved === 'previous' || saved === 'today') return saved;
+    }
+    return 'today';
+  }); // 'today' | 'previous'
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('brk_emp_sub_tab', submissionTab);
+    } catch (e) {}
+  }, [submissionTab]);
+
   const [subStatusFilter, setSubStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'UNFOLLOWED' | 'PENDING'
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
   const [showPatternHelp, setShowPatternHelp] = useState(false);

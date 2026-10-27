@@ -204,9 +204,27 @@ export default function App() {
   }
 
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialAdminTab = (pathname === '/admin/link-analytics' || searchParams?.get('tab') === 'links')
-    ? 'links'
-    : 'dashboard';
+  const validAdminTabs = ['dashboard', 'links', 'followers', 'rules', 'staff', 'audit', 'reports'];
+
+  const getInitialAdminTab = () => {
+    const queryTab = searchParams?.get('tab');
+    if (queryTab && validAdminTabs.includes(queryTab)) return queryTab;
+
+    if (pathname === '/admin/link-analytics' || pathname === '/admin/links') return 'links';
+    if (pathname === '/admin/followers' || pathname === '/admin/instagram') return 'followers';
+    if (pathname === '/admin/staff' || pathname === '/admin/employees') return 'staff';
+    if (pathname === '/admin/rules' || pathname === '/admin/tasks') return 'rules';
+    if (pathname === '/admin/audit') return 'audit';
+    if (pathname === '/admin/reports') return 'reports';
+
+    if (typeof localStorage !== 'undefined') {
+      const savedTab = localStorage.getItem('brk_active_admin_tab');
+      if (savedTab && validAdminTabs.includes(savedTab)) return savedTab;
+    }
+    return 'dashboard';
+  };
+
+  const initialAdminTab = getInitialAdminTab();
 
   const handleLoginSuccess = (newSession) => {
     setSession(newSession);
