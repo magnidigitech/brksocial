@@ -121,6 +121,7 @@ export function EmployeePortal({ session, onLogout }) {
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [submissionTab, setSubmissionTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const q = new URLSearchParams(window.location.search).get('subtab');
