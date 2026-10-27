@@ -1029,7 +1029,7 @@ export const dbService = {
     };
   },
 
-  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null, customSubs = null, targetCycleIndex = null) {
+  getAdminDashboardOverview(dateFilter = getTodayISTDateString(), selectedTaskId = null, customSubs = null, targetCycleIndex = null) {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
@@ -1041,12 +1041,44 @@ export const dbService = {
       taskSubs = taskSubs.filter(s => s.taskId === targetTask.id);
     }
 
+    let dateStr = getTodayISTDateString();
+    let isAllTime = false;
+    let isExplicitRange = false;
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (typeof dateFilter === 'object' && dateFilter !== null) {
+      if (dateFilter.preset === 'ALL' || (!dateFilter.startDate && !dateFilter.endDate && !dateFilter.date)) {
+        isAllTime = true;
+      } else {
+        rangeStart = dateFilter.startDate || dateFilter.date;
+        rangeEnd = dateFilter.endDate || dateFilter.date || rangeStart;
+        if (rangeStart && rangeEnd && rangeStart === rangeEnd) {
+          dateStr = rangeStart;
+        } else if (rangeStart || rangeEnd) {
+          isExplicitRange = true;
+          dateStr = rangeEnd || rangeStart || getTodayISTDateString();
+        }
+      }
+    } else if (typeof dateFilter === 'string') {
+      dateStr = dateFilter;
+    }
+
     const cycleInfo = getTaskCycleInfo(targetTask, dateStr);
     const allCycles = getAllTaskCycles(targetTask, dateStr);
     const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
 
     let periodSubs = [];
-    if (activeCycle.isDaily) {
+    if (isAllTime) {
+      periodSubs = taskSubs;
+    } else if (isExplicitRange) {
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        if (rangeStart && d < rangeStart) return false;
+        if (rangeEnd && d > rangeEnd) return false;
+        return true;
+      });
+    } else if (activeCycle.isDaily) {
       periodSubs = taskSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
     } else if (activeCycle.isCampaignTotal) {
       // Entire campaign duration from start date to till date (no week limit!)
@@ -1068,7 +1100,16 @@ export const dbService = {
     const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = periodSubs.filter(s => s.status === 'Invalid Submission');
 
-    const targetPerEmp = activeCycle.target || 10;
+    let targetPerEmp = activeCycle.target || 10;
+    if (isExplicitRange && rangeStart && rangeEnd && activeCycle.isDaily) {
+      try {
+        const startMs = new Date(rangeStart).getTime();
+        const endMs = new Date(rangeEnd).getTime();
+        const dayDiff = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1);
+        targetPerEmp = (activeCycle.target || 10) * dayDiff;
+      } catch (e) {}
+    }
+
     const totalTarget = activeEmployees.length * targetPerEmp;
     const validCount = validSubs.length;
     const remainingCount = Math.max(0, totalTarget - validCount);
@@ -1125,7 +1166,7 @@ export const dbService = {
       weekStartDate: activeCycle.startDate,
       cycleStartDate: activeCycle.startDate,
       cycleEndDate: activeCycle.endDate,
-      periodLabel: activeCycle.cycleLabel || activeCycle.label,
+      periodLabel: isAllTime ? 'All Time' : (isExplicitRange ? `${rangeStart} → ${rangeEnd}` : (activeCycle.cycleLabel || activeCycle.label)),
       totalEmployees: employees.length,
       activeEmployees: activeEmployees.length,
       tasksToday: tasks.length,

@@ -9,6 +9,7 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getTodayISTDateString } from '../services/istUtils.js';
+import { DateRangePicker, getPresetDateRange } from './DateRangePicker.jsx';
 
 // Coordinates mapping on the AP SVG Map for 25 AP Parliamentary Constituencies (Aligned 1:1 with printed numbers 1 to 25 on map artwork)
 const PARLIAMENT_MAP_COORDS = {
@@ -40,7 +41,8 @@ const PARLIAMENT_MAP_COORDS = {
 };
 
 export function AdminMetricsDashboardView() {
-  const [selectedDate, setSelectedDate] = useState(() => getTodayISTDateString());
+  const [dateRange, setDateRange] = useState(() => getPresetDateRange('TODAY'));
+  const selectedDate = dateRange.startDate || dateRange.endDate || getTodayISTDateString();
   
   // Real-Time Live AJAX Refresh Trigger (must be initialized before useMemo dependencies)
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -85,7 +87,13 @@ export function AdminMetricsDashboardView() {
   const [copiedStaffToken, setCopiedStaffToken] = useState(null);
 
   const staffClickMap = useMemo(() => {
-    const analytics = dbService.getLinkAnalytics({ taskId: selectedTaskId || null, date: selectedDate || null });
+    const isSingleDay = dateRange.startDate && dateRange.startDate === dateRange.endDate;
+    const analytics = dbService.getLinkAnalytics({ 
+      taskId: selectedTaskId || null, 
+      date: isSingleDay ? dateRange.startDate : null,
+      startDate: !isSingleDay ? dateRange.startDate : null,
+      endDate: !isSingleDay ? dateRange.endDate : null
+    });
     const map = {};
     (analytics.staffLeaderboard || []).forEach(item => {
       const id = item.employeeId || item.employee?.id;
@@ -95,7 +103,7 @@ export function AdminMetricsDashboardView() {
       }
     });
     return map;
-  }, [selectedTaskId, selectedDate, refreshTrigger]);
+  }, [selectedTaskId, dateRange, refreshTrigger]);
 
   const handleCopyStaffTrackingLink = (empId) => {
     const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', empId);
@@ -247,8 +255,8 @@ export function AdminMetricsDashboardView() {
 
   // Fetch Raw Dashboard Stats from dbService across all staff
   const rawStats = useMemo(() => {
-    return dbService.getAdminDashboardOverview(selectedDate, effectiveTaskId, null, selectedCycleIndex);
-  }, [selectedDate, effectiveTaskId, selectedCycleIndex, isRefreshing, refreshTrigger]);
+    return dbService.getAdminDashboardOverview(dateRange, effectiveTaskId, null, selectedCycleIndex);
+  }, [dateRange, effectiveTaskId, selectedCycleIndex, isRefreshing, refreshTrigger]);
 
   // Dynamically compute Filtered KPI Stats based on Parliament Selection
   const stats = useMemo(() => {
@@ -532,35 +540,15 @@ export function AdminMetricsDashboardView() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', maxWidth: '100%', justifyContent: 'flex-start' }}>
-          {/* Date Selector */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'rgba(118, 118, 128, 0.08)',
-            border: '1px solid rgba(0, 0, 0, 0.05)',
-            borderRadius: '980px',
-            padding: '5px 12px',
-            flex: '1 1 auto',
-            minWidth: '140px'
-          }}>
-            <Calendar size={14} style={{ color: '#86868b', flexShrink: 0 }} />
-            <input 
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{
-                border: 'none',
-                backgroundColor: 'transparent',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#1d1d1f',
-                outline: 'none',
-                cursor: 'pointer',
-                width: '100%'
-              }}
-            />
-          </div>
+          {/* Reusable Date Range Picker with Presets & Interactive 2-Date Selection */}
+          <DateRangePicker
+            value={dateRange}
+            onChange={(newRange) => {
+              setDateRange(newRange);
+              setSelectedCycleIndex(null);
+            }}
+            align="left"
+          />
 
           {/* Cycle / Week Indicator & Switcher */}
           {stats.allCyclesList && stats.allCyclesList.length > 1 ? (
