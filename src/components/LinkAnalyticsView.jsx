@@ -372,11 +372,11 @@ export function LinkAnalyticsView() {
         </div>
       </div>
 
-      {/* TOP 4 MINIMALIST APPLE KPI CARDS */}
+      {/* TOP 3 MINIMALIST APPLE KPI CARDS */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '12px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: '14px'
       }}>
         {/* Total Clicks */}
         <div className="dashboard-metric-card">
@@ -441,36 +441,6 @@ export function LinkAnalyticsView() {
           </div>
           <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
             Distinct citizen IP addresses engaged
-          </div>
-        </div>
-
-        {/* Filtered Previews & Bots */}
-        <div className="dashboard-metric-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Screened Preview Bots
-            </span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(118, 118, 128, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#86868b' }}>
-              <ShieldCheck size={15} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
-              {analyticsData.botClicks.toLocaleString()}
-            </div>
-            <span style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: '980px',
-              backgroundColor: 'rgba(118, 118, 128, 0.1)',
-              color: '#86868b'
-            }}>
-              WhatsApp Crawlers
-            </span>
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
-            Auto-screened to avoid false reporting
           </div>
         </div>
       </div>

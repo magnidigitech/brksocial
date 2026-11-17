@@ -1402,19 +1402,32 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
     }
 
     const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+    // Compute the latest DB sync timestamp across followers and stored file
+    let maxFollowerTime = 0;
+    for (const f of FOLLOWERS_MAP.values()) {
+      const ts = Number(f.timestamp) * 1000;
+      if (ts > maxFollowerTime) maxFollowerTime = ts;
+    }
+    const fileMtime = fs.existsSync(FOLLOWERS_FILE) ? fs.statSync(FOLLOWERS_FILE).mtime.getTime() : 0;
+    const dbSyncTime = Math.max(maxFollowerTime, fileMtime);
+
     const results = submissions.map(sub => {
       const clean = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
       const follower = FOLLOWERS_MAP.get(clean);
+      const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
+
       if (!follower) {
+        const isAfterSync = dbSyncTime > subTime;
         return {
           username: clean,
           exists: false,
           isFollower: false,
-          status: 'Pending Submission'
+          status: isAfterSync ? 'Handle Not Found' : 'Pending Submission',
+          dbSyncTime
         };
       }
 
-      const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
       const followTime = Number(follower.timestamp) * 1000;
       const isPreExisting = followTime < (subTime - WINDOW_MS);
       const isInsideWindow = followTime >= (subTime - WINDOW_MS) && followTime <= (subTime + WINDOW_MS);
@@ -1439,7 +1452,7 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
       };
     });
 
-    res.json({ success: true, results });
+    res.json({ success: true, results, dbSyncTime });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1508,8 +1521,17 @@ if (fs.existsSync(distPath)) {
       }
     }
   }));
+
+  // Handle SPA routing
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) return next();
+
+    // Never return index.html for missing static assets (prevents SyntaxError: Unexpected token '<')
+    const isStaticAsset = req.path.startsWith('/assets/') || /\.(js|css|png|jpg|jpeg|gif|svg|ico|json|map|woff2?|ttf|eot)$/i.test(req.path);
+    if (isStaticAsset) {
+      return res.status(404).type('text/plain').send('Asset not found');
+    }
+
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

@@ -12,7 +12,7 @@ import {
   validateFollowerSubmission,
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
-import { followerStorage } from './followerStorage.js';
+import { followerStorage, getTimeoutSignal } from './followerStorage.js';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
@@ -93,9 +93,9 @@ const DEFAULT_TASKS = [
     dailyTarget: 15,
     frequency: 'Daily',
     assignmentScope: {
-      scopeType: 'SPECIFIC_PARLIAMENT',
-      targetCode: 'APP13',
-      targetName: 'Guntur Parliament'
+      scopeType: 'ALL_STAFF',
+      targetCode: null,
+      targetName: 'All Constituencies & Staff'
     },
     rules: {
       duplicateScope: 'Same Day Only',
@@ -143,10 +143,20 @@ export const dbService = {
     if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
     } else {
-      // Ensure all tasks have targetUrl & urlSlug
+      // Ensure all tasks have targetUrl & urlSlug & ALL_STAFF scope migration
       try {
         const existingTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
         let taskModified = false;
+
+        // Ensure all DEFAULT_TASKS exist in existingTasks
+        DEFAULT_TASKS.forEach(defTask => {
+          const found = existingTasks.find(t => t.id === defTask.id);
+          if (!found) {
+            existingTasks.push(defTask);
+            taskModified = true;
+          }
+        });
+
         existingTasks.forEach(t => {
           if (!t.targetUrl) {
             t.targetUrl = t.platform === 'WhatsApp' ? 'https://chat.whatsapp.com/' : 'https://www.instagram.com/ramakrishnabhashyam/';
@@ -154,6 +164,15 @@ export const dbService = {
           }
           if (!t.urlSlug) {
             t.urlSlug = t.platform?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'instagram';
+            taskModified = true;
+          }
+          // Enable ALL_STAFF scope for default campaigns so all employees can select & switch
+          if (t.id === 'TASK-WA-002' && (!t.assignmentScope || t.assignmentScope.scopeType !== 'ALL_STAFF')) {
+            t.assignmentScope = {
+              scopeType: 'ALL_STAFF',
+              targetCode: null,
+              targetName: 'All Constituencies & Staff'
+            };
             taskModified = true;
           }
         });
@@ -400,6 +419,8 @@ export const dbService = {
       }
       return true;
     });
+
+    return filtered.length > 0 ? filtered : tasks.filter(t => t.status === 'Active');
   },
 
   addTask(taskData) {
@@ -492,13 +513,60 @@ export const dbService = {
     const effectiveTaskId = task?.id || taskId;
     const submittedAtIso = new Date().toISOString();
 
-    // Run strict business logic validation against rules
-    const validation = validateFollowerSubmission({
-      normalizedUsername,
-      submittedAtIso,
-      followerRecord: followerVerification,
-      existingSubmissions: allSubs.filter(s => s.taskId === effectiveTaskId)
-    });
+    let validation;
+    if (platform === 'WhatsApp' || task?.submissionType === 'Mobile Number') {
+      const cleanPhone = String(rawInput || normalizedUsername).replace(/\D/g, '');
+      const normPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+      const isValidPhone = /^[6-9]\d{9}$/.test(normPhone);
+
+      const priorDuplicate = allSubs.find(s => 
+        s.taskId === effectiveTaskId &&
+        String(s.username || s.rawInput || '').replace(/\D/g, '').endsWith(normPhone)
+      );
+
+      if (priorDuplicate) {
+        validation = {
+          status: 'Already Followed',
+          isValid: false,
+          isDuplicate: true,
+          isFollower: false,
+          duplicateOf: priorDuplicate.id,
+          message: `Already submitted! Mobile number ${normPhone} was previously submitted by ${priorDuplicate.employeeName || 'staff'}.`,
+          verificationBadge: 'Duplicate Contact Number',
+          verificationNote: `Duplicate of submission by ${priorDuplicate.employeeName || 'staff'}`
+        };
+      } else if (!isValidPhone) {
+        validation = {
+          status: 'Invalid Submission',
+          isValid: false,
+          isDuplicate: false,
+          isFollower: false,
+          message: 'Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).',
+          verificationBadge: 'Invalid Number Format',
+          verificationNote: 'Must be 10 digits starting with 6-9'
+        };
+      } else {
+        validation = {
+          status: 'Valid Submission',
+          isValid: true,
+          isDuplicate: false,
+          isFollower: true,
+          followedAtFormatted: formatIST(submittedAtIso),
+          followedAtTimestamp: Math.floor(Date.now() / 1000),
+          message: `Accepted! Contact number ${normPhone} successfully verified and recorded.`,
+          verificationBadge: `✓ Verified Contact: ${formatIST(submittedAtIso)}`,
+          verificationNote: 'Valid outreach contact number'
+        };
+      }
+    } else {
+      // Run strict business logic validation against rules
+      validation = validateFollowerSubmission({
+        normalizedUsername,
+        submittedAtIso,
+        followerRecord: followerVerification,
+        existingSubmissions: allSubs.filter(s => s.taskId === effectiveTaskId)
+      });
+    }
 
     const newSub = {
       id: `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -560,23 +628,37 @@ export const dbService = {
     // Check if backend batch-check is available AND returning application/json
     let resultsMap = new Map();
     let usedBackend = false;
+    let dbSyncTimeMs = null;
 
     try {
       const res = await fetch('/api/instagram/followers/batch-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ submissions: subs }),
-        signal: AbortSignal.timeout(3000)
+        signal: getTimeoutSignal(3000)
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
         if (data && data.results) {
           data.results.forEach(r => resultsMap.set(r.username, r));
+          if (data.dbSyncTime) dbSyncTimeMs = Number(data.dbSyncTime);
           usedBackend = true;
         }
       }
     } catch (_) {}
+
+    // Fallback sync time from local followerStorage if backend didn't supply it
+    if (!dbSyncTimeMs) {
+      try {
+        const stats = await followerStorage.getStats();
+        const maxFollowerTs = stats?.latestFollower?.timestamp 
+          ? (Number(stats.latestFollower.timestamp) < 1e11 ? Number(stats.latestFollower.timestamp) * 1000 : Number(stats.latestFollower.timestamp))
+          : 0;
+        const lastUpdatedTs = stats?.lastUpdated ? new Date(stats.lastUpdated).getTime() : 0;
+        dbSyncTimeMs = Math.max(maxFollowerTs, lastUpdatedTs);
+      } catch (_) {}
+    }
 
     // Evaluate each submission (from oldest to newest so duplicate checks work accurately)
     for (let i = 0; i < subs.length; i++) {
@@ -595,7 +677,8 @@ export const dbService = {
         submittedAtIso: sub.submittedAt,
         followerRecord: checkRes?.exists ? checkRes : null,
         existingSubmissions: earlierSubs,
-        currentSubmissionId: sub.id
+        currentSubmissionId: sub.id,
+        dbSyncTimeMs
       });
 
       if (
@@ -636,6 +719,7 @@ export const dbService = {
     // Only 'Valid Submission' (or legacy 'Valid') counts towards target
     const validSubs = subs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
     const pendingSubs = subs.filter(s => s.status === 'Pending Submission');
+    const notFoundSubs = subs.filter(s => s.status === 'Handle Not Found');
     const alreadyFollowedSubs = subs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
 
@@ -656,6 +740,7 @@ export const dbService = {
       target,
       validCount,
       pendingCount: pendingSubs.length,
+      notFoundCount: notFoundSubs.length,
       alreadyFollowedCount: alreadyFollowedSubs.length,
       invalidCount: invalidSubs.length,
       totalSubmittedCount: subs.length,
@@ -666,6 +751,7 @@ export const dbService = {
       todaySubmissions: subs,
       validSubs,
       pendingSubs,
+      notFoundSubs,
       alreadyFollowedSubs,
       invalidSubs
     };

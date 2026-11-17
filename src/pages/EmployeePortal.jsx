@@ -191,6 +191,45 @@ export function EmployeePortal({ session, onLogout }) {
       }, 250);
 
       return () => clearTimeout(timer);
+    } else if (activeTask.platform === 'WhatsApp' || activeTask.submissionType?.includes('Mobile') || activeTask.submissionType?.includes('Number')) {
+      const cleanPhone = raw.replace(/\D/g, '');
+      const normPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+      const isValidPhone = /^[6-9]\d{9}$/.test(normPhone);
+
+      const allSubs = dbService.getSubmissions();
+      const existingSub = allSubs.find(s => 
+        s.taskId === activeTask.id && 
+        String(s.username || s.rawInput || '').replace(/\D/g, '').endsWith(normPhone)
+      );
+
+      if (existingSub) {
+        setLiveCheck({
+          cleanHandle: normPhone,
+          status: 'Already Followed',
+          isValid: false,
+          isDuplicate: true,
+          message: `Mobile number ${normPhone} has already been submitted for this campaign.`
+        });
+      } else if (!isValidPhone && cleanPhone.length >= 10) {
+        setLiveCheck({
+          cleanHandle: normPhone,
+          status: 'Invalid Submission',
+          isValid: false,
+          isDuplicate: false,
+          message: 'Mobile number must be 10 digits and start with 6, 7, 8, or 9.'
+        });
+      } else if (isValidPhone) {
+        setLiveCheck({
+          cleanHandle: normPhone,
+          status: 'Valid Submission',
+          isValid: true,
+          isDuplicate: false,
+          message: `Valid Indian contact number (+91 ${normPhone}). Ready to submit!`
+        });
+      } else {
+        setLiveCheck(null);
+      }
+      setIsLiveChecking(false);
     } else {
       setLiveCheck(null);
       setIsLiveChecking(false);
@@ -203,15 +242,20 @@ export function EmployeePortal({ session, onLogout }) {
     setEmployee(empData || session);
 
     // Get assigned tasks for this employee based on parliament/assembly scope
-    const tasks = dbService.getTasksForEmployee(empId);
-    setAssignedTasks(tasks);
+    let tasks = dbService.getTasksForEmployee(empId);
+    if (!tasks || tasks.length <= 1) {
+      const allActive = dbService.getTasks().filter(t => t.status === 'Active');
+      if (allActive.length > (tasks ? tasks.length : 0)) {
+        tasks = allActive;
+      }
+    }
+    setAssignedTasks(tasks || []);
 
-    if (tasks.length > 0) {
+    if (tasks && tasks.length > 0) {
       const selected = activeTask ? (tasks.find(t => t.id === activeTask.id) || tasks[0]) : tasks[0];
       setActiveTask(selected);
       updateStats(empId, selected.id);
     }
-
   };
 
   const updateStats = (empId, taskId) => {
@@ -263,7 +307,9 @@ export function EmployeePortal({ session, onLogout }) {
   const handleWhatsAppShare = () => {
     const url = getFullTrackingUrl();
     if (!url) return;
-    const msg = `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక సోషల్ మీడియా పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna!`;
+    const msg = activeTask?.platform === 'WhatsApp'
+      ? `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక వాట్సాప్ కమ్యూనిటీలో చేరండి:\n👉 ${url}\n\nJoin Sri Bhashyam Ramakrishna's Official WhatsApp Community!`
+      : `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక సోషల్ మీడియా పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna!`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
@@ -476,38 +522,127 @@ export function EmployeePortal({ session, onLogout }) {
           </button>
         </div>
 
-        {/* ASSIGNED TASKS SELECTOR (If Multiple Tasks exist) */}
-        {assignedTasks.length > 1 && (
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              Select Assigned Task ({assignedTasks.length} Active Tasks):
-            </label>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {/* SELECTABLE & SWITCHABLE CAMPAIGNS SELECTOR */}
+        {assignedTasks.length > 0 && (
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: '1.5px solid #fed7aa',
+            borderRadius: '18px',
+            padding: '16px 20px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 16px -2px rgba(234, 88, 12, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '8px',
+                  backgroundColor: '#fff7ed',
+                  color: '#ea580c',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid #ffedd5'
+                }}>
+                  <Target size={15} />
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Select Campaign / Task ({assignedTasks.length} Available)
+                </span>
+              </div>
+              <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>
+                {assignedTasks.length > 1 ? '⚡ Select any campaign to switch tracking links & targets' : '✓ Active Campaign Assigned'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               {assignedTasks.map((t) => {
                 const Icon = PLATFORM_ICONS[t.platform] || Share2;
                 const isSel = activeTask?.id === t.id;
+                const isWhatsApp = t.platform === 'WhatsApp';
+                const platformColor = isWhatsApp ? '#16a34a' : '#ea580c';
+                const platformBg = isWhatsApp ? '#f0fdf4' : '#fff7ed';
+
                 return (
                   <button
                     key={t.id}
+                    type="button"
                     onClick={() => handleTaskSwitch(t)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      borderRadius: '9999px',
-                      fontSize: '13px',
-                      fontWeight: 700,
+                      gap: '12px',
+                      padding: '12px 18px',
+                      borderRadius: '14px',
                       cursor: 'pointer',
-                      border: isSel ? '1.5px solid #ff4d00' : '1px solid #cbd5e1',
-                      backgroundColor: isSel ? '#fff7ed' : '#ffffff',
-                      color: isSel ? '#c2410c' : '#475569',
-                      boxShadow: isSel ? '0 4px 12px rgba(255, 77, 0, 0.15)' : 'none',
-                      transition: 'all 0.2s ease'
+                      border: isSel ? `2px solid ${platformColor}` : '1.5px solid #e2e8f0',
+                      backgroundColor: isSel ? platformBg : '#ffffff',
+                      color: isSel ? '#0f172a' : '#475569',
+                      boxShadow: isSel ? `0 6px 18px ${platformColor}25` : '0 1px 3px rgba(0,0,0,0.03)',
+                      transform: isSel ? 'scale(1.02)' : 'scale(1)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      textAlign: 'left'
                     }}
                   >
-                    <Icon size={16} />
-                    <span>{t.name}</span>
+                    <div style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '10px',
+                      backgroundColor: isSel ? platformColor : '#f1f5f9',
+                      color: isSel ? '#ffffff' : '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'all 0.2s ease',
+                      boxShadow: isSel ? `0 2px 8px ${platformColor}35` : 'none'
+                    }}>
+                      <Icon size={18} />
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: isSel ? '#0f172a' : '#334155' }}>
+                          {t.name}
+                        </span>
+                        {isSel ? (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: platformColor,
+                            color: '#ffffff',
+                            letterSpacing: '0.04em',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+                            ACTIVE
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: '#f1f5f9',
+                            color: '#64748b',
+                            border: '1px solid #cbd5e1'
+                          }}>
+                            Click to Switch
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
+                        Target: <strong style={{ color: '#0f172a' }}>{t.dailyTarget}</strong> {t.submissionType || 'entries'}/day
+                      </div>
+                    </div>
                   </button>
                 );
               })}
@@ -988,29 +1123,31 @@ export function EmployeePortal({ session, onLogout }) {
                   Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
                 </h3>
 
-                <button
-                  type="button"
-                  onClick={handleSyncFollowers}
-                  disabled={isSyncingFollowers}
-                  title="Cross-check all submissions with official Instagram followers JSON"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    padding: '5px 12px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    cursor: isSyncingFollowers ? 'wait' : 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
-                  <span>{isSyncingFollowers ? 'Syncing Follower DB...' : 'Sync Follower Status'}</span>
-                </button>
+                {activeTask?.platform === 'Instagram' && (
+                  <button
+                    type="button"
+                    onClick={handleSyncFollowers}
+                    disabled={isSyncingFollowers}
+                    title="Cross-check all submissions with official Instagram followers JSON"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      padding: '5px 12px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#f1f5f9',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      cursor: isSyncingFollowers ? 'wait' : 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
+                    <span>{isSyncingFollowers ? 'Syncing Follower DB...' : 'Sync Follower Status'}</span>
+                  </button>
+                )}
               </div>
 
               {taskStats?.todaySubmissions?.length > 0 ? (
@@ -1018,9 +1155,13 @@ export function EmployeePortal({ session, onLogout }) {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', color: '#86868b' }}>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Entry Input</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
+                          {activeTask.platform === 'WhatsApp' ? 'Contact Number' : 'Entry Input'}
+                        </th>
                         <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time (IST)</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Follower Verification (dd/mm/yyyy hh:mm)</th>
+                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
+                          {activeTask.platform === 'WhatsApp' ? 'Verification Detail' : 'Follower Verification (dd/mm/yyyy hh:mm)'}
+                        </th>
                         <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
                       </tr>
                     </thead>
@@ -1028,6 +1169,7 @@ export function EmployeePortal({ session, onLogout }) {
                       {taskStats.todaySubmissions.map((sub) => {
                         const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
                         const isStatusPending = sub.status === 'Pending Submission';
+                        const isStatusNotFound = sub.status === 'Handle Not Found';
                         const isStatusAlready = sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Repeated';
                         const isStatusInvalid = sub.status === 'Invalid Submission';
 
@@ -1063,6 +1205,18 @@ export function EmployeePortal({ session, onLogout }) {
                                   border: '1px solid rgba(255, 149, 0, 0.25)'
                                 }}>
                                   {sub.verificationBadge || (sub.followedAtFormatted ? `✓ Existing Follower: ${sub.followedAtFormatted}` : 'Duplicate Submission')}
+                                </span>
+                              ) : isStatusNotFound ? (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '980px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  color: '#dc2626',
+                                  border: '1px solid rgba(239, 68, 68, 0.25)'
+                                }}>
+                                  ✕ {sub.verificationBadge || 'Handle Not Found in Followers DB'}
                                 </span>
                               ) : isStatusInvalid ? (
                                 <span style={{
@@ -1100,24 +1254,30 @@ export function EmployeePortal({ session, onLogout }) {
                                   ? 'rgba(52, 199, 89, 0.12)'
                                   : (isStatusPending
                                     ? 'rgba(255, 149, 0, 0.12)'
-                                    : (isStatusAlready
-                                      ? 'rgba(239, 68, 68, 0.10)'
-                                      : 'rgba(107, 114, 128, 0.10)')),
+                                    : (isStatusNotFound
+                                      ? 'rgba(239, 68, 68, 0.12)'
+                                      : (isStatusAlready
+                                        ? 'rgba(239, 68, 68, 0.10)'
+                                        : 'rgba(107, 114, 128, 0.10)'))),
                                 color: isStatusValid
                                   ? '#15803d'
                                   : (isStatusPending
                                     ? '#b45309'
-                                    : (isStatusAlready
+                                    : (isStatusNotFound
                                       ? '#b91c1c'
-                                      : '#4b5563')),
+                                      : (isStatusAlready
+                                        ? '#b91c1c'
+                                        : '#4b5563'))),
                                 border: `1px solid ${
                                   isStatusValid
                                     ? 'rgba(52, 199, 89, 0.3)'
                                     : (isStatusPending
                                       ? 'rgba(255, 149, 0, 0.3)'
-                                      : (isStatusAlready
-                                        ? 'rgba(239, 68, 68, 0.25)'
-                                        : 'rgba(107, 114, 128, 0.25)'))
+                                      : (isStatusNotFound
+                                        ? 'rgba(239, 68, 68, 0.3)'
+                                        : (isStatusAlready
+                                          ? 'rgba(239, 68, 68, 0.25)'
+                                          : 'rgba(107, 114, 128, 0.25)')))
                                 }`
                               }}>
                                 {sub.status || 'Pending Submission'}

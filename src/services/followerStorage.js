@@ -44,6 +44,16 @@ export function formatFollowerTimestamp(ts) {
   return `${d}/${m}/${y} ${h}:${min}`;
 }
 
+// Safe timeout signal compatible across all mobile browsers
+export function getTimeoutSignal(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 // Open IndexedDB safely
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -185,7 +195,7 @@ export const followerStorage = {
         // Otherwise, check if backend has data (and backend is actually serving JSON)
         let backendCount = 0;
         try {
-          const res = await fetch('/api/instagram/followers/stats', { signal: AbortSignal.timeout(3000) });
+          const res = await fetch('/api/instagram/followers/stats', { signal: getTimeoutSignal(3000) });
           const contentType = res.headers.get('content-type') || '';
           if (res.ok && contentType.includes('application/json')) {
             const stats = await res.json();
@@ -391,7 +401,7 @@ export const followerStorage = {
     // Fallback: If memory cache is somehow empty, try backend API if available
     try {
       const res = await fetch(`/api/instagram/followers/check/${encodeURIComponent(clean)}`, {
-        signal: AbortSignal.timeout(2000)
+        signal: getTimeoutSignal(2000)
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
@@ -421,7 +431,7 @@ export const followerStorage = {
 
     // Check backend first if backend is running with JSON
     try {
-      const res = await fetch('/api/instagram/followers/stats', { signal: AbortSignal.timeout(2000) });
+      const res = await fetch('/api/instagram/followers/stats', { signal: getTimeoutSignal(2000) });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
@@ -464,7 +474,7 @@ export const followerStorage = {
     // Try backend first if it is available and responding with JSON
     try {
       const params = new URLSearchParams({ search, page, limit });
-      const res = await fetch(`/api/instagram/followers?${params.toString()}`, { signal: AbortSignal.timeout(2000) });
+      const res = await fetch(`/api/instagram/followers?${params.toString()}`, { signal: getTimeoutSignal(2000) });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();

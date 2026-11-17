@@ -39,21 +39,103 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <title>BRK TaskHub | Employee Task System</title>
+
+    <!-- PWA Self-Healing & Stale Asset Error Recovery -->
+    <script>
+      (function() {
+        function triggerSelfHeal(reason) {
+          var healKey = 'brk_pwa_heal_timestamp';
+          var lastHeal = sessionStorage.getItem(healKey);
+          var now = Date.now();
+          // Rate-limit reload to at most once per 12 seconds to prevent infinite loops
+          if (!lastHeal || (now - parseInt(lastHeal, 10)) > 12000) {
+            sessionStorage.setItem(healKey, now.toString());
+            console.warn('[PWA Self-Heal] Recovering from:', reason);
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(n) { return caches.delete(n); }));
+              }).then(function() {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    regs.forEach(function(r) { r.update(); });
+                  });
+                }
+                window.location.reload(true);
+              });
+            } else {
+              window.location.reload(true);
+            }
+          }
+        }
+
+        // Catch script loading failures & Vite chunk mismatches
+        window.addEventListener('error', function(e) {
+          var target = e.target || {};
+          var isScriptOrLinkTag = target.tagName === 'SCRIPT' || target.tagName === 'LINK';
+          var msg = (e.message || '').toLowerCase();
+          var isStaleChunkError = msg.indexOf('unexpected token') !== -1 ||
+                                  msg.indexOf('loading chunk') !== -1 ||
+                                  msg.indexOf('failed to fetch dynamically imported module') !== -1;
+
+          if (isScriptOrLinkTag || isStaleChunkError) {
+            triggerSelfHeal(e.message || 'Script tag error');
+          }
+        }, true);
+
+        // Catch unhandled Promise rejections from dynamic imports
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = (e.reason && e.reason.message) || String(e.reason || '');
+          if (reason.indexOf('dynamically imported module') !== -1 || reason.indexOf('Loading chunk') !== -1) {
+            triggerSelfHeal(reason);
+          }
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration & Live Auto-Update -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
+        var isRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (!isRefreshing) {
+            isRefreshing = true;
+            console.log('[PWA SW] New controller detected, refreshing to latest version...');
+            window.location.reload();
+          }
+        });
+
+        window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('BRK TaskHub PWA SW registered:', reg.scope))
-            .catch(err => console.warn('PWA SW registration error:', err));
+            .then(function(reg) {
+              console.log('BRK TaskHub PWA SW registered:', reg.scope);
+              // Force check for updates immediately on load
+              reg.update();
+
+              // If an updated worker is already waiting, tell it to take over
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+
+              reg.addEventListener('updatefound', function() {
+                var newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', function() {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                }
+              });
+            })
+            .catch(function(err) {
+              console.warn('PWA SW registration error:', err);
+            });
         });
       }
     </script>
-  </body>
   </body>
 </html>

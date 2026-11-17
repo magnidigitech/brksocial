@@ -137,7 +137,8 @@ export function validateFollowerSubmission({
   submittedAtIso,
   followerRecord = null,
   existingSubmissions = [],
-  currentSubmissionId = null
+  currentSubmissionId = null,
+  dbSyncTimeMs = null
 }) {
   const cleanUsername = String(normalizedUsername || '').trim().toLowerCase().replace(/^@+/, '');
   const subDate = new Date(submittedAtIso || Date.now());
@@ -173,7 +174,24 @@ export function validateFollowerSubmission({
   const isFoundInDb = !!(follower && (follower.timestamp || follower.followedAtFormatted));
 
   if (!isFoundInDb) {
-    // Not found in followers JSON yet -> Pending Submission
+    // If the database has been synced AFTER this submission was made,
+    // and the handle is still missing, it is officially "Handle Not Found"!
+    if (dbSyncTimeMs && Number(dbSyncTimeMs) > subTimeMs) {
+      const syncDateFormatted = formatIST(dbSyncTimeMs);
+      return {
+        status: 'Handle Not Found',
+        isValid: false,
+        isFollower: false,
+        isDuplicate: false,
+        message: `'@${cleanUsername}' was not found in the verified Instagram followers list (synced ${syncDateFormatted}). Please verify the handle spelling or confirm that the citizen actually followed.`,
+        verificationBadge: 'Handle Not Found',
+        verificationNote: `Not in followers list (synced ${syncDateFormatted})`,
+        followedAtFormatted: null,
+        followedAtTimestamp: null
+      };
+    }
+
+    // Otherwise, the database has not been synced since the submission date yet -> Pending Submission
     return {
       status: 'Pending Submission',
       isValid: false,
