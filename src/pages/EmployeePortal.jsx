@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  UserCheck, 
-  LogOut, 
-  Target, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  Send, 
-  Instagram, 
-  MessageSquare, 
-  Twitter, 
-  Facebook, 
-  Youtube, 
-  ClipboardList, 
-  Share2, 
-  Building2, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  UserCheck,
+  LogOut,
+  Target,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Send,
+  Instagram,
+  MessageSquare,
+  Twitter,
+  Facebook,
+  Youtube,
+  ClipboardList,
+  Share2,
+  Building2,
   MapPin,
   ShieldAlert,
   Award,
@@ -28,11 +28,21 @@ import {
   XCircle,
   QrCode,
   Download,
-  X
+  X,
+  Menu,
+  Info,
+  Phone,
+  HelpCircle,
+  ArrowLeft,
+  ChevronRight,
+  Calendar,
+  Layers
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
-import { normalizeInstagramUsername } from '../services/normalization.js';
-import { formatIST, validateFollowerSubmission, getTodayISTDateString } from '../services/istUtils.js';
+import { normalizeInstagramUsername, getDefaultSamplePatterns } from '../services/normalization.js';
+import { formatIST, validateFollowerSubmission, getTodayISTDateString, getISTDateFromISO } from '../services/istUtils.js';
+import VerificationBottomSheet from '../components/VerificationBottomSheet.jsx';
+import PullToRefreshPreloader from '../components/PullToRefreshPreloader.jsx';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -42,6 +52,58 @@ const PLATFORM_ICONS = {
   'YouTube': Youtube,
   'Ground Survey': ClipboardList,
   'Custom': Share2
+};
+
+const PLATFORM_THEMES = {
+  'Instagram': {
+    bg: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+    color: '#ffffff',
+    lightBg: '#fdf2f8',
+    borderColor: '#fbcfe8',
+    textColor: '#be185d'
+  },
+  'WhatsApp': {
+    bg: '#25D366',
+    color: '#ffffff',
+    lightBg: '#f0fdf4',
+    borderColor: '#bbf7d0',
+    textColor: '#15803d'
+  },
+  'X (Twitter)': {
+    bg: '#000000',
+    color: '#ffffff',
+    lightBg: '#f8fafc',
+    borderColor: '#e2e8f0',
+    textColor: '#0f172a'
+  },
+  'Facebook': {
+    bg: '#1877F2',
+    color: '#ffffff',
+    lightBg: '#eff6ff',
+    borderColor: '#bfdbfe',
+    textColor: '#1d4ed8'
+  },
+  'YouTube': {
+    bg: '#FF0000',
+    color: '#ffffff',
+    lightBg: '#fef2f2',
+    borderColor: '#fecaca',
+    textColor: '#b91c1c'
+  },
+  'Ground Survey': {
+    bg: '#0284c7',
+    color: '#ffffff',
+    lightBg: '#f0f9ff',
+    borderColor: '#bae6fd',
+    textColor: '#0369a1'
+  },
+  'Custom': {
+    bg: '#7c3aed',
+    color: '#ffffff',
+    lightBg: '#faf5ff',
+    borderColor: '#e9d5ff',
+    textColor: '#6d28d9'
+  }
 };
 
 export function EmployeePortal({ session, onLogout }) {
@@ -59,16 +121,73 @@ export function EmployeePortal({ session, onLogout }) {
   const [isLiveChecking, setIsLiveChecking] = useState(false);
   const [isSyncingFollowers, setIsSyncingFollowers] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [submissionTab, setSubmissionTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('subtab');
+      if (q === 'previous' || q === 'today') return q;
+      const saved = localStorage.getItem('brk_emp_sub_tab');
+      if (saved === 'previous' || saved === 'today') return saved;
+    }
+    return 'today';
+  }); // 'today' | 'previous'
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('brk_emp_sub_tab', submissionTab);
+    } catch (e) {}
+  }, [submissionTab]);
+
+  const [subStatusFilter, setSubStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'UNFOLLOWED' | 'PENDING'
+  const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
+  const [showPatternHelp, setShowPatternHelp] = useState(false);
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
+
+  // All-time historical metrics for this employee
+  const empAllSubs = useMemo(() => {
+    const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+    const all = dbService.getSubmissions();
+    return all.filter(s => s.employeeId && s.employeeId.toUpperCase() === empId.toUpperCase());
+  }, [employee, session, taskStats]);
+
+  const empTotalSubmissionsEver = empAllSubs.length;
+  const empActiveSubmissionsEver = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+  const empUnfollowedSubmissionsEver = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
+  const empPendingSubmissionsEver = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+  const empRefollowedSubmissionsEver = empAllSubs.filter(s => !!s.re_followed_at).length;
+  const empNetActiveSubmissionsEver = empActiveSubmissionsEver;
 
   useEffect(() => {
     loadData();
     // Auto-revalidate existing submissions against follower DB on mount
-    dbService.revalidateSubmissionsWithFollowers().catch(() => {});
+    dbService.revalidateSubmissionsWithFollowers().catch(() => { });
+
+    const handleStaffUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('brk_staff_updated', handleStaffUpdate);
+    window.addEventListener('storage', handleStaffUpdate);
+
+    return () => {
+      window.removeEventListener('brk_staff_updated', handleStaffUpdate);
+      window.removeEventListener('storage', handleStaffUpdate);
+    };
   }, [session]);
+
+  // Auto-dismiss accepted / submission feedback notifications after 5 seconds
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
 
   const handleSyncFollowers = async () => {
     setIsSyncingFollowers(true);
+    const startMs = Date.now();
     try {
+      await dbService.syncSubmissionsWithServer();
       const res = await dbService.revalidateSubmissionsWithFollowers();
       const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
       const taskId = activeTask?.id || 'TASK-INSTA-001';
@@ -77,13 +196,17 @@ export function EmployeePortal({ session, onLogout }) {
       setTaskStats(stats);
       setFeedback({
         type: 'success',
-        message: `Follower synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All submissions are currently up to date.'}`
+        message: `Synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All data is currently up to date.'}`
       });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
       console.warn('Sync followers error:', err);
     } finally {
-      setIsSyncingFollowers(false);
+      const elapsed = Date.now() - startMs;
+      const remainingDelay = Math.max(0, 1500 - elapsed);
+      setTimeout(() => {
+        setIsSyncingFollowers(false);
+      }, remainingDelay);
     }
   };
 
@@ -91,7 +214,13 @@ export function EmployeePortal({ session, onLogout }) {
   useEffect(() => {
     const handleLiveRefresh = () => {
       const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-      const taskId = activeTask?.id || 'TASK-INSTA-001';
+      const refreshedTasks = dbService.getTasksForEmployee(empId);
+      setAssignedTasks(refreshedTasks);
+
+      if (!activeTask) {
+        return;
+      }
+      const taskId = activeTask.id;
       const today = getTodayISTDateString();
       const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
       setTaskStats(stats);
@@ -102,9 +231,12 @@ export function EmployeePortal({ session, onLogout }) {
     };
 
     const triggerSync = () => {
-      dbService.syncClicksWithServer().then(() => {
+      Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]).then(() => {
         handleLiveRefresh();
-      }).catch(() => {});
+      }).catch(() => { });
     };
 
     // Immediate sync on load
@@ -149,8 +281,8 @@ export function EmployeePortal({ session, onLogout }) {
       setIsLiveChecking(true);
 
       const allSubs = dbService.getSubmissions();
-      const existingSub = allSubs.find(s => 
-        s.taskId === activeTask.id && 
+      const existingSub = allSubs.find(s =>
+        s.taskId === activeTask.id &&
         String(s.username || '').toLowerCase() === cleanHandle
       );
 
@@ -191,45 +323,6 @@ export function EmployeePortal({ session, onLogout }) {
       }, 250);
 
       return () => clearTimeout(timer);
-    } else if (activeTask.platform === 'WhatsApp' || activeTask.submissionType?.includes('Mobile') || activeTask.submissionType?.includes('Number')) {
-      const cleanPhone = raw.replace(/\D/g, '');
-      const normPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
-      const isValidPhone = /^[6-9]\d{9}$/.test(normPhone);
-
-      const allSubs = dbService.getSubmissions();
-      const existingSub = allSubs.find(s => 
-        s.taskId === activeTask.id && 
-        String(s.username || s.rawInput || '').replace(/\D/g, '').endsWith(normPhone)
-      );
-
-      if (existingSub) {
-        setLiveCheck({
-          cleanHandle: normPhone,
-          status: 'Already Followed',
-          isValid: false,
-          isDuplicate: true,
-          message: `Mobile number ${normPhone} has already been submitted for this campaign.`
-        });
-      } else if (!isValidPhone && cleanPhone.length >= 10) {
-        setLiveCheck({
-          cleanHandle: normPhone,
-          status: 'Invalid Submission',
-          isValid: false,
-          isDuplicate: false,
-          message: 'Mobile number must be 10 digits and start with 6, 7, 8, or 9.'
-        });
-      } else if (isValidPhone) {
-        setLiveCheck({
-          cleanHandle: normPhone,
-          status: 'Valid Submission',
-          isValid: true,
-          isDuplicate: false,
-          message: `Valid Indian contact number (+91 ${normPhone}). Ready to submit!`
-        });
-      } else {
-        setLiveCheck(null);
-      }
-      setIsLiveChecking(false);
     } else {
       setLiveCheck(null);
       setIsLiveChecking(false);
@@ -242,25 +335,23 @@ export function EmployeePortal({ session, onLogout }) {
     setEmployee(empData || session);
 
     // Get assigned tasks for this employee based on parliament/assembly scope
-    let tasks = dbService.getTasksForEmployee(empId);
-    if (!tasks || tasks.length <= 1) {
-      const allActive = dbService.getTasks().filter(t => t.status === 'Active');
-      if (allActive.length > (tasks ? tasks.length : 0)) {
-        tasks = allActive;
-      }
-    }
-    setAssignedTasks(tasks || []);
+    const tasks = dbService.getTasksForEmployee(empId);
+    setAssignedTasks(tasks);
 
-    if (tasks && tasks.length > 0) {
-      const selected = activeTask ? (tasks.find(t => t.id === activeTask.id) || tasks[0]) : tasks[0];
-      setActiveTask(selected);
-      updateStats(empId, selected.id);
+    if (activeTask) {
+      const selected = tasks.find(t => t.id === activeTask.id);
+      if (selected) {
+        setActiveTask(selected);
+        updateStats(empId, selected.id);
+      } else {
+        setActiveTask(null);
+      }
     }
   };
 
-  const updateStats = (empId, taskId) => {
+  const updateStats = (empId, taskId, cycleIdx = selectedCycleIndex) => {
     const today = getTodayISTDateString();
-    const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+    const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, cycleIdx);
     setTaskStats(stats);
 
     // Fetch employee tracking link & live clicks
@@ -273,11 +364,30 @@ export function EmployeePortal({ session, onLogout }) {
   };
 
   const handleTaskSwitch = (task) => {
+    handleSelectTask(task);
+  };
+
+  const handleSelectTask = (task) => {
     setActiveTask(task);
     setInputVal('');
     setFeedback(null);
+    setShowPatternHelp(false);
+    setSelectedCycleIndex(null);
     const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-    updateStats(empId, task.id);
+    updateStats(empId, task.id, null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleBackToTasks = () => {
+    setActiveTask(null);
+    setInputVal('');
+    setFeedback(null);
+    setShowPatternHelp(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const effectiveLink = trackingLink || (activeTask && (employee?.id || session?.employeeId || session?.id)
@@ -307,9 +417,7 @@ export function EmployeePortal({ session, onLogout }) {
   const handleWhatsAppShare = () => {
     const url = getFullTrackingUrl();
     if (!url) return;
-    const msg = activeTask?.platform === 'WhatsApp'
-      ? `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక వాట్సాప్ కమ్యూనిటీలో చేరండి:\n👉 ${url}\n\nJoin Sri Bhashyam Ramakrishna's Official WhatsApp Community!`
-      : `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక సోషల్ మీడియా పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna!`;
+    const msg = `నమస్కారం! శ్రీ భాష్యం రామకృష్ణ గారి అధికారిక సోషల్ మీడియా పేజీని ఫాలో అవ్వండి:\n👉 ${url}\n\nFollow Sri Bhashyam Ramakrishna!`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
@@ -391,13 +499,56 @@ export function EmployeePortal({ session, onLogout }) {
     }
 
     updateStats(empId, activeTask.id);
+    dbService.syncSubmissionsWithServer().then(() => {
+      updateStats(empId, activeTask.id);
+    }).catch(() => { });
     setIsSubmitting(false);
   };
 
+  const todayStr = getTodayISTDateString();
+  const allLocalSubs = dbService.getSubmissions();
+  const currentEmpId = employee?.id || session?.employeeId || session?.id || '';
+  const previousSubmissions = allLocalSubs.filter(s =>
+    s && s.employeeId &&
+    s.employeeId.toUpperCase() === currentEmpId.toUpperCase() &&
+    (!activeTask || s.taskId === activeTask.id) &&
+    s.date !== todayStr &&
+    getISTDateFromISO(s.submittedAt) !== todayStr
+  );
+
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
+  // Active task sample patterns (dynamic from task or platform defaults)
+  const activePatterns = activeTask
+    ? ((activeTask.samplePatterns && activeTask.samplePatterns.length > 0)
+      ? activeTask.samplePatterns
+      : getDefaultSamplePatterns(activeTask.platform, activeTask.submissionType))
+    : [];
+
+  // Aggregated metrics for landing page across all assigned tasks
+  const allTasksSummary = assignedTasks.map(t => {
+    const s = dbService.getEmployeeDailyStats(currentEmpId, todayStr, t.id);
+    const target = s?.target || (t.frequency === 'Weekly' ? (t.weeklyTarget || t.dailyTarget || 10) : (t.dailyTarget || 10));
+    const valid = s?.validCount || 0;
+    return {
+      task: t,
+      stats: s,
+      valid,
+      target,
+      isTargetMet: valid >= target
+    };
+  });
+  const totalValidToday = allTasksSummary.reduce((acc, curr) => acc + curr.valid, 0);
+  const targetsMetCount = allTasksSummary.filter(curr => curr.isTargetMet).length;
+
   return (
-    <div className="dashboard-page-wrapper">
+    <div className="dashboard-page-wrapper" style={{ padding: 0 }}>
+      {/* Pull-down to refresh preloader with animated MD logo mark */}
+      <PullToRefreshPreloader
+        isRefreshing={isSyncingFollowers}
+        onRefresh={handleSyncFollowers}
+      />
+
       {/* Background Soft Glow */}
       <div style={{
         position: 'absolute',
@@ -413,23 +564,26 @@ export function EmployeePortal({ session, onLogout }) {
       }} />
 
       {/* Main Container Frame */}
-      <div className="dashboard-main-frame" style={{ maxWidth: '1000px' }}>
-        {/* Top Header & Staff Info */}
+      <div className="dashboard-main-frame" style={{ maxWidth: '1440px' }}>
+        {/* Compact Top Header Bar */}
         <div style={{
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '12px',
-          paddingBottom: '16px',
-          borderBottom: '1px solid #e5e7eb',
-          marginBottom: '20px'
+          padding: '12px 16px',
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          marginBottom: '18px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
         }}>
-          {/* Staff Badge & Name */}
+          {/* Staff Badge & Name Only */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div style={{
-              width: '42px',
-              height: '42px',
+              width: '38px',
+              height: '38px',
+              minWidth: '38px',
+              minHeight: '38px',
               borderRadius: '50%',
               backgroundColor: '#fff7ed',
               border: '1.5px solid #ffedd5',
@@ -439,877 +593,1540 @@ export function EmployeePortal({ session, onLogout }) {
               color: '#ea580c',
               flexShrink: 0
             }}>
-              <UserCheck size={20} />
+              <UserCheck size={18} />
             </div>
 
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                  {employee?.name || session?.name || 'Field Staff'}
-                </h1>
-                <span style={{
-                  fontFamily: 'monospace',
-                  fontWeight: 800,
-                  fontSize: '11px',
-                  padding: '3px 10px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1'
-                }}>
-                  Code: {employee?.supportCode || employee?.id || session?.employeeId}
-                </span>
-
-                {(employee?.staffId || session?.staffId) && (
-                  <span style={{
-                    fontFamily: 'monospace',
-                    fontWeight: 800,
-                    fontSize: '11px',
-                    padding: '3px 10px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#eff6ff',
-                    color: '#1d4ed8',
-                    border: '1px solid #bfdbfe'
-                  }}>
-                    ID: {employee?.staffId || session?.staffId}
-                  </span>
-                )}
+              <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Field Outreach Staff
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Building2 size={13} style={{ color: '#ff4d00' }} />
-                  {employee?.parliamentName} Parliament
-                </span>
-                {employee?.assemblyName && (
-                  <>
-                    <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={13} style={{ color: '#0284c7' }} />
-                      {employee?.assemblyName} Segment
-                    </span>
-                  </>
-                )}
-                {(employee?.mobilePersonal || session?.mobilePersonal) && (
-                  <>
-                    <span>•</span>
-                    <span>Mob: <strong style={{ color: '#0f172a' }}>{employee?.mobilePersonal || session?.mobilePersonal}</strong></span>
-                  </>
-                )}
-              </div>
+              <h1 style={{
+                fontSize: '16px',
+                fontWeight: 800,
+                color: '#0f172a',
+                margin: 0,
+                letterSpacing: '-0.02em',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {employee?.name || session?.name || 'Field Staff'}
+              </h1>
             </div>
           </div>
 
-          {/* Sign Out */}
+          {/* Hamburger Menu Toggle Button */}
           <button
-            onClick={onLogout}
+            type="button"
+            onClick={() => setShowMenu(true)}
+            aria-label="Open staff details menu"
             style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '8px 18px',
-              borderRadius: '9999px',
-              backgroundColor: '#fff1f2',
-              color: '#e11d48',
-              border: '1px solid #fecdd3',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer'
+              justifyContent: 'center',
+              color: '#334155',
+              cursor: 'pointer',
+              flexShrink: 0,
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              transition: 'all 0.15s ease'
             }}
           >
-            <LogOut size={15} />
-            <span>Sign Out</span>
+            <Menu size={20} />
           </button>
         </div>
 
-        {/* SELECTABLE & SWITCHABLE CAMPAIGNS SELECTOR */}
-        {assignedTasks.length > 0 && (
-          <div style={{
-            backgroundColor: '#ffffff',
-            border: '1.5px solid #fed7aa',
-            borderRadius: '18px',
-            padding: '16px 20px',
-            marginBottom: '24px',
-            boxShadow: '0 4px 16px -2px rgba(234, 88, 12, 0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '8px',
-                  backgroundColor: '#fff7ed',
-                  color: '#ea580c',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #ffedd5'
-                }}>
-                  <Target size={15} />
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Select Campaign / Task ({assignedTasks.length} Available)
-                </span>
-              </div>
-              <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>
-                {assignedTasks.length > 1 ? '⚡ Select any campaign to switch tracking links & targets' : '✓ Active Campaign Assigned'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              {assignedTasks.map((t) => {
-                const Icon = PLATFORM_ICONS[t.platform] || Share2;
-                const isSel = activeTask?.id === t.id;
-                const isWhatsApp = t.platform === 'WhatsApp';
-                const platformColor = isWhatsApp ? '#16a34a' : '#ea580c';
-                const platformBg = isWhatsApp ? '#f0fdf4' : '#fff7ed';
-
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => handleTaskSwitch(t)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '12px 18px',
-                      borderRadius: '14px',
-                      cursor: 'pointer',
-                      border: isSel ? `2px solid ${platformColor}` : '1.5px solid #e2e8f0',
-                      backgroundColor: isSel ? platformBg : '#ffffff',
-                      color: isSel ? '#0f172a' : '#475569',
-                      boxShadow: isSel ? `0 6px 18px ${platformColor}25` : '0 1px 3px rgba(0,0,0,0.03)',
-                      transform: isSel ? 'scale(1.02)' : 'scale(1)',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <div style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '10px',
-                      backgroundColor: isSel ? platformColor : '#f1f5f9',
-                      color: isSel ? '#ffffff' : '#64748b',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      transition: 'all 0.2s ease',
-                      boxShadow: isSel ? `0 2px 8px ${platformColor}35` : 'none'
-                    }}>
-                      <Icon size={18} />
-                    </div>
-
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: isSel ? '#0f172a' : '#334155' }}>
-                          {t.name}
-                        </span>
-                        {isSel ? (
-                          <span style={{
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            padding: '2px 8px',
-                            borderRadius: '9999px',
-                            backgroundColor: platformColor,
-                            color: '#ffffff',
-                            letterSpacing: '0.04em',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
-                            ACTIVE
-                          </span>
-                        ) : (
-                          <span style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: '9999px',
-                            backgroundColor: '#f1f5f9',
-                            color: '#64748b',
-                            border: '1px solid #cbd5e1'
-                          }}>
-                            Click to Switch
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
-                        Target: <strong style={{ color: '#0f172a' }}>{t.dailyTarget}</strong> {t.submissionType || 'entries'}/day
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ACTIVE TASK CARD & PROGRESS BAR */}
+        {/* If Active Task selected: Render Task Detail View with Back Button. Otherwise: Render Campaign Tasks Landing Page */}
         {activeTask ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Task Overview Box */}
-            <div className="dashboard-section-card" style={{ backgroundColor: '#fafafa' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ff4d00',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <PlatformIcon size={20} />
-                  </div>
-                  <div>
-                    <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                      {activeTask.name}
-                    </h2>
-                    <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
-                      {activeTask.description || `Platform: ${activeTask.platform}`}
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '5px 12px',
+          <div>
+            {/* Top Navigation Bar: Back to All Tasks */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              marginBottom: '18px',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                type="button"
+                onClick={handleBackToTasks}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
                   borderRadius: '9999px',
                   backgroundColor: '#ffffff',
-                  border: '1px solid #d1d5db',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <ArrowLeft size={16} />
+                <span>All Tasks ({assignedTasks.length})</span>
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
                   fontSize: '11px',
                   fontWeight: 700,
-                  color: '#334155'
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
                 }}>
-                  Target: <strong>{activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'} / day
-                </div>
+                  Active Campaign:
+                </span>
+                <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
+                  {activeTask.name}
+                </span>
               </div>
-
-              {/* Progress Bar */}
-              {taskStats && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
-                    <span>Daily Completion Progress</span>
-                    <span style={{ color: taskStats.validCount >= activeTask.dailyTarget ? '#16a34a' : '#ea580c' }}>
-                      {taskStats.validCount} / {activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
-                    </span>
-                  </div>
-
-                  <div style={{
-                    width: '100%',
-                    height: '10px',
-                    backgroundColor: '#e2e8f0',
-                    borderRadius: '9999px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${taskStats.progressPercent}%`,
-                      height: '100%',
-                      background: taskStats.validCount >= activeTask.dailyTarget 
-                        ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)' 
-                        : 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
-                      borderRadius: '9999px',
-                      transition: 'width 0.4s ease'
-                    }} />
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* YOUR UNIQUE OUTREACH TRACKING LINK CARD */}
-            {effectiveLink && (
-              <div className="dashboard-section-card" style={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
-                border: '1.5px solid #ffedd5',
-                boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
-              }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
-                    }}>
-                      <Share2 size={20} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-                        Your Citizen Outreach Tracking Link
-                      </h3>
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                        Redirects visitors to official Instagram while recording your staff attribution.
-                      </p>
-                    </div>
-                  </div>
-
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#ecfdf5',
-                    color: '#059669',
-                    border: '1px solid #a7f3d0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                    Live Active Link
-                  </span>
-                </div>
-
-                {/* Tracking URL Container */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '14px',
-                  padding: '8px 14px',
-                  marginBottom: '14px',
-                  overflow: 'hidden',
-                  gap: '10px',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ flex: 1, minWidth: '220px', overflow: 'hidden' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Exclusive Tracking URL
-                    </div>
-                    <div style={{
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: '#0f172a',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                      overflow: 'hidden'
-                    }}>
-                      {getFullTrackingUrl()}
-                    </div>
-                  </div>
-
-                  {/* 1-Tap Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleCopyLink}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: copied ? '#ecfdf5' : '#f1f5f9',
-                        color: copied ? '#059669' : '#334155',
-                        border: copied ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copied ? 'Copied!' : 'Copy Link'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleWhatsAppShare}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 18px',
-                        borderRadius: '10px',
-                        backgroundColor: '#25D366',
+            <div className="portal-content-grid">
+              {/* LEFT COLUMN: Task Details & Citizen Outreach Tracking Link */}
+              <div className="portal-column portal-left-column">
+                {/* 1. Task Overview Box with Daily Completion Progress */}
+                <div className="dashboard-section-card portal-area-task" style={{ backgroundColor: '#fafafa' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {/* Perfectly Round Platform Icon */}
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        minWidth: '42px',
+                        minHeight: '42px',
+                        borderRadius: '50%',
+                        aspectRatio: '1 / 1',
+                        backgroundColor: '#ff4d00',
                         color: '#ffffff',
-                        border: 'none',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <MessageSquare size={14} />
-                      <span>Share on WhatsApp</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowQrModal(true)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <QrCode size={14} style={{ color: '#ff4d00' }} />
-                      <span>QR Code</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Real-time Click Metrics Bar */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                  gap: '10px',
-                  backgroundColor: '#ffffff',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  border: '1px solid #fed7aa'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks Today</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c' }}>
-                      {linkClicks.validClicks || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Visitors</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>
-                      {linkClicks.uniqueIps || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Link Hits</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#334155' }}>
-                      {linkClicks.totalClicks || 0}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        dbService.syncClicksWithServer().then(() => {
-                          const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-                          const taskId = activeTask?.id || 'TASK-INSTA-001';
-                          const today = getTodayISTDateString();
-                          const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
-                          setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
-                        }).catch(() => {});
-                      }}
-                      style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '5px',
-                        padding: '5px 10px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        color: '#0284c7',
-                        backgroundColor: '#f0f9ff',
-                        border: '1px solid #bae6fd',
-                        borderRadius: '6px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <RefreshCw size={12} />
-                      Sync Clicks
-                    </button>
-                    <span style={{
-                      fontSize: '9.5px',
-                      fontWeight: 600,
-                      color: '#059669',
-                      textAlign: 'center'
+                        flexShrink: 0,
+                        boxShadow: '0 4px 10px rgba(255, 77, 0, 0.25)'
+                      }}>
+                        <PlatformIcon size={22} />
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+                          {activeTask.name}
+                        </h2>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>
+                          {activeTask.description || `Platform: ${activeTask.platform}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '5px 12px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #d1d5db',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#334155'
                     }}>
-                      ✓ WhatsApp Bots Filtered
+                      Target: <strong>{taskStats?.target || activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'}
+                      {taskStats?.isWeekly 
+                        ? ` / week (${taskStats.cycleInfo?.shortLabel || 'Week'})` 
+                        : taskStats?.isCustom 
+                          ? ` / cycle (${taskStats.cycleInfo?.shortLabel || 'Cycle'})` 
+                          : taskStats?.isCampaignTotal 
+                            ? ' (Entire Duration)' 
+                            : ' / day'}
+                    </div>
+                  </div>
+
+                  {/* Multi-Cycle Tabs if more than 1 cycle exists */}
+                  {taskStats?.allCycles && taskStats.allCycles.length > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      overflowX: 'auto',
+                      padding: '8px 0 2px 0',
+                      borderTop: '1px solid #f1f5f9',
+                      marginTop: '10px'
+                    }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Cycle View:
+                      </span>
+                      {taskStats.allCycles.map((c, cIdx) => {
+                        const isSelected = (selectedCycleIndex === null && c.isCurrent) || selectedCycleIndex === cIdx;
+                        return (
+                          <button
+                            key={c.cycleNumber}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCycleIndex(cIdx);
+                              const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+                              updateStats(empId, activeTask.id, cIdx);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '980px',
+                              fontSize: '11px',
+                              fontWeight: isSelected ? 700 : 500,
+                              backgroundColor: isSelected ? '#0071e3' : '#f1f5f9',
+                              color: isSelected ? '#ffffff' : '#475569',
+                              border: isSelected ? '1px solid #0071e3' : '1px solid #e2e8f0',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {c.shortLabel} {c.isCurrent ? '(Active)' : `(${c.startDate})`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Progress Bar */}
+                  {taskStats && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155', flexWrap: 'wrap', gap: '4px' }}>
+                        <span>
+                          {taskStats.periodLabel || 'Completion Progress'}
+                        </span>
+                        <span style={{ color: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget) ? '#16a34a' : '#ea580c' }}>
+                          {taskStats.validCount} / {taskStats.target || activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
+                        </span>
+                      </div>
+
+                      <div style={{
+                        width: '100%',
+                        height: '10px',
+                        backgroundColor: '#e2e8f0',
+                        borderRadius: '9999px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${taskStats.progressPercent}%`,
+                          height: '100%',
+                          background: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget)
+                            ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                            : 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
+                          borderRadius: '9999px',
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. CITIZEN OUTREACH TRACKING LINK CARD */}
+                {effectiveLink && (
+                  <div className="dashboard-section-card portal-area-tracking" style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #fdf8f6 100%)',
+                    border: '1.5px solid #ffedd5',
+                    boxShadow: '0 10px 25px -5px rgba(255, 77, 0, 0.08)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      {/* Perfectly Round Share Icon */}
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        minWidth: '38px',
+                        minHeight: '38px',
+                        borderRadius: '50%',
+                        aspectRatio: '1 / 1',
+                        background: 'linear-gradient(135deg, #ff4d00 0%, #ea580c 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        flexShrink: 0,
+                        boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
+                      }}>
+                        <Share2 size={18} />
+                      </div>
+                      <h3 style={{
+                        fontSize: '15px',
+                        fontWeight: 800,
+                        color: '#0f172a',
+                        margin: 0,
+                        letterSpacing: '-0.02em',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Your Citizen Outreach Tracking Link
+                      </h3>
+                    </div>
+
+                    {/* Tracking URL Box with Multiline Full Link Wrap */}
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      marginBottom: '14px'
+                    }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                        Exclusive Tracking URL
+                      </div>
+                      <div style={{
+                        fontFamily: 'monospace',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        wordBreak: 'break-all',
+                        overflowWrap: 'anywhere',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.45,
+                        padding: '8px 10px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0'
+                      }}>
+                        {getFullTrackingUrl()}
+                      </div>
+
+                      {/* 1-Line Actions: WhatsApp (1st), Copy (2nd), QR Code (3rd) */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginTop: '10px',
+                        width: '100%'
+                      }}>
+                        {/* 1. Share on WhatsApp (FIRST) */}
+                        <button
+                          type="button"
+                          onClick={handleWhatsAppShare}
+                          title="Share on WhatsApp"
+                          style={{
+                            flex: 1,
+                            height: '42px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            borderRadius: '10px',
+                            backgroundColor: '#25D366',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <MessageSquare size={16} />
+                          <span>WhatsApp</span>
+                        </button>
+
+                        {/* 2. Copy Link (SECOND) */}
+                        <button
+                          type="button"
+                          onClick={handleCopyLink}
+                          title="Copy Link"
+                          style={{
+                            flex: 1,
+                            height: '42px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            borderRadius: '10px',
+                            backgroundColor: copied ? '#ecfdf5' : '#f1f5f9',
+                            color: copied ? '#059669' : '#334155',
+                            border: copied ? '1.5px solid #a7f3d0' : '1px solid #cbd5e1',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {copied ? <Check size={16} /> : <Copy size={16} />}
+                          <span>{copied ? 'Copied!' : 'Copy'}</span>
+                        </button>
+
+                        {/* 3. QR Code (THIRD) */}
+                        <button
+                          type="button"
+                          onClick={() => setShowQrModal(true)}
+                          title="View QR Code"
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            minWidth: '42px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '10px',
+                            backgroundColor: '#fff7ed',
+                            color: '#ea580c',
+                            border: '1px solid #ffedd5',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <QrCode size={18} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Real-time Click Metrics Bar */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: '10px',
+                      backgroundColor: '#ffffff',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid #fed7aa'
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks Today</span>
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#ea580c' }}>
+                          {linkClicks.validClicks || 0}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Visitors</span>
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>
+                          {linkClicks.uniqueIps || 0}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Total Link Hits</span>
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#334155' }}>
+                          {linkClicks.totalClicks || 0}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dbService.syncClicksWithServer().then(() => {
+                              const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+                              const taskId = activeTask?.id || 'TASK-INSTA-001';
+                              const today = getTodayISTDateString();
+                              const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
+                              setLinkClicks(clicks || { totalClicks: 0, validClicks: 0, uniqueIps: 0 });
+                            }).catch(() => { });
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            padding: '5px 10px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: '#0284c7',
+                            backgroundColor: '#f0f9ff',
+                            border: '1px solid #bae6fd',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <RefreshCw size={12} />
+                          Sync Clicks
+                        </button>
+                        <span style={{
+                          fontSize: '9.5px',
+                          fontWeight: 600,
+                          color: '#059669',
+                          textAlign: 'center'
+                        }}>
+                          ✓ WhatsApp Bots Filtered
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: Submission Entry on top of Submissions History */}
+              <div className="portal-column portal-right-column">
+                {/* 3. SUBMISSION ENTRY FORM */}
+                <div className="dashboard-section-card portal-area-entry">
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
+                    New Submission Entry ({activeTask.submissionType || 'Input'})
+                  </h3>
+
+                  {feedback && (
+                    <div style={{
+                      marginBottom: '14px',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      backgroundColor: feedback.type === 'success'
+                        ? '#ecfdf5'
+                        : (feedback.type === 'pending'
+                          ? 'rgba(0, 113, 227, 0.08)'
+                          : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
+                      color: feedback.type === 'success'
+                        ? '#047857'
+                        : (feedback.type === 'pending'
+                          ? '#0071e3'
+                          : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
+                      border: `1px solid ${feedback.type === 'success'
+                        ? '#a7f3d0'
+                        : (feedback.type === 'pending'
+                          ? 'rgba(0, 113, 227, 0.25)'
+                          : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
+                        }`
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        {feedback.type === 'success' ? (
+                          <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                        ) : feedback.type === 'pending' ? (
+                          <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                        ) : feedback.type === 'warning' ? (
+                          <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                        ) : (
+                          <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                        )}
+                        <span style={{ lineHeight: 1.4 }}>{feedback.message}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFeedback(null)}
+                        aria-label="Dismiss notification"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '3px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'inherit',
+                          opacity: 0.65,
+                          borderRadius: '6px',
+                          flexShrink: 0
+                        }}
+                        title="Dismiss"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <input
+                          type="text"
+                          required
+                          disabled={isSubmitting}
+                          placeholder={
+                            activeTask.submissionType === 'Mobile Number'
+                              ? 'Enter 10-digit voter mobile number...'
+                              : activeTask.platform === 'Instagram'
+                                ? 'Enter Instagram handle or profile URL...'
+                                : `Enter ${activeTask.submissionType || 'submission entry'}...`
+                          }
+                          value={inputVal}
+                          onChange={(e) => setInputVal(e.target.value)}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '12px 44px 12px 18px',
+                            borderRadius: '980px',
+                            border: '1px solid rgba(0, 0, 0, 0.1)',
+                            fontSize: '13.5px',
+                            fontWeight: 500,
+                            outline: 'none',
+                            backgroundColor: 'rgba(118, 118, 128, 0.06)',
+                            color: '#1d1d1f'
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPatternHelp(prev => !prev)}
+                          title={`View sample ${activeTask.submissionType || 'entry'} patterns`}
+                          aria-label={`View sample ${activeTask.submissionType || 'entry'} patterns`}
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: showPatternHelp ? '#0071e3' : '#64748b',
+                            cursor: 'pointer',
+                            borderRadius: '50%',
+                            transition: 'color 0.15s ease'
+                          }}
+                        >
+                          <HelpCircle size={18} />
+                        </button>
+                      </div>
+
+                      {showPatternHelp && (
+                        <div style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                          padding: '14px 16px',
+                          fontSize: '12.5px',
+                          color: '#334155'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0f172a' }}>
+                              <Info size={15} style={{ color: '#0071e3' }} />
+                              <span>Accepted {activeTask.submissionType || 'Entry'} Patterns</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowPatternHelp(false)}
+                              aria-label="Close pattern help"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+
+                          <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#64748b' }}>
+                            Supported formats for this campaign ({activeTask.submissionType || activeTask.platform}):
+                          </p>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {activePatterns.map((pat, pIdx) => (
+                              <div
+                                key={pIdx}
+                                style={{
+                                  padding: '7px 12px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#f8fafc',
+                                  border: '1px solid #f1f5f9',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  gap: '8px'
+                                }}
+                              >
+                                <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                                  {pat.pattern}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+                                  {pat.label}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !inputVal.trim()}
+                        style={{
+                          width: '100%',
+                          padding: '12px 24px',
+                          borderRadius: '980px',
+                          border: 'none',
+                          backgroundColor: '#0071e3',
+                          color: '#ffffff',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          cursor: isSubmitting || !inputVal.trim() ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          boxShadow: '0 3px 10px rgba(0, 113, 227, 0.3)',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Send size={15} />
+                        <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
+                      </button>
+                    </div>
+
+                    {/* Live Real-Time Follower & Duplicate Preview Badge */}
+                    {liveCheck && !feedback && (
+                      <div style={{
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '9px',
+                        backgroundColor: liveCheck.status === 'Valid Submission'
+                          ? 'rgba(52, 199, 89, 0.08)'
+                          : (liveCheck.status === 'Already Followed'
+                            ? 'rgba(255, 149, 0, 0.10)'
+                            : (liveCheck.status === 'Pending Submission'
+                              ? 'rgba(0, 113, 227, 0.06)'
+                              : 'rgba(255, 59, 48, 0.08)')),
+                        border: `1px solid ${liveCheck.status === 'Valid Submission'
+                          ? 'rgba(52, 199, 89, 0.25)'
+                          : (liveCheck.status === 'Already Followed'
+                            ? 'rgba(255, 149, 0, 0.3)'
+                            : (liveCheck.status === 'Pending Submission'
+                              ? 'rgba(0, 113, 227, 0.2)'
+                              : 'rgba(255, 59, 48, 0.25)'))
+                          }`,
+                        color: liveCheck.status === 'Valid Submission'
+                          ? '#1b5e20'
+                          : (liveCheck.status === 'Already Followed'
+                            ? '#c2410c'
+                            : (liveCheck.status === 'Pending Submission'
+                              ? '#0071e3'
+                              : '#b91c1c'))
+                      }}>
+                        {liveCheck.status === 'Valid Submission' ? (
+                          <>
+                            <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
+                            <span>
+                              <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST.
+                            </span>
+                          </>
+                        ) : liveCheck.status === 'Already Followed' ? (
+                          <>
+                            <AlertTriangle size={16} style={{ color: '#ea580c', flexShrink: 0 }} />
+                            <span>
+                              <strong>Already Followed:</strong> {liveCheck.message}
+                            </span>
+                          </>
+                        ) : liveCheck.status === 'Pending Submission' ? (
+                          <>
+                            <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
+                            <span>
+                              <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' will be saved as <strong>Pending Submission</strong>.
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
+                            <span>
+                              <strong>{liveCheck.status}:</strong> {liveCheck.message}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </form>
+                </div>
+
+                  {/* 4. SUBMISSIONS LOG (WITH 5 EMPLOYEE STATS, STATUS FILTERS, AND UNFOLLOWED METRICS) */}
+                  <div className="dashboard-section-card portal-area-history">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
+                          Submissions & Attribution History
+                        </h3>
+                        <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                          Verified against authoritative Instagram follower snapshots.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSyncFollowers}
+                        disabled={isSyncingFollowers}
+                        title="Cross-check all submissions with official Instagram followers JSON"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          padding: '5px 12px',
+                          borderRadius: '9999px',
+                          backgroundColor: '#f1f5f9',
+                          color: '#334155',
+                          border: '1px solid #cbd5e1',
+                          cursor: isSyncingFollowers ? 'wait' : 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
+                        <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Follower Status'}</span>
+                      </button>
+                    </div>
+
+                    {/* 5 KPI STATISTICS CARDS */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                      gap: '8px',
+                      marginBottom: '14px'
+                    }}>
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Total Ever</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>{empTotalSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>All-time history</div>
+                      </div>
+
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#15803d', textTransform: 'uppercase' }}>Net Active</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>{empNetActiveSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#16a34a' }}>Credited follows</div>
+                      </div>
+
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#b91c1c', textTransform: 'uppercase' }}>Unfollowed</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#991b1b', marginTop: '2px' }}>{empUnfollowedSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#dc2626' }}>Credit deducted</div>
+                      </div>
+
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fff7ed', border: '1px solid #ffedd5' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#c2410c', textTransform: 'uppercase' }}>Pending</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#9a3412', marginTop: '2px' }}>{empPendingSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#ea580c' }}>Awaiting match</div>
+                      </div>
+
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#1d4ed8', textTransform: 'uppercase' }}>Re-Followed</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#1e40af', marginTop: '2px' }}>{empRefollowedSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#2563eb' }}>Reactivated</div>
+                      </div>
+                    </div>
+
+                    {/* Submissions Navigation Tabs: Today vs Previous */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '6px',
+                      backgroundColor: '#f1f5f9',
+                      padding: '4px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      marginBottom: '10px'
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionTab('today')}
+                        style={{
+                          flex: 1,
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12px',
+                          fontWeight: submissionTab === 'today' ? 700 : 500,
+                          backgroundColor: submissionTab === 'today' ? '#ffffff' : 'transparent',
+                          color: submissionTab === 'today' ? '#0f172a' : '#64748b',
+                          border: 'none',
+                          boxShadow: submissionTab === 'today' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Today ({taskStats?.todaySubmissions?.length || 0})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionTab('previous')}
+                        style={{
+                          flex: 1,
+                          padding: '7px 12px',
+                          borderRadius: '9px',
+                          fontSize: '12px',
+                          fontWeight: submissionTab === 'previous' ? 700 : 500,
+                          backgroundColor: submissionTab === 'previous' ? '#ffffff' : 'transparent',
+                          color: submissionTab === 'previous' ? '#0f172a' : '#64748b',
+                          border: 'none',
+                          boxShadow: submissionTab === 'previous' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Previous ({previousSubmissions.length})
+                      </button>
+                    </div>
+
+                    {/* Status Filter Pills: All, Active, Unfollowed, Pending */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginBottom: '14px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginRight: '4px' }}>Filter:</span>
+                      {[
+                        { key: 'ALL', label: 'All' },
+                        { key: 'ACTIVE', label: 'Active / Verified' },
+                        { key: 'UNFOLLOWED', label: 'Unfollowed' },
+                        { key: 'PENDING', label: 'Pending' },
+                        { key: 'NOT_FOUND', label: 'Not Found' }
+                      ].map(filter => {
+                        const isSelected = subStatusFilter === filter.key;
+                        return (
+                          <button
+                            key={filter.key}
+                            type="button"
+                            onClick={() => setSubStatusFilter(filter.key)}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              border: isSelected ? '1px solid #0071e3' : '1px solid #e2e8f0',
+                              backgroundColor: isSelected ? '#0071e3' : '#ffffff',
+                              color: isSelected ? '#ffffff' : '#475569',
+                              fontSize: '11px',
+                              fontWeight: isSelected ? 700 : 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {filter.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* TAB 1: TODAY'S SUBMISSIONS */}
+                    {submissionTab === 'today' && (() => {
+                      const rawList = taskStats?.todaySubmissions || [];
+                      const filteredList = rawList.filter(s => {
+                        if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
+                        if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
+                        if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
+                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Handle Not Found';
+                        return true;
+                      });
+
+                      return (
+                        <div>
+                          {filteredList.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {filteredList.map((sub, idx) => {
+                                const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                                const isStatusPending = sub.status === 'Pending Submission';
+                                const isStatusNotFound = sub.status === 'Handle Not Found';
+                                const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
+
+                                return (
+                                  <div
+                                    key={sub.id || idx}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '10px 14px',
+                                      backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                      borderRadius: '12px',
+                                      border: isStatusUnfollowed ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                                      gap: '10px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                      <div style={{
+                                        fontFamily: 'monospace',
+                                        fontWeight: 700,
+                                        fontSize: '13.5px',
+                                        color: isStatusUnfollowed ? '#991b1b' : '#0f172a',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                      }}>
+                                        @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                                      </div>
+
+                                      {/* Sub-label for status detection */}
+                                      {isStatusUnfollowed ? (
+                                        <div style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                          Unfollowed: {sub.unfollowed_at ? (formatIST(sub.unfollowed_at) + ' IST') : 'Missing from reconciled snapshot'}
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px' }}>
+                                              • Re-followed: {formatIST(sub.re_followed_at)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
+                                          Submitted at {formatIST(sub.submittedAt, { timeOnly: true })} IST
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px', fontWeight: 600 }}>
+                                              • Reactivated
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Color-Coded Status Badge */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{
+                                        padding: '3px 10px',
+                                        borderRadius: '9999px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        backgroundColor: isStatusValid
+                                          ? '#16a34a'
+                                          : (isStatusPending ? '#ea580c' : (isStatusNotFound ? '#dc2626' : (isStatusUnfollowed ? '#dc2626' : '#64748b'))),
+                                        color: '#ffffff',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Found' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedSubForInfo(sub)}
+                                        title="Click to view follower verification status & time details"
+                                        aria-label="View details"
+                                        style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#f1f5f9',
+                                          border: '1px solid #cbd5e1',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#475569',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        <Info size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b' }}>
+                              <p style={{ fontSize: '12.5px', margin: 0, fontWeight: 500 }}>
+                                No entries match the filter "{subStatusFilter}" for today.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* TAB 2: PREVIOUS SUBMISSIONS */}
+                    {submissionTab === 'previous' && (() => {
+                      const rawList = previousSubmissions || [];
+                      const filteredList = rawList.filter(s => {
+                        if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
+                        if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
+                        if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
+                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Handle Not Found';
+                        return true;
+                      });
+
+                      return (
+                        <div>
+                          {filteredList.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {filteredList.map((sub, idx) => {
+                                const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
+                                const isStatusPending = sub.status === 'Pending Submission';
+                                const isStatusNotFound = sub.status === 'Handle Not Found';
+                                const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
+
+                                return (
+                                  <div
+                                    key={sub.id || idx}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '10px 14px',
+                                      backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                                      borderRadius: '12px',
+                                      border: isStatusUnfollowed ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                                      gap: '10px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                      <div style={{
+                                        fontFamily: 'monospace',
+                                        fontWeight: 700,
+                                        fontSize: '13.5px',
+                                        color: isStatusUnfollowed ? '#991b1b' : '#0f172a',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                      }}>
+                                        @{String(sub.username || sub.rawInput || '').replace(/^@+/, '')}
+                                      </div>
+
+                                      {isStatusUnfollowed ? (
+                                        <div style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                          Unfollowed: {sub.unfollowed_at ? (formatIST(sub.unfollowed_at) + ' IST') : 'Missing from reconciled snapshot'}
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px' }}>
+                                              • Re-followed: {formatIST(sub.re_followed_at)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
+                                          {sub.date || formatIST(sub.submittedAt, { dateOnly: true })} • {formatIST(sub.submittedAt, { timeOnly: true })} IST
+                                          {sub.re_followed_at && (
+                                            <span style={{ color: '#16a34a', marginLeft: '6px', fontWeight: 600 }}>
+                                              • Reactivated
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Color-Coded Status Badge */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{
+                                        padding: '3px 10px',
+                                        borderRadius: '9999px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        backgroundColor: isStatusValid
+                                          ? '#16a34a'
+                                          : (isStatusPending ? '#ea580c' : (isStatusNotFound ? '#dc2626' : (isStatusUnfollowed ? '#dc2626' : '#64748b'))),
+                                        color: '#ffffff',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Found' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedSubForInfo(sub)}
+                                        title="Click to view follower verification status & time details"
+                                        aria-label="View details"
+                                        style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#f1f5f9',
+                                          border: '1px solid #cbd5e1',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#475569',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        <Info size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b' }}>
+                              <p style={{ fontSize: '12.5px', margin: 0, fontWeight: 500 }}>
+                                No previous entries match the filter "{subStatusFilter}".
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* CAMPAIGN TASKS LANDING PAGE */
+          <div className="portal-landing-page" style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* 1. Welcome & Constituency Banner Card */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              padding: '24px 20px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '260px',
+                height: '100%',
+                background: 'radial-gradient(circle at right center, rgba(255, 77, 0, 0.08) 0%, transparent 70%)',
+                pointerEvents: 'none'
+              }} />
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', position: 'relative', zIndex: 1 }}>
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fff7ed', border: '1px solid #ffedd5', padding: '4px 12px', borderRadius: '9999px', marginBottom: '10px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ff4d00' }} />
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Citizen Outreach Hub
+                    </span>
+                  </div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                    Welcome, {employee?.name || session?.name || 'Field Officer'}
+                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '13px', color: '#64748b' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <Calendar size={14} style={{ color: '#ff4d00' }} />
+                      {formatIST(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span>•</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <MapPin size={14} style={{ color: '#0284c7' }} />
+                      {employee?.parliamentName || 'All'} Parliament {employee?.assemblyName ? `(${employee.assemblyName})` : ''}
                     </span>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Submission Form */}
-            <div className="dashboard-section-card">
-              <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
-                New Submission Entry ({activeTask.submissionType || 'Input'})
-              </h3>
-
-              {feedback && (
-                <div style={{
-                  marginBottom: '14px',
-                  padding: '10px 14px',
-                  borderRadius: '12px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: feedback.type === 'success' 
-                    ? '#ecfdf5' 
-                    : (feedback.type === 'pending'
-                      ? 'rgba(0, 113, 227, 0.08)'
-                      : (feedback.type === 'warning' ? '#fffbeb' : '#fef2f2')),
-                  color: feedback.type === 'success' 
-                    ? '#047857' 
-                    : (feedback.type === 'pending'
-                      ? '#0071e3'
-                      : (feedback.type === 'warning' ? '#b45309' : '#b91c1c')),
-                  border: `1px solid ${
-                    feedback.type === 'success' 
-                      ? '#a7f3d0' 
-                      : (feedback.type === 'pending'
-                        ? 'rgba(0, 113, 227, 0.25)'
-                        : (feedback.type === 'warning' ? '#fde68a' : '#fca5a5'))
-                  }`
-                }}>
-                  {feedback.type === 'success' ? (
-                    <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
-                  ) : feedback.type === 'pending' ? (
-                    <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
-                  ) : feedback.type === 'warning' ? (
-                    <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                  ) : (
-                    <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  )}
-                  <span>{feedback.message}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    required
-                    disabled={isSubmitting}
-                    placeholder={
-                      activeTask.submissionType === 'Mobile Number' 
-                        ? 'Enter 10-digit voter mobile number...' 
-                        : `Enter ${activeTask.submissionType} or URL (e.g. lakshmisettylavanya)...`
-                    }
-                    value={inputVal}
-                    onChange={(e) => setInputVal(e.target.value)}
-                    style={{
-                      flex: '1 1 200px',
-                      minWidth: '180px',
-                      padding: '10px 16px',
-                      borderRadius: '980px',
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: '13.5px',
-                      fontWeight: 500,
-                      outline: 'none',
-                      backgroundColor: 'rgba(118, 118, 128, 0.06)',
-                      color: '#1d1d1f'
-                    }}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !inputVal.trim()}
-                    style={{
-                      padding: '10px 24px',
-                      borderRadius: '980px',
-                      border: 'none',
-                      backgroundColor: '#0071e3',
-                      color: '#ffffff',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(0, 113, 227, 0.3)',
-                      whiteSpace: 'nowrap',
-                      flex: '0 0 auto',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Send size={14} />
-                    <span>{isSubmitting ? 'Verifying...' : 'Submit Entry'}</span>
-                  </button>
-                </div>
-
-                {/* Live Real-Time Follower & Duplicate Preview Badge */}
-                {liveCheck && !feedback && (
-                  <div style={{
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    fontSize: '12.5px',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '9px',
-                    backgroundColor: liveCheck.status === 'Valid Submission'
-                      ? 'rgba(52, 199, 89, 0.08)'
-                      : (liveCheck.status === 'Already Followed'
-                        ? 'rgba(255, 149, 0, 0.10)'
-                        : (liveCheck.status === 'Pending Submission'
-                          ? 'rgba(0, 113, 227, 0.06)'
-                          : 'rgba(255, 59, 48, 0.08)')),
-                    border: `1px solid ${
-                      liveCheck.status === 'Valid Submission'
-                        ? 'rgba(52, 199, 89, 0.25)'
-                        : (liveCheck.status === 'Already Followed'
-                          ? 'rgba(255, 149, 0, 0.3)'
-                          : (liveCheck.status === 'Pending Submission'
-                            ? 'rgba(0, 113, 227, 0.2)'
-                            : 'rgba(255, 59, 48, 0.25)'))
-                    }`,
-                    color: liveCheck.status === 'Valid Submission'
-                      ? '#1b5e20'
-                      : (liveCheck.status === 'Already Followed'
-                        ? '#c2410c'
-                        : (liveCheck.status === 'Pending Submission'
-                          ? '#0071e3'
-                          : '#b91c1c'))
-                  }}>
-                    {liveCheck.status === 'Valid Submission' ? (
-                      <>
-                        <CheckCircle2 size={16} style={{ color: '#34c759', flexShrink: 0 }} />
-                        <span>
-                          <strong>Verified New Follower:</strong> Followed on <strong style={{ fontFamily: 'monospace' }}>{liveCheck.follower?.followedAtFormatted}</strong> IST (Inside eligible 24h window • Will be counted as Valid Submission).
-                        </span>
-                      </>
-                    ) : liveCheck.status === 'Already Followed' ? (
-                      <>
-                        <AlertTriangle size={16} style={{ color: '#ea580c', flexShrink: 0 }} />
-                        <span>
-                          <strong>Already Followed:</strong> {liveCheck.message}
-                        </span>
-                      </>
-                    ) : liveCheck.status === 'Pending Submission' ? (
-                      <>
-                        <Clock size={16} style={{ color: '#0071e3', flexShrink: 0 }} />
-                        <span>
-                          <strong>Pending Verification:</strong> '@{liveCheck.cleanHandle}' is not in current followers database yet. Submission will be saved as <strong>Pending Submission</strong> and verified upon next follower JSON sync.
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
-                        <span>
-                          <strong>{liveCheck.status}:</strong> {liveCheck.message}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </form>
-            </div>
-
-            {/* Today's Submissions Log Table */}
-            <div className="dashboard-section-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-                  Today's Submission Log ({taskStats?.todaySubmissions?.length || 0})
-                </h3>
-
-                {activeTask?.platform === 'Instagram' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
                     onClick={handleSyncFollowers}
                     disabled={isSyncingFollowers}
-                    title="Cross-check all submissions with official Instagram followers JSON"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      padding: '5px 12px',
+                      padding: '9px 16px',
                       borderRadius: '9999px',
-                      backgroundColor: '#f1f5f9',
-                      color: '#334155',
+                      backgroundColor: '#f8fafc',
                       border: '1px solid #cbd5e1',
-                      cursor: isSyncingFollowers ? 'wait' : 'pointer',
+                      color: '#334155',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: isSyncingFollowers ? 'not-allowed' : 'pointer',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <RefreshCw size={12} style={{ animation: isSyncingFollowers ? 'fastSpin 0.7s linear infinite' : 'none' }} />
-                    <span>{isSyncingFollowers ? 'Syncing Follower DB...' : 'Sync Follower Status'}</span>
+                    <RefreshCw size={14} className={isSyncingFollowers ? 'animate-spin' : ''} />
+                    <span>{isSyncingFollowers ? 'Syncing...' : 'Sync Data'}</span>
                   </button>
-                )}
+                </div>
               </div>
 
-              {taskStats?.todaySubmissions?.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.06)', color: '#86868b' }}>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
-                          {activeTask.platform === 'WhatsApp' ? 'Contact Number' : 'Entry Input'}
-                        </th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>Time (IST)</th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
-                          {activeTask.platform === 'WhatsApp' ? 'Verification Detail' : 'Follower Verification (dd/mm/yyyy hh:mm)'}
-                        </th>
-                        <th style={{ padding: '8px 10px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {taskStats.todaySubmissions.map((sub) => {
-                        const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
-                        const isStatusPending = sub.status === 'Pending Submission';
-                        const isStatusNotFound = sub.status === 'Handle Not Found';
-                        const isStatusAlready = sub.status === 'Already Followed' || sub.status === 'Duplicate' || sub.status === 'Repeated';
-                        const isStatusInvalid = sub.status === 'Invalid Submission';
+              {/* 3 Metric Cards for Today: Strictly single row on all devices */}
+              <div className="portal-kpi-grid">
+                <div className="portal-kpi-card" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#64748b' }}>
+                      <span className="kpi-label-short">Assigned</span>
+                      <span className="kpi-label-full">Assigned Tasks</span>
+                    </span>
+                    <Layers size={14} style={{ color: '#ff4d00', flexShrink: 0 }} />
+                  </div>
+                  <div className="portal-kpi-value" style={{ color: '#0f172a' }}>
+                    {assignedTasks.length}
+                  </div>
+                  <div className="portal-kpi-sub" style={{ color: '#94a3b8' }}>
+                    Active campaigns
+                  </div>
+                </div>
 
-                        return (
-                          <tr key={sub.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
-                            <td style={{ padding: '10px', fontWeight: 600, color: '#1d1d1f', fontFamily: 'monospace' }}>
-                              {sub.username || sub.rawInput}
-                            </td>
-                            <td style={{ padding: '10px', color: '#64748b', fontSize: '12px' }}>
-                              {formatIST(sub.submittedAt, { timeOnly: true }) || '08:21'}
-                            </td>
-                            <td style={{ padding: '10px' }}>
-                              {isStatusValid ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                                  color: '#15803d',
-                                  border: '1px solid rgba(52, 199, 89, 0.25)'
-                                }}>
-                                  ✓ Followed: {sub.followedAtFormatted || 'Within 24h Window'}
-                                </span>
-                              ) : isStatusAlready ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(255, 149, 0, 0.1)',
-                                  color: '#c2410c',
-                                  border: '1px solid rgba(255, 149, 0, 0.25)'
-                                }}>
-                                  {sub.verificationBadge || (sub.followedAtFormatted ? `✓ Existing Follower: ${sub.followedAtFormatted}` : 'Duplicate Submission')}
-                                </span>
-                              ) : isStatusNotFound ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  color: '#dc2626',
-                                  border: '1px solid rgba(239, 68, 68, 0.25)'
-                                }}>
-                                  ✕ {sub.verificationBadge || 'Handle Not Found in Followers DB'}
-                                </span>
-                              ) : isStatusInvalid ? (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  color: '#dc2626',
-                                  border: '1px solid rgba(239, 68, 68, 0.2)'
-                                }}>
-                                  Outside 24h Window: {sub.followedAtFormatted}
-                                </span>
-                              ) : (
-                                <span style={{
-                                  padding: '3px 8px',
-                                  borderRadius: '980px',
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  backgroundColor: 'rgba(118, 118, 128, 0.08)',
-                                  color: '#64748b',
-                                  border: '1px solid rgba(118, 118, 128, 0.15)'
-                                }}>
-                                  Pending Follow Sync
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: '10px', textAlign: 'right' }}>
-                              <span style={{
-                                padding: '4px 10px',
-                                borderRadius: '980px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                backgroundColor: isStatusValid
-                                  ? 'rgba(52, 199, 89, 0.12)'
-                                  : (isStatusPending
-                                    ? 'rgba(255, 149, 0, 0.12)'
-                                    : (isStatusNotFound
-                                      ? 'rgba(239, 68, 68, 0.12)'
-                                      : (isStatusAlready
-                                        ? 'rgba(239, 68, 68, 0.10)'
-                                        : 'rgba(107, 114, 128, 0.10)'))),
-                                color: isStatusValid
-                                  ? '#15803d'
-                                  : (isStatusPending
-                                    ? '#b45309'
-                                    : (isStatusNotFound
-                                      ? '#b91c1c'
-                                      : (isStatusAlready
-                                        ? '#b91c1c'
-                                        : '#4b5563'))),
-                                border: `1px solid ${
-                                  isStatusValid
-                                    ? 'rgba(52, 199, 89, 0.3)'
-                                    : (isStatusPending
-                                      ? 'rgba(255, 149, 0, 0.3)'
-                                      : (isStatusNotFound
-                                        ? 'rgba(239, 68, 68, 0.3)'
-                                        : (isStatusAlready
-                                          ? 'rgba(239, 68, 68, 0.25)'
-                                          : 'rgba(107, 114, 128, 0.25)')))
-                                }`
-                              }}>
-                                {sub.status || 'Pending Submission'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="portal-kpi-card" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#15803d' }}>
+                      <span className="kpi-label-short">Today</span>
+                      <span className="kpi-label-full">Today's Entries</span>
+                    </span>
+                    <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  </div>
+                  <div className="portal-kpi-value" style={{ color: '#14532d' }}>
+                    {totalValidToday}
+                  </div>
+                  <div className="portal-kpi-sub" style={{ color: '#16a34a' }}>
+                    Verified today
+                  </div>
+                </div>
+
+                <div className="portal-kpi-card" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <div className="portal-kpi-card-header">
+                    <span className="portal-kpi-label" style={{ color: '#1d4ed8' }}>
+                      <span className="kpi-label-short">Targets</span>
+                      <span className="kpi-label-full">Targets Met</span>
+                    </span>
+                    <Award size={14} style={{ color: '#2563eb', flexShrink: 0 }} />
+                  </div>
+                  <div className="portal-kpi-value" style={{ color: '#1e3a8a' }}>
+                    {targetsMetCount} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>/ {assignedTasks.length}</span>
+                  </div>
+                  <div className="portal-kpi-sub" style={{ color: '#2563eb' }}>
+                    Completed today
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Tasks Grid Section */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: '0 0 2px 0' }}>
+                    Your Assigned Campaign Tasks
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: 0 }}>
+                    Click any task card below to start making submissions, copy your tracking link, or view live progress.
+                  </p>
+                </div>
+              </div>
+
+              {assignedTasks.length === 0 ? (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '48px 24px',
+                  textAlign: 'center'
+                }}>
+                  <Award size={44} style={{ color: '#cbd5e1', margin: '0 auto 12px auto' }} />
+                  <h4 style={{ fontSize: '17px', fontWeight: 800, color: '#1e293b', margin: '0 0 6px 0' }}>No Tasks Assigned Yet</h4>
+                  <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '420px', margin: '0 auto' }}>
+                    There are currently no active tasks assigned to your assembly or parliament area. Contact your campaign administrator for assistance.
+                  </p>
                 </div>
               ) : (
-                <p style={{ fontSize: '12.5px', color: '#86868b', margin: 0, fontStyle: 'italic' }}>
-                  No entries submitted yet today for this task. Use the box above to record your first entry.
-                </p>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {assignedTasks.map((task) => {
+                    const Icon = PLATFORM_ICONS[task.platform] || Share2;
+                    const theme = PLATFORM_THEMES[task.platform] || PLATFORM_THEMES['Custom'];
+                    const item = allTasksSummary.find(s => s.task.id === task.id);
+                    const cycleInfo = item?.stats?.cycleInfo;
+                    const target = item?.target || 10;
+                    const valid = item?.valid || 0;
+                    const pct = Math.min(100, Math.round((valid / target) * 100));
+                    const isMet = valid >= target;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="task-landing-card"
+                        onClick={() => handleSelectTask(task)}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '18px',
+                          border: isMet ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                          padding: '20px',
+                          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '16px',
+                          position: 'relative'
+                        }}
+                      >
+                        <div>
+                          {/* Top Header of Card */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                            <div style={{
+                              width: '46px',
+                              height: '46px',
+                              borderRadius: '14px',
+                              background: theme.bg,
+                              color: theme.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                            }}>
+                              <Icon size={24} />
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '3px 9px',
+                                borderRadius: '9999px',
+                                backgroundColor: theme.lightBg,
+                                color: theme.textColor,
+                                border: `1px solid ${theme.borderColor}`
+                              }}>
+                                {task.platform}
+                              </span>
+                              {isMet && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '3px 9px',
+                                  borderRadius: '9999px',
+                                  backgroundColor: '#dcfce7',
+                                  color: '#15803d',
+                                  border: '1px solid #86efac',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}>
+                                  <Check size={11} /> Target Met
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Task Name & Description */}
+                          <h4 style={{
+                            fontSize: '17px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            margin: '0 0 6px 0',
+                            lineHeight: 1.3
+                          }}>
+                            {task.name}
+                          </h4>
+                          <p style={{
+                            fontSize: '12.5px',
+                            color: '#64748b',
+                            margin: '0 0 14px 0',
+                            lineHeight: 1.5,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                          }}>
+                            {task.description || `Field campaign outreach task for ${task.platform}.`}
+                          </p>
+
+                          {/* Submission format tag */}
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            color: '#475569',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            padding: '4px 10px',
+                            borderRadius: '8px'
+                          }}>
+                            <span>Format:</span>
+                            <strong style={{ color: '#0f172a' }}>{task.submissionType || 'Instagram Handle'}</strong>
+                          </div>
+                        </div>
+
+                        <div>
+                          {/* Progress Row */}
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '5px' }}>
+                              <span style={{ fontWeight: 600, color: '#64748b' }}>
+                                {cycleInfo?.shortLabel 
+                                  ? `${cycleInfo.shortLabel} (${cycleInfo.startDate} → ${cycleInfo.endDate}): ` 
+                                  : (task.frequency === 'Campaign Total' 
+                                      ? `Campaign (${task.startDate || 'Start'} → Today): `
+                                      : 'Daily Progress: ')}
+                                <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
+                              </span>
+                              <span style={{ fontWeight: 800, color: isMet ? '#16a34a' : '#ff4d00' }}>
+                                {pct}%
+                              </span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '9999px', overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${pct}%`,
+                                height: '100%',
+                                backgroundColor: isMet ? '#10b981' : '#ff4d00',
+                                borderRadius: '9999px',
+                                transition: 'width 0.4s ease'
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Action Link button */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #f1f5f9',
+                            marginTop: '6px'
+                          }}>
+                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0071e3', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              Open Campaign Task
+                              <ChevronRight size={15} />
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              Click to enter →
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-            <Award size={40} style={{ color: '#d1d5db', marginBottom: '12px' }} />
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#374151', margin: 0 }}>No Tasks Currently Assigned</h3>
-            <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-              Check back later or contact your administrator to assign campaign tasks to your constituency.
-            </p>
-          </div>
         )}
+
+        {/* Footer: Developed by MAGNIDIGI TECH */}
+        <footer style={{
+          marginTop: '40px',
+          padding: '24px 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px',
+          borderTop: '1px solid #f1f5f9',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '10px',
+            backgroundColor: '#0f172a',
+            padding: '8px 18px',
+            borderRadius: '9999px',
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.02em' }}>
+              Developed by
+            </span>
+            <img
+              src="/images/magnidigi-logo-full.png"
+              alt="MAGNIDIGI TECH"
+              style={{
+                height: '18px',
+                width: 'auto',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
+          <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>
+            BRK Social TaskHub • Attribution & Outreach Portal
+          </p>
+        </footer>
       </div>
 
       {/* Citizen Scan & Follow QR Code Modal */}
       {showQrModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -1461,6 +2278,158 @@ export function EmployeePortal({ session, onLogout }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Hamburger Drawer Menu */}
+      {showMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            zIndex: 9999,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => setShowMenu(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              height: '100%',
+              backgroundColor: '#ffffff',
+              boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              padding: '24px 20px',
+              overflowY: 'auto'
+            }}
+          >
+            <div>
+              {/* Drawer Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UserCheck size={20} style={{ color: '#ff4d00' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Staff Details</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMenu(false)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#f8fafc',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Staff Profile Card inside Drawer */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '18px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px 0' }}>
+                  {employee?.name || session?.name}
+                </h2>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  <span style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    Code: {employee?.supportCode || employee?.id || session?.employeeId}
+                  </span>
+                  {(employee?.staffId || session?.staffId) && (
+                    <span style={{
+                      fontFamily: 'monospace',
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #bfdbfe'
+                    }}>
+                      ID: {employee?.staffId || session?.staffId}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', color: '#475569' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Building2 size={15} style={{ color: '#ff4d00', flexShrink: 0 }} />
+                    <span><strong>Parliament:</strong> {employee?.parliamentName || 'All'}</span>
+                  </div>
+                  {employee?.assemblyName && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <MapPin size={15} style={{ color: '#0284c7', flexShrink: 0 }} />
+                      <span><strong>Segment:</strong> {employee?.assemblyName}</span>
+                    </div>
+                  )}
+                  {(employee?.mobilePersonal || session?.mobilePersonal) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Phone size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                      <span><strong>Mobile:</strong> {employee?.mobilePersonal || session?.mobilePersonal}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sign Out at bottom of menu */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+                onLogout();
+              }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 18px',
+                borderRadius: '12px',
+                backgroundColor: '#fff1f2',
+                color: '#e11d48',
+                border: '1.5px solid #fecdd3',
+                fontSize: '14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginTop: '20px',
+                boxShadow: '0 2px 8px rgba(225, 29, 72, 0.12)'
+              }}
+            >
+              <LogOut size={17} />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Follower Verification Status & Detail Bottom Sheet (shadcn style + swipe down to dismiss) */}
+      {selectedSubForInfo && (
+        <VerificationBottomSheet
+          submission={selectedSubForInfo}
+          onClose={() => setSelectedSubForInfo(null)}
+        />
       )}
     </div>
   );

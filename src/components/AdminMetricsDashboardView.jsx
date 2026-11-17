@@ -9,6 +9,7 @@ import {
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getTodayISTDateString } from '../services/istUtils.js';
+import { DateRangePicker, getPresetDateRange } from './DateRangePicker.jsx';
 
 // Coordinates mapping on the AP SVG Map for 25 AP Parliamentary Constituencies (Aligned 1:1 with printed numbers 1 to 25 on map artwork)
 const PARLIAMENT_MAP_COORDS = {
@@ -40,7 +41,8 @@ const PARLIAMENT_MAP_COORDS = {
 };
 
 export function AdminMetricsDashboardView() {
-  const [selectedDate, setSelectedDate] = useState(() => getTodayISTDateString());
+  const [dateRange, setDateRange] = useState(() => getPresetDateRange('TODAY'));
+  const selectedDate = dateRange.startDate || dateRange.endDate || getTodayISTDateString();
   
   // Real-Time Live AJAX Refresh Trigger (must be initialized before useMemo dependencies)
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -81,10 +83,17 @@ export function AdminMetricsDashboardView() {
 
   // Selected Task Campaign Filter State
   const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
   const [copiedStaffToken, setCopiedStaffToken] = useState(null);
 
   const staffClickMap = useMemo(() => {
-    const analytics = dbService.getLinkAnalytics({ taskId: selectedTaskId || null, date: selectedDate || null });
+    const isSingleDay = dateRange.startDate && dateRange.startDate === dateRange.endDate;
+    const analytics = dbService.getLinkAnalytics({ 
+      taskId: selectedTaskId || null, 
+      date: isSingleDay ? dateRange.startDate : null,
+      startDate: !isSingleDay ? dateRange.startDate : null,
+      endDate: !isSingleDay ? dateRange.endDate : null
+    });
     const map = {};
     (analytics.staffLeaderboard || []).forEach(item => {
       const id = item.employeeId || item.employee?.id;
@@ -94,7 +103,7 @@ export function AdminMetricsDashboardView() {
       }
     });
     return map;
-  }, [selectedTaskId, selectedDate, refreshTrigger]);
+  }, [selectedTaskId, dateRange, refreshTrigger]);
 
   const handleCopyStaffTrackingLink = (empId) => {
     const link = dbService.getTrackingLinkForEmployee(selectedTaskId || 'TASK-INSTA-001', empId);
@@ -117,8 +126,25 @@ export function AdminMetricsDashboardView() {
     return map;
   });
 
+  const fetchLiveData = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      console.warn('Live data sync error:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    const handleSubmissionEvent = () => {
+    fetchLiveData();
+
+    const handleUpdate = () => {
       setRefreshTrigger(prev => prev + 1);
     };
 
@@ -128,23 +154,36 @@ export function AdminMetricsDashboardView() {
       }
     };
 
-    window.addEventListener('brk_submission_event', handleSubmissionEvent);
-    window.addEventListener('brk_link_click_event', handleSubmissionEvent);
-    window.addEventListener('storage', handleStorageEvent);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLiveData();
+      }
+    };
 
-    // Live sync polling every 2.5 seconds: pulls server clicks & refreshes UI
+    window.addEventListener('brk_submission_event', handleUpdate);
+    window.addEventListener('brk_link_click_event', handleUpdate);
+    window.addEventListener('brk_staff_updated', handleUpdate);
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('focus', fetchLiveData);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Live sync polling every 2.5 seconds: pulls server clicks & submissions & refreshes UI
     const interval = setInterval(() => {
-      dbService.syncClicksWithServer().then(() => {
+      Promise.allSettled([
+        dbService.syncClicksWithServer(),
+        dbService.syncSubmissionsWithServer()
+      ]).then(() => {
         setRefreshTrigger(prev => prev + 1);
-      }).catch(() => {
-        setRefreshTrigger(prev => prev + 1);
-      });
+      }).catch(() => {});
     }, 2500);
 
     return () => {
-      window.removeEventListener('brk_submission_event', handleSubmissionEvent);
-      window.removeEventListener('brk_link_click_event', handleSubmissionEvent);
+      window.removeEventListener('brk_submission_event', handleUpdate);
+      window.removeEventListener('brk_link_click_event', handleUpdate);
+      window.removeEventListener('brk_staff_updated', handleUpdate);
       window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('focus', fetchLiveData);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };
   }, []);
@@ -158,9 +197,7 @@ export function AdminMetricsDashboardView() {
     if (!isMultiSelect) {
       return selectedParliaments.length === 0 || selectedParliaments.includes('ALL');
     }
-    return selectedParliaments.length === 0 || 
-      selectedParliaments.includes('ALL') || 
-      selectedParliaments.length === AP_CONSTITUENCIES.length;
+    return selectedParliaments.includes('ALL') || selectedParliaments.length === AP_CONSTITUENCIES.length;
   }, [isMultiSelect, selectedParliaments]);
 
   // Set of actively selected parliament codes when filtered
@@ -172,7 +209,7 @@ export function AdminMetricsDashboardView() {
   // Multi-select toggle helpers
   const toggleParliamentInMultiSelect = (code) => {
     setSelectedParliaments(prev => {
-      const isCurrentlyAll = prev.length === 0 || prev.includes('ALL') || prev.length === AP_CONSTITUENCIES.length;
+      const isCurrentlyAll = prev.includes('ALL') || prev.length === AP_CONSTITUENCIES.length;
       if (isCurrentlyAll) {
         const allCodes = AP_CONSTITUENCIES.map(p => p.code);
         return allCodes.filter(c => c !== code);
@@ -216,16 +253,31 @@ export function AdminMetricsDashboardView() {
 
   // Fetch Raw Dashboard Stats from dbService across all staff
   const rawStats = useMemo(() => {
-    return dbService.getAdminDashboardOverview(selectedDate, effectiveTaskId);
-  }, [selectedDate, effectiveTaskId, isRefreshing, refreshTrigger]);
+    return dbService.getAdminDashboardOverview(dateRange, effectiveTaskId, null, selectedCycleIndex);
+  }, [dateRange, effectiveTaskId, selectedCycleIndex, isRefreshing, refreshTrigger]);
 
   // Dynamically compute Filtered KPI Stats based on Parliament Selection
   const stats = useMemo(() => {
     const list = rawStats.employeeProgressList || [];
 
     // If All 25 Parliaments selected, use the global rawStats
-    if (isAllSelected || !activeParliamentCodes || activeParliamentCodes.size === 0) {
+    if (isAllSelected) {
       return rawStats;
+    }
+
+    if (!activeParliamentCodes || activeParliamentCodes.size === 0) {
+      return {
+        ...rawStats,
+        activeEmployees: 0,
+        targetSubmissions: 0,
+        validSubmissions: 0,
+        duplicates: 0,
+        remaining: 0,
+        completedEmpCount: 0,
+        inProgressEmpCount: 0,
+        notStartedEmpCount: 0,
+        employeeProgressList: []
+      };
     }
 
     // Filter staff members belonging ONLY to the selected parliament(s)
@@ -235,8 +287,8 @@ export function AdminMetricsDashboardView() {
     });
 
     const activeEmployees = filteredStaff.length;
-    const dailyTarget = rawStats.selectedTask?.dailyTarget || 10;
-    const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || dailyTarget), 0);
+    const taskTarget = rawStats.cycleInfo?.target || rawStats.selectedTask?.dailyTarget || 10;
+    const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || taskTarget), 0);
     const validSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
     const duplicates = filteredStaff.reduce((acc, curr) => acc + (curr.duplicate || 0), 0);
     const remaining = Math.max(0, targetSubmissions - validSubmissions);
@@ -328,7 +380,10 @@ export function AdminMetricsDashboardView() {
   const filteredEmployees = useMemo(() => {
     let list = rawStats.employeeProgressList || [];
 
-    if (!isAllSelected && activeParliamentCodes && activeParliamentCodes.size > 0) {
+    if (!isAllSelected) {
+      if (!activeParliamentCodes || activeParliamentCodes.size === 0) {
+        return [];
+      }
       list = list.filter(e => {
         const code = e.parliamentCode || (e.id?.startsWith('APP') ? e.id.substring(0, 5) : null);
         return code && activeParliamentCodes.has(code);
@@ -452,10 +507,7 @@ export function AdminMetricsDashboardView() {
   };
 
   const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 400);
+    fetchLiveData();
   };
 
   const targetCompletionPercentage = stats.targetSubmissions > 0 
@@ -504,35 +556,84 @@ export function AdminMetricsDashboardView() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', maxWidth: '100%', justifyContent: 'flex-start' }}>
-          {/* Date Selector */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'rgba(118, 118, 128, 0.08)',
-            border: '1px solid rgba(0, 0, 0, 0.05)',
-            borderRadius: '980px',
-            padding: '5px 12px',
-            flex: '1 1 auto',
-            minWidth: '140px'
-          }}>
-            <Calendar size={14} style={{ color: '#86868b', flexShrink: 0 }} />
-            <input 
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{
-                border: 'none',
-                backgroundColor: 'transparent',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#1d1d1f',
-                outline: 'none',
-                cursor: 'pointer',
-                width: '100%'
-              }}
-            />
-          </div>
+          {/* Reusable Date Range Picker with Presets & Interactive 2-Date Selection */}
+          <DateRangePicker
+            value={dateRange}
+            onChange={(newRange) => {
+              setDateRange(newRange);
+              setSelectedCycleIndex(null);
+            }}
+            align="left"
+          />
+
+          {/* Cycle / Week Indicator & Switcher */}
+          {stats.allCyclesList && stats.allCyclesList.length > 1 ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              border: '1px solid rgba(0, 113, 227, 0.2)',
+              borderRadius: '980px',
+              padding: '4px 10px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#0071e3',
+              flexShrink: 0
+            }}>
+              <span>Cycle:</span>
+              <select
+                value={selectedCycleIndex === null ? 'current' : selectedCycleIndex}
+                onChange={(e) => setSelectedCycleIndex(e.target.value === 'current' ? null : Number(e.target.value))}
+                style={{
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#0071e3',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="current">Current Cycle ({stats.cycleInfo?.shortLabel})</option>
+                {stats.allCyclesList.map((c, idx) => (
+                  <option key={c.cycleNumber} value={idx}>
+                    {c.label} {c.isCurrent ? '★ (Active)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (stats.isWeekly || stats.isCustom) ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(0, 113, 227, 0.08)',
+              border: '1px solid rgba(0, 113, 227, 0.2)',
+              borderRadius: '980px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#0071e3'
+            }}>
+              <span>{stats.cycleInfo?.shortLabel || 'Cycle'}: {stats.cycleStartDate} → {stats.cycleEndDate}</span>
+            </div>
+          ) : stats.isCampaignTotal ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: '980px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#059669'
+            }}>
+              <span>Campaign Duration: {stats.cycleStartDate} → Today</span>
+            </div>
+          ) : null}
 
           {/* Task Selector Filter */}
           <div style={{
@@ -549,7 +650,10 @@ export function AdminMetricsDashboardView() {
             <Target size={14} style={{ color: '#86868b', flexShrink: 0 }} />
             <select
               value={effectiveTaskId}
-              onChange={(e) => setSelectedTaskId(e.target.value)}
+              onChange={(e) => {
+                setSelectedTaskId(e.target.value);
+                setSelectedCycleIndex(null);
+              }}
               style={{
                 border: 'none',
                 backgroundColor: 'transparent',
@@ -1045,7 +1149,13 @@ export function AdminMetricsDashboardView() {
           overflow: 'hidden'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>Verified Submissions</span>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
+              {stats.cycleInfo?.shortLabel 
+                ? `Verified (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                : (stats.isCampaignTotal 
+                    ? `Verified (${stats.cycleStartDate} → Today)`
+                    : 'Verified Submissions')}
+            </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
               <CheckCircle2 size={16} />
             </div>
@@ -1177,8 +1287,14 @@ export function AdminMetricsDashboardView() {
             }}>
               {activeTask?.platform || 'Instagram'}
             </span>
-            <span style={{ fontSize: '11.5px', fontWeight: 400, color: '#86868b' }}>
-              Target: {activeTask?.dailyTarget || 10} / Staff
+            <span style={{ fontSize: '11.5px', fontWeight: 500, color: '#86868b' }}>
+              {stats.cycleInfo?.isWeekly 
+                ? `Weekly Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                : stats.cycleInfo?.isCustom
+                  ? `Cycle Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                  : stats.cycleInfo?.isCampaignTotal
+                    ? `Campaign Total: ${stats.cycleInfo.target} / Staff (From ${stats.cycleStartDate} to Today)`
+                    : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
             </span>
           </div>
         </div>

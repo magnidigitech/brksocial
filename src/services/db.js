@@ -9,6 +9,11 @@ import {
   formatIST,
   getTodayISTDateString,
   getISTDateFromISO,
+  getMondayOfCurrentWeekIST,
+  addDaysToDateStr,
+  diffDaysBetweenDateStr,
+  getTaskCycleInfo,
+  getAllTaskCycles,
   validateFollowerSubmission,
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
@@ -182,17 +187,34 @@ export const dbService = {
       } catch (err) {}
     }
 
-    // PURGE ALL DUMMY DATA: Start completely clean with real tracking only
-    if (!localStorage.getItem('brk_clean_real_data_v4')) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
-      localStorage.setItem('brk_clean_real_data_v4', 'true');
-    }
-
+    // SAFE STORAGE INITIALIZATION: Never wipe existing staff data from localStorage
     if (!localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
-    } else {
+      // Check legacy keys in case older version stored submissions under different key
+      const legacySubs = localStorage.getItem('brk_submissions') || localStorage.getItem('submissions');
+      if (legacySubs) {
+        try {
+          const parsed = JSON.parse(legacySubs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(parsed));
+          } else {
+            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+          }
+        } catch (_) {
+          localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+        }
+      } else {
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
+      }
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.LINK_CLICKS)) {
+      localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
+      localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
+    }
+    localStorage.setItem('brk_clean_real_data_v4', 'true');
+
+    if (localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
       // Migrate submissions to strict 4 statuses
       try {
         const subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
@@ -253,6 +275,15 @@ export const dbService = {
         defaultTarget: 10
       }));
     }
+
+    // Auto-sync in background on init if in browser
+    if (typeof window !== 'undefined' && !window.__brk_initial_sync_done) {
+      window.__brk_initial_sync_done = true;
+      setTimeout(() => {
+        this.syncSubmissionsWithServer().catch(() => {});
+        this.syncClicksWithServer().catch(() => {});
+      }, 50);
+    }
   },
 
   getAdminAccount() {
@@ -271,15 +302,57 @@ export const dbService = {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES)) || [];
   },
 
+  async syncEmployeesWithServer() {
+    try {
+      const res = await fetch('/api/employees?_t=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
+      if (res.ok) {
+        const serverEmps = await res.json();
+        if (Array.isArray(serverEmps) && serverEmps.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(serverEmps));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: serverEmps }));
+          }
+          return serverEmps;
+        }
+      }
+    } catch (err) {
+      console.warn('Background sync with /api/employees skipped:', err.message);
+    }
+    return this.getEmployees();
+  },
+
   getEmployeeById(id) {
+    if (!id) return null;
     const emps = this.getEmployees();
-    return emps.find(e => e.id.toLowerCase() === id.toLowerCase()) || null;
+    const clean = String(id).trim().toUpperCase();
+    const digitsOnly = clean.replace(/\D/g, '');
+
+    return emps.find(e => {
+      if (!e) return false;
+      const eId = String(e.id || '').toUpperCase();
+      const eSupp = String(e.supportCode || '').toUpperCase();
+      const eStaffId = String(e.staffId || '').toUpperCase();
+      const eAsm = String(e.assemblyCode || '').toUpperCase();
+
+      if (eId === clean || eSupp === clean || eStaffId === clean || eAsm === clean) return true;
+      if (digitsOnly && digitsOnly.length >= 10) {
+        const pMob = String(e.mobilePersonal || '').replace(/\D/g, '');
+        const oMob = String(e.mobileOffice || '').replace(/\D/g, '');
+        const mob = String(e.mobile || '').replace(/\D/g, '');
+        if (pMob === digitsOnly || oMob === digitsOnly || mob === digitsOnly) return true;
+      }
+      return false;
+    }) || null;
   },
 
   addEmployee(empData) {
     const emps = this.getEmployees();
     const newEmp = {
       id: empData.id ? empData.id.toUpperCase() : `APP${String(emps.length + 1).padStart(2, '0')}`,
+      supportCode: empData.supportCode || empData.id || `APP${String(emps.length + 1).padStart(2, '0')}`,
       name: empData.name,
       level: empData.level || (empData.assemblyCode ? 'Assembly' : 'Parliament'),
       parliamentCode: empData.parliamentCode || 'APP13',
@@ -287,7 +360,9 @@ export const dbService = {
       assemblyCode: empData.assemblyCode || null,
       assemblyName: empData.assemblyName || null,
       department: empData.department || 'Outreach Staff',
-      mobile: empData.mobile || '9999999999',
+      mobilePersonal: empData.mobilePersonal || empData.mobile || '9999999999',
+      mobileOffice: empData.mobileOffice || '',
+      mobile: empData.mobilePersonal || empData.mobileOffice || empData.mobile || '9999999999',
       email: empData.email || `${(empData.id || 'emp').toLowerCase()}@bhashyam.in`,
       status: empData.status || 'Active',
       joinedDate: new Date().toISOString().split('T')[0],
@@ -295,43 +370,195 @@ export const dbService = {
     };
     emps.unshift(newEmp);
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: newEmp }));
+    }
+
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEmp)
+      }).catch(() => {});
+    } catch (_) {}
+
     return newEmp;
   },
 
   updateEmployee(updatedEmp) {
+    if (!updatedEmp) return null;
     const emps = this.getEmployees();
-    const idx = emps.findIndex(e => e.id.toUpperCase() === updatedEmp.id.toUpperCase());
+    const targetId = String(updatedEmp.id || updatedEmp.supportCode || updatedEmp.code || '').trim().toUpperCase();
+    const targetAsm = String(updatedEmp.assemblyCode || '').trim().toUpperCase();
+
+    const idx = emps.findIndex(e => {
+      if (!e) return false;
+      const eId = String(e.id || '').toUpperCase();
+      const eSupp = String(e.supportCode || '').toUpperCase();
+      const eAsm = String(e.assemblyCode || '').toUpperCase();
+      if (targetId && (eId === targetId || eSupp === targetId)) return true;
+      if (targetAsm && eAsm === targetAsm) return true;
+      return false;
+    });
+
+    let savedItem = null;
     if (idx !== -1) {
-      emps[idx] = { ...emps[idx], ...updatedEmp };
-      localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
-      return emps[idx];
+      emps[idx] = { 
+        ...emps[idx], 
+        ...updatedEmp,
+        supportCode: updatedEmp.supportCode || emps[idx].supportCode || emps[idx].id,
+        mobilePersonal: updatedEmp.mobilePersonal || updatedEmp.mobile || emps[idx].mobilePersonal,
+        mobileOffice: updatedEmp.mobileOffice !== undefined ? updatedEmp.mobileOffice : emps[idx].mobileOffice,
+        mobile: updatedEmp.mobilePersonal || updatedEmp.mobile || emps[idx].mobile
+      };
+      savedItem = emps[idx];
+    } else {
+      savedItem = {
+        id: targetId || `EMP-${Date.now()}`,
+        supportCode: targetId,
+        name: updatedEmp.name || 'Staff Member',
+        level: updatedEmp.level || 'Assembly',
+        parliamentCode: updatedEmp.parliamentCode || 'APP13',
+        parliamentName: updatedEmp.parliamentName || 'Guntur',
+        assemblyCode: updatedEmp.assemblyCode || null,
+        assemblyName: updatedEmp.assemblyName || null,
+        department: updatedEmp.department || 'Outreach Staff',
+        mobilePersonal: updatedEmp.mobilePersonal || updatedEmp.mobile || '',
+        mobileOffice: updatedEmp.mobileOffice || '',
+        mobile: updatedEmp.mobilePersonal || updatedEmp.mobileOffice || updatedEmp.mobile || '',
+        password: updatedEmp.password || 'password123',
+        status: updatedEmp.status || 'Active',
+        ...updatedEmp
+      };
+      emps.push(savedItem);
     }
-    return null;
+
+    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    // Update active session if currently logged in as this staff member
+    try {
+      const activeSession = JSON.parse(localStorage.getItem('brk_auth_session_v1'));
+      if (activeSession && (
+        (activeSession.employeeId && activeSession.employeeId.toUpperCase() === targetId) ||
+        (activeSession.supportCode && activeSession.supportCode.toUpperCase() === targetId)
+      )) {
+        const refreshedSession = {
+          ...activeSession,
+          name: savedItem.name,
+          mobilePersonal: savedItem.mobilePersonal || savedItem.mobile,
+          mobileOffice: savedItem.mobileOffice || '',
+          mobile: savedItem.mobilePersonal || savedItem.mobileOffice || savedItem.mobile,
+          staffId: savedItem.staffId || ''
+        };
+        localStorage.setItem('brk_auth_session_v1', JSON.stringify(refreshedSession));
+      }
+    } catch (_) {}
+
+    // Dispatch real-time event for UI reactivity
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: savedItem }));
+    }
+
+    // Sync to server API
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(savedItem)
+      }).catch(err => console.warn('Server employees sync warning:', err.message));
+    } catch (_) {}
+
+    return savedItem;
   },
 
   batchUpdateEmployees(updatedArray) {
+    if (!Array.isArray(updatedArray) || updatedArray.length === 0) return 0;
     const emps = this.getEmployees();
     let count = 0;
+
     updatedArray.forEach(item => {
-      const idx = emps.findIndex(e => e.id.toUpperCase() === item.id.toUpperCase());
+      if (!item) return;
+      const targetId = String(item.id || item.supportCode || item.code || '').trim().toUpperCase();
+      const targetAsm = String(item.assemblyCode || '').trim().toUpperCase();
+
+      const idx = emps.findIndex(e => {
+        if (!e) return false;
+        const eId = String(e.id || '').toUpperCase();
+        const eSupp = String(e.supportCode || '').toUpperCase();
+        const eAsm = String(e.assemblyCode || '').toUpperCase();
+        if (targetId && (eId === targetId || eSupp === targetId)) return true;
+        if (targetAsm && eAsm === targetAsm) return true;
+        return false;
+      });
+
       if (idx !== -1) {
-        emps[idx] = { ...emps[idx], ...item };
+        emps[idx] = { 
+          ...emps[idx], 
+          ...item,
+          supportCode: item.supportCode || emps[idx].supportCode || emps[idx].id,
+          mobilePersonal: item.mobilePersonal || item.mobile || emps[idx].mobilePersonal,
+          mobileOffice: item.mobileOffice !== undefined ? item.mobileOffice : emps[idx].mobileOffice,
+          mobile: item.mobilePersonal || item.mobile || emps[idx].mobile
+        };
         count++;
       } else {
-        emps.push(item);
+        emps.push({
+          id: targetId || `EMP-${Date.now()}`,
+          supportCode: targetId,
+          name: item.name || 'Staff Member',
+          level: item.level || 'Assembly',
+          parliamentCode: item.parliamentCode || 'APP13',
+          parliamentName: item.parliamentName || 'Guntur',
+          assemblyCode: item.assemblyCode || null,
+          assemblyName: item.assemblyName || null,
+          department: item.department || 'Outreach Staff',
+          mobilePersonal: item.mobilePersonal || item.mobile || '',
+          mobileOffice: item.mobileOffice || '',
+          mobile: item.mobilePersonal || item.mobileOffice || item.mobile || '',
+          password: item.password || 'password123',
+          status: item.status || 'Active',
+          ...item
+        });
         count++;
       }
     });
+
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: { count } }));
+    }
+
+    // Sync batch to server API
+    try {
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedArray)
+      }).catch(err => console.warn('Server batch employees sync warning:', err.message));
+    } catch (_) {}
+
     return count;
   },
 
   updateEmployeePassword(employeeId, newPassword) {
     const emps = this.getEmployees();
-    const emp = emps.find(e => e.id.toUpperCase() === employeeId.toUpperCase());
+    const clean = String(employeeId || '').toUpperCase();
+    const emp = emps.find(e => (e.id && e.id.toUpperCase() === clean) || (e.supportCode && e.supportCode.toUpperCase() === clean));
     if (emp) {
       emp.password = newPassword;
       localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(emps));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: emp }));
+      }
+      try {
+        fetch('/api/employees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(emp)
+        }).catch(() => {});
+      } catch (_) {}
       return true;
     }
     return false;
@@ -425,14 +652,37 @@ export const dbService = {
 
   addTask(taskData) {
     const tasks = this.getTasks();
+    const freq = taskData.frequency || 'Daily';
+    const isWeekly = freq === 'Weekly';
+    const isCustom = freq === 'Custom';
+    const isCampaignTotal = freq === 'Campaign Total';
+
+    const cycleDays = isWeekly ? 7 : (isCustom ? Math.max(1, Number(taskData.cycleDays) || 10) : 1);
+    const startDate = taskData.startDate || taskData.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+    const endDate = taskData.endDate || null;
+
+    const rawTarget = Number(taskData.dailyTarget || taskData.weeklyTarget || taskData.cycleTarget || taskData.campaignTarget) || 10;
+    const weeklyTarget = isWeekly ? rawTarget : (taskData.weeklyTarget ? Number(taskData.weeklyTarget) : null);
+    const cycleTarget = isCustom ? rawTarget : (taskData.cycleTarget ? Number(taskData.cycleTarget) : null);
+    const campaignTarget = isCampaignTotal ? rawTarget : (taskData.campaignTarget ? Number(taskData.campaignTarget) : null);
+
     const newTask = {
-      id: `TASK-${Date.now()}`,
+      id: taskData.id || `TASK-${Date.now()}`,
       name: taskData.name || 'New Task',
       description: taskData.description || '',
       platform: taskData.platform || 'Instagram',
       submissionType: taskData.submissionType || 'Instagram Handle',
-      dailyTarget: Number(taskData.dailyTarget) || 10,
-      frequency: taskData.frequency || 'Daily',
+      targetUrl: taskData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
+      urlSlug: taskData.urlSlug || 'go',
+      dailyTarget: rawTarget,
+      weeklyTarget: weeklyTarget || rawTarget,
+      cycleTarget: cycleTarget || rawTarget,
+      campaignTarget: campaignTarget || rawTarget,
+      frequency: freq,
+      startDate,
+      weekStartDate: startDate,
+      endDate,
+      cycleDays,
       assignmentScope: taskData.assignmentScope || {
         scopeType: 'ALL_STAFF',
         targetCode: null,
@@ -446,11 +696,22 @@ export const dbService = {
       duplicateScope: taskData.rules?.duplicateScope || taskData.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: taskData.rules?.allowExtraSubmissions ?? true,
       requireProof: taskData.rules?.requireProof ?? false,
+      samplePatterns: taskData.samplePatterns || null,
       status: taskData.status || 'Active',
-      createdDate: new Date().toISOString().split('T')[0]
+      createdDate: taskData.createdDate || getTodayISTDateString()
     };
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+
+    // Background sync to server if available
+    try {
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask)
+      }).catch(() => {});
+    } catch (_) {}
+
     return newTask;
   },
 
@@ -458,8 +719,44 @@ export const dbService = {
     const tasks = this.getTasks();
     const idx = tasks.findIndex(t => t.id === updatedTask.id);
     if (idx !== -1) {
-      tasks[idx] = { ...tasks[idx], ...updatedTask };
+      const existing = tasks[idx];
+      const freq = updatedTask.frequency || existing.frequency || 'Daily';
+      const isWeekly = freq === 'Weekly';
+      const isCustom = freq === 'Custom';
+      const isCampaignTotal = freq === 'Campaign Total';
+
+      const cycleDays = isWeekly ? 7 : (isCustom ? Math.max(1, Number(updatedTask.cycleDays || existing.cycleDays) || 10) : 1);
+      const startDate = updatedTask.startDate || updatedTask.weekStartDate || existing.startDate || existing.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+      const endDate = updatedTask.endDate !== undefined ? updatedTask.endDate : (existing.endDate || null);
+
+      const rawTarget = Number(updatedTask.dailyTarget || updatedTask.weeklyTarget || updatedTask.cycleTarget || updatedTask.campaignTarget || existing.dailyTarget) || 10;
+      const weeklyTarget = isWeekly ? rawTarget : (updatedTask.weeklyTarget || existing.weeklyTarget || rawTarget);
+      const cycleTarget = isCustom ? rawTarget : (updatedTask.cycleTarget || existing.cycleTarget || rawTarget);
+      const campaignTarget = isCampaignTotal ? rawTarget : (updatedTask.campaignTarget || existing.campaignTarget || rawTarget);
+
+      tasks[idx] = { 
+        ...existing, 
+        ...updatedTask,
+        dailyTarget: rawTarget,
+        weeklyTarget,
+        cycleTarget,
+        campaignTarget,
+        frequency: freq,
+        startDate,
+        weekStartDate: startDate,
+        endDate,
+        cycleDays
+      };
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+
+      try {
+        fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tasks[idx])
+        }).catch(() => {});
+      } catch (_) {}
+
       return tasks[idx];
     }
     return null;
@@ -487,9 +784,11 @@ export const dbService = {
     return null;
   },
 
-  getSubmissions(dateFilter = null) {
+  getSubmissions(dateFilter = null, customSubs = null) {
     this.init();
-    let subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    let subs = Array.isArray(customSubs)
+      ? customSubs
+      : (JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || []);
     if (dateFilter) {
       subs = subs.filter(s => s.date === dateFilter);
     }
@@ -573,6 +872,12 @@ export const dbService = {
       taskId: effectiveTaskId,
       employeeId: emp.id || employeeId,
       employeeName: emp.name,
+      supportCode: emp.supportCode || emp.id || employeeId,
+      staffId: emp.staffId || '',
+      parliamentCode: emp.parliamentCode || (emp.id?.startsWith('APP') ? emp.id.substring(0, 5) : ''),
+      parliamentName: emp.parliamentName || '',
+      assemblyCode: emp.assemblyCode || '',
+      assemblyName: emp.assemblyName || '',
       platform,
       username: normalizedUsername,
       rawInput,
@@ -608,6 +913,11 @@ export const dbService = {
     }
 
     broadcastSyncEvent('brk_submission_event', newSub);
+
+    // Sync directly to the backend server immediately
+    this.sendSubmissionToServer(newSub).then(() => {
+      this.syncSubmissionsWithServer().catch(() => {});
+    }).catch(() => {});
 
     return {
       success: validation.status !== 'Invalid Submission',
@@ -701,32 +1011,60 @@ export const dbService = {
     if (updatedCount > 0) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
       broadcastSyncEvent('brk_submission_event', { updatedCount });
+      this.syncSubmissionsWithServer().catch(() => {});
     }
 
     return { updatedCount, subs };
   },
 
-  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null) {
+  getEmployeeDailyStats(employeeId, dateStr = getTodayISTDateString(), taskId = null, customSubs = null, targetCycleIndex = null) {
     const task = taskId ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
-    const allSubs = this.getSubmissions();
-    const subs = allSubs.filter(s => 
-      s.employeeId.toUpperCase() === employeeId.toUpperCase() && 
-      (s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr) &&
-      (!task || s.taskId === task.id)
-    );
+    const allSubs = this.getSubmissions(null, customSubs);
+
+    const cycleInfo = getTaskCycleInfo(task, dateStr);
+    const allCycles = getAllTaskCycles(task, dateStr);
+    const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
+
+    const subs = allSubs.filter(s => {
+      if (!s.employeeId || s.employeeId.toUpperCase() !== employeeId.toUpperCase()) return false;
+      if (task && s.taskId !== task.id) return false;
+
+      const subDate = s.date || getISTDateFromISO(s.submittedAt);
+      if (activeCycle.isDaily) {
+        // Daily target count for dateStr
+        return subDate === dateStr;
+      } else if (activeCycle.isCampaignTotal) {
+        // Entire campaign duration from start date to till date (no week limit!)
+        return subDate >= activeCycle.startDate && subDate <= dateStr;
+      } else {
+        // Weekly or Custom cycle: submissions within [cycle.startDate, cycle.endDate]
+        return subDate >= activeCycle.startDate && subDate <= activeCycle.endDate;
+      }
+    });
     
     // Strict adherence to validation statuses:
     // Only 'Valid Submission' (or legacy 'Valid') counts towards target
     const validSubs = subs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
     const pendingSubs = subs.filter(s => s.status === 'Pending Submission');
     const notFoundSubs = subs.filter(s => s.status === 'Handle Not Found');
+    const unfollowedSubs = subs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
     const alreadyFollowedSubs = subs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
 
     const validCount = validSubs.length;
-    const target = task?.dailyTarget || 10;
+    const netActiveCount = validCount; // Net Active Submissions = Number of currently active, verified, credited submissions
+    const unfollowedCount = unfollowedSubs.length;
+    const target = activeCycle.target || 10;
     const remaining = Math.max(0, target - validCount);
     const progressPercent = Math.min(100, Math.round((validCount / target) * 100));
+
+    // All-time historical metrics for this employee
+    const empAllSubs = allSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === employeeId.toUpperCase());
+    const allTimeTotal = empAllSubs.length;
+    const allTimeActive = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+    const allTimeUnfollowed = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
+    const allTimePending = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+    const allTimeRefollowed = empAllSubs.filter(s => !!s.re_followed_at).length;
 
     let status = 'Not Started';
     if (validCount >= target) {
@@ -739,43 +1077,126 @@ export const dbService = {
       task,
       target,
       validCount,
+      netActiveCount,
+      unfollowedCount,
       pendingCount: pendingSubs.length,
       notFoundCount: notFoundSubs.length,
       alreadyFollowedCount: alreadyFollowedSubs.length,
       invalidCount: invalidSubs.length,
       totalSubmittedCount: subs.length,
+      allTimeTotal,
+      allTimeActive,
+      allTimeUnfollowed,
+      allTimePending,
+      allTimeRefollowed,
+      allTimeNetActive: allTimeActive,
       remaining,
       progressPercent,
       duplicateCount: alreadyFollowedSubs.length,
       status,
+      isWeekly: activeCycle.isWeekly,
+      isCustom: activeCycle.isCustom,
+      isCampaignTotal: activeCycle.isCampaignTotal,
+      isDaily: activeCycle.isDaily,
+      cycleInfo: activeCycle,
+      allCycles,
+      weekStartDate: activeCycle.startDate,
+      cycleStartDate: activeCycle.startDate,
+      cycleEndDate: activeCycle.endDate,
+      periodLabel: activeCycle.cycleLabel || activeCycle.label,
       todaySubmissions: subs,
+      periodSubmissions: subs,
       validSubs,
       pendingSubs,
       notFoundSubs,
+      unfollowedSubs,
       alreadyFollowedSubs,
       invalidSubs
     };
   },
 
-  getAdminDashboardOverview(dateStr = getTodayISTDateString(), selectedTaskId = null) {
+  getAdminDashboardOverview(dateFilter = getTodayISTDateString(), selectedTaskId = null, customSubs = null, targetCycleIndex = null) {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
     const targetTask = selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask();
 
-    let allSubs = this.getSubmissions();
-    let todaySubs = allSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+    let allSubs = this.getSubmissions(null, customSubs);
+    let taskSubs = allSubs;
     if (targetTask) {
-      todaySubs = todaySubs.filter(s => s.taskId === targetTask.id);
+      taskSubs = taskSubs.filter(s => s.taskId === targetTask.id);
     }
 
-    const validSubs = todaySubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
-    const pendingSubs = todaySubs.filter(s => s.status === 'Pending Submission');
-    const alreadyFollowedSubs = todaySubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
-    const invalidSubs = todaySubs.filter(s => s.status === 'Invalid Submission');
+    let dateStr = getTodayISTDateString();
+    let isAllTime = false;
+    let isExplicitRange = false;
+    let rangeStart = null;
+    let rangeEnd = null;
 
-    const dailyTargetPerEmp = targetTask ? (targetTask.dailyTarget || 10) : (this.getActiveTask()?.dailyTarget || 10);
-    const totalTarget = activeEmployees.length * dailyTargetPerEmp;
+    if (typeof dateFilter === 'object' && dateFilter !== null) {
+      if (dateFilter.preset === 'ALL' || (!dateFilter.startDate && !dateFilter.endDate && !dateFilter.date)) {
+        isAllTime = true;
+      } else {
+        rangeStart = dateFilter.startDate || dateFilter.date;
+        rangeEnd = dateFilter.endDate || dateFilter.date || rangeStart;
+        if (rangeStart && rangeEnd && rangeStart === rangeEnd) {
+          dateStr = rangeStart;
+        } else if (rangeStart || rangeEnd) {
+          isExplicitRange = true;
+          dateStr = rangeEnd || rangeStart || getTodayISTDateString();
+        }
+      }
+    } else if (typeof dateFilter === 'string') {
+      dateStr = dateFilter;
+    }
+
+    const cycleInfo = getTaskCycleInfo(targetTask, dateStr);
+    const allCycles = getAllTaskCycles(targetTask, dateStr);
+    const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
+
+    let periodSubs = [];
+    if (isAllTime) {
+      periodSubs = taskSubs;
+    } else if (isExplicitRange) {
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        if (rangeStart && d < rangeStart) return false;
+        if (rangeEnd && d > rangeEnd) return false;
+        return true;
+      });
+    } else if (activeCycle.isDaily) {
+      periodSubs = taskSubs.filter(s => s.date === dateStr || getISTDateFromISO(s.submittedAt) === dateStr);
+    } else if (activeCycle.isCampaignTotal) {
+      // Entire campaign duration from start date to till date (no week limit!)
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        return d >= activeCycle.startDate && d <= dateStr;
+      });
+    } else {
+      // Weekly or Custom cycle: submissions within [cycle.startDate, cycle.endDate]
+      periodSubs = taskSubs.filter(s => {
+        const d = s.date || getISTDateFromISO(s.submittedAt);
+        return d >= activeCycle.startDate && d <= activeCycle.endDate;
+      });
+    }
+
+    const validSubs = periodSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const pendingSubs = periodSubs.filter(s => s.status === 'Pending Submission');
+    const unfollowedSubs = periodSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
+    const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
+    const invalidSubs = periodSubs.filter(s => s.status === 'Invalid Submission');
+
+    let targetPerEmp = activeCycle.target || 10;
+    if (isExplicitRange && rangeStart && rangeEnd && activeCycle.isDaily) {
+      try {
+        const startMs = new Date(rangeStart).getTime();
+        const endMs = new Date(rangeEnd).getTime();
+        const dayDiff = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1);
+        targetPerEmp = (activeCycle.target || 10) * dayDiff;
+      } catch (e) {}
+    }
+
+    const totalTarget = activeEmployees.length * targetPerEmp;
     const validCount = validSubs.length;
     const remainingCount = Math.max(0, totalTarget - validCount);
 
@@ -784,12 +1205,13 @@ export const dbService = {
     let notStartedEmpCount = 0;
 
     const empProgressList = activeEmployees.map(emp => {
-      const empSubs = todaySubs.filter(s => s.employeeId.toUpperCase() === emp.id.toUpperCase());
+      const empSubs = periodSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === emp.id.toUpperCase());
       const empValid = empSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
       const empPending = empSubs.filter(s => s.status === 'Pending Submission').length;
+      const empUnfollowed = empSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
       const empAlready = empSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated').length;
       const empInvalid = empSubs.filter(s => s.status === 'Invalid Submission').length;
-      const target = dailyTargetPerEmp;
+      const target = targetPerEmp;
       const empRemaining = Math.max(0, target - empValid);
 
       let empStatus = 'Not Started';
@@ -808,6 +1230,7 @@ export const dbService = {
         target,
         valid: empValid,
         pending: empPending,
+        unfollowed: empUnfollowed,
         alreadyFollowed: empAlready,
         invalid: empInvalid,
         duplicate: empAlready,
@@ -819,16 +1242,33 @@ export const dbService = {
     return {
       date: dateStr,
       selectedTask: targetTask,
+      isWeekly: activeCycle.isWeekly,
+      isCustom: activeCycle.isCustom,
+      isCampaignTotal: activeCycle.isCampaignTotal,
+      isDaily: activeCycle.isDaily,
+      cycleInfo: activeCycle,
+      allCyclesList: allCycles,
+      frequency: targetTask?.frequency || 'Daily',
+      weekStartDate: activeCycle.startDate,
+      cycleStartDate: activeCycle.startDate,
+      cycleEndDate: activeCycle.endDate,
+      periodLabel: isAllTime ? 'All Time' : (isExplicitRange ? `${rangeStart} → ${rangeEnd}` : (activeCycle.cycleLabel || activeCycle.label)),
       totalEmployees: employees.length,
       activeEmployees: activeEmployees.length,
       tasksToday: tasks.length,
+      totalTarget,
       targetSubmissions: totalTarget,
       validSubmissions: validCount,
       pendingSubmissions: pendingSubs.length,
+      unfollowedSubmissions: unfollowedSubs.length,
       alreadyFollowed: alreadyFollowedSubs.length,
       invalidSubmissions: invalidSubs.length,
       duplicates: alreadyFollowedSubs.length,
       rejected: invalidSubs.length,
+      totalAllTimeSubmissions: allSubs.length,
+      totalAllTimeValid: allSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length,
+      totalAllTimeUnfollowed: allSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length,
+      totalAllTimePending: allSubs.filter(s => s.status === 'Pending Submission').length,
       remaining: remainingCount,
       completedEmpCount,
       inProgressEmpCount,
@@ -1150,6 +1590,85 @@ export const dbService = {
     };
   },
 
+  async sendSubmissionToServer(sub) {
+    if (typeof fetch === 'undefined' || !sub) return sub;
+    try {
+      const res = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        body: JSON.stringify({ submission: sub }),
+        keepalive: true
+      });
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          return data.submission || sub;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to send submission to server (stored locally):', e.message);
+    }
+    return sub;
+  },
+
+  async syncSubmissionsWithServer() {
+    if (typeof fetch === 'undefined') {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    }
+    try {
+      const localSubs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+      const res = await fetch('/api/submissions/sync?_t=' + Date.now(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        body: JSON.stringify({ localSubmissions: localSubs })
+      });
+
+      if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          const serverSubs = Array.isArray(data.submissions) 
+            ? data.submissions 
+            : (Array.isArray(data) ? data : null);
+
+          if (serverSubs) {
+            // SAFE UNION: Never lose any submission existing in client's localStorage
+            const freshLocal = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+            const serverIdMap = new Map();
+            serverSubs.forEach(s => {
+              if (s && s.id) serverIdMap.set(String(s.id), s);
+            });
+
+            // Keep any local submissions that haven't appeared in the server response yet
+            const unmergedLocal = freshLocal.filter(s => s && s.id && !serverIdMap.has(String(s.id)));
+            const fullMerged = [...serverSubs, ...unmergedLocal];
+            fullMerged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+
+            const currentStr = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]';
+            const serverStr = JSON.stringify(fullMerged);
+            if (currentStr !== serverStr) {
+              localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, serverStr);
+              broadcastSyncEvent('brk_submission_event', { submissions: fullMerged });
+            }
+            return fullMerged;
+          }
+        }
+      }
+    } catch (e) {
+      // Offline / standalone mode - ignore
+    }
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+  },
+
   async syncClicksWithServer() {
     if (typeof fetch === 'undefined') return [];
     try {
@@ -1191,15 +1710,34 @@ export const dbService = {
     const tasks = this.getTasks();
     const targetTask = taskId && taskId !== 'ALL' ? (this.getTaskById(taskId) || this.getActiveTask()) : this.getActiveTask();
 
+    const endDate = filter.endDate;
     let filteredClicks = allClicks;
 
-    // Filter by specific date (e.g. TODAY or YESTERDAY)
-    if (date && date !== 'ALL') {
-      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp.startsWith(date));
-    }
-    // Filter by startDate (e.g. Last 7 Days)
-    if (startDate) {
-      filteredClicks = filteredClicks.filter(c => c.timestamp && c.timestamp >= startDate);
+    // Filter by date range (startDate & endDate, startDate, endDate, or exact date)
+    if (startDate && endDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate >= startDate && cDate <= endDate;
+      });
+    } else if (startDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate >= startDate;
+      });
+    } else if (endDate) {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate <= endDate;
+      });
+    } else if (date && date !== 'ALL') {
+      filteredClicks = filteredClicks.filter(c => {
+        if (!c.timestamp) return false;
+        const cDate = getISTDateFromISO(c.timestamp);
+        return cDate === date || c.timestamp.startsWith(date);
+      });
     }
     // Filter by task
     if (targetTask && taskId && taskId !== 'ALL') {

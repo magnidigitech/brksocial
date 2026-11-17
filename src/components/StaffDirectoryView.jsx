@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Search, ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, 
   Building2, MapPin, Key, UserCheck, Edit3, X, RotateCcw, Save, Shield,
@@ -18,7 +18,7 @@ export function StaffDirectoryView() {
 
   // Edit Modal State
   const [editingStaff, setEditingStaff] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', mobile: '', password: '' });
+  const [editForm, setEditForm] = useState({ name: '', staffId: '', mobilePersonal: '', mobileOffice: '', password: '' });
   const [showModalPassword, setShowModalPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -26,6 +26,28 @@ export function StaffDirectoryView() {
   const fileInputRef = useRef(null);
   const [importDiffModal, setImportDiffModal] = useState(null); 
   const [diffFilter, setDiffFilter] = useState('ALL'); // 'ALL', 'Name', 'Mobile', 'Password'
+
+  // Real-time synchronization: listen for staff updates from DB or server sync
+  useEffect(() => {
+    const handleStaffUpdate = () => {
+      setEmployees(dbService.getEmployees());
+    };
+
+    window.addEventListener('brk_staff_updated', handleStaffUpdate);
+    window.addEventListener('storage', handleStaffUpdate);
+
+    // Initial server sync to pull latest directory changes
+    dbService.syncEmployeesWithServer().then(serverList => {
+      if (Array.isArray(serverList) && serverList.length > 0) {
+        setEmployees(serverList);
+      }
+    });
+
+    return () => {
+      window.removeEventListener('brk_staff_updated', handleStaffUpdate);
+      window.removeEventListener('storage', handleStaffUpdate);
+    };
+  }, []);
 
   // Group employees by Parliament Code
   const groupedData = useMemo(() => {
@@ -40,9 +62,12 @@ export function StaffDirectoryView() {
     });
 
     employees.forEach(emp => {
-      const pCode = emp.parliamentCode || (emp.id.startsWith('APP') ? emp.id.substring(0, 5) : null);
+      if (!emp) return;
+      const idStr = String(emp.id || emp.supportCode || '');
+      const pCode = (emp.parliamentCode || (idStr.toUpperCase().startsWith('APP') ? idStr.substring(0, 5) : null) || '').trim().toUpperCase();
+      
       if (pCode && map[pCode]) {
-        if (emp.level === 'Parliament' || emp.id === pCode) {
+        if (emp.level === 'Parliament' || idStr.toUpperCase() === pCode) {
           map[pCode].parliamentStaff = emp;
         } else {
           map[pCode].assemblyStaff.push(emp);
@@ -143,24 +168,29 @@ export function StaffDirectoryView() {
     const personal = editForm.mobilePersonal.trim();
     const office = editForm.mobileOffice.trim();
 
+    const mainId = editingStaff.id || editingStaff.supportCode || editingStaff.assemblyCode;
     const updatedData = {
       ...editingStaff,
+      id: mainId,
+      supportCode: editingStaff.supportCode || mainId,
       name: editForm.name.trim(),
       staffId: editForm.staffId.trim(),
       mobilePersonal: personal,
       mobileOffice: office,
-      mobile: personal || office || editingStaff.mobile,
+      mobile: personal || office || editingStaff.mobile || '',
       password: editForm.password.trim() || 'password123'
     };
 
-    dbService.updateEmployee(updatedData);
+    const saved = dbService.updateEmployee(updatedData);
     
-    // Refresh local directory state
-    setEmployees(dbService.getEmployees());
+    // Refresh local directory state immediately
+    const fresh = dbService.getEmployees();
+    setEmployees(fresh);
     setEditingStaff(null);
 
     // Trigger Toast feedback
-    setToastMessage(`Updated staff credentials for ${updatedData.supportCode || updatedData.id}`);
+    const displayCode = saved?.supportCode || saved?.id || updatedData.supportCode || updatedData.id;
+    setToastMessage(`Updated credentials for ${saved?.name || updatedData.name} (${displayCode})`);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -682,11 +712,21 @@ export function StaffDirectoryView() {
 
             const displayAssemblies = (isSearchActive && !matchesParliamentDirectly)
               ? p.assemblies.filter(asm => {
-                  const asmStaff = aStaffList.find(st => st.assemblyCode === asm.code || st.id === asm.code);
+                  const cAsm = String(asm.code).trim().toUpperCase();
+                  const asmStaff = aStaffList.find(st => {
+                    if (!st) return false;
+                    const sAsm = String(st.assemblyCode || '').trim().toUpperCase();
+                    const sId = String(st.id || '').trim().toUpperCase();
+                    const sSupp = String(st.supportCode || '').trim().toUpperCase();
+                    return sAsm === cAsm || sId === cAsm || sSupp === cAsm;
+                  });
                   return (
                     asm.code.toLowerCase().includes(queryClean) ||
                     asm.name.toLowerCase().includes(queryClean) ||
                     asmStaff?.name?.toLowerCase().includes(queryClean) ||
+                    asmStaff?.staffId?.toLowerCase().includes(queryClean) ||
+                    asmStaff?.mobilePersonal?.includes(queryClean) ||
+                    asmStaff?.mobileOffice?.includes(queryClean) ||
                     asmStaff?.mobile?.includes(queryClean)
                   );
                 })
@@ -942,7 +982,14 @@ export function StaffDirectoryView() {
                             </thead>
                             <tbody>
                               {displayAssemblies.map((asm, idx) => {
-                                const asmStaff = aStaffList.find(st => st.assemblyCode === asm.code || st.id === asm.code) || {
+                                const cAsm = String(asm.code).trim().toUpperCase();
+                                const asmStaff = aStaffList.find(st => {
+                                  if (!st) return false;
+                                  const sAsm = String(st.assemblyCode || '').trim().toUpperCase();
+                                  const sId = String(st.id || '').trim().toUpperCase();
+                                  const sSupp = String(st.supportCode || '').trim().toUpperCase();
+                                  return sAsm === cAsm || sId === cAsm || sSupp === cAsm;
+                                }) || {
                                   id: asm.code,
                                   supportCode: asm.code,
                                   staffId: '',

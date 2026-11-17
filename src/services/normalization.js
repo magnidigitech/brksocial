@@ -98,3 +98,95 @@ export function normalizeInstagramUsername(rawInput) {
     error: null
   };
 }
+
+/**
+ * Returns dynamic default sample patterns and instructions based on platform and submission type
+ */
+export function getDefaultSamplePatterns(platform = 'Instagram', submissionType = 'Instagram Handle') {
+  const normType = String(submissionType || '').toLowerCase();
+  const normPlat = String(platform || '').toLowerCase();
+
+  if (normType.includes('mobile') || normPlat.includes('mobile') || normType.includes('phone') || normType.includes('number')) {
+    return [
+      { pattern: '9876543210', label: '10-digit mobile number' },
+      { pattern: '+91 9876543210', label: 'With country code (+91)' },
+      { pattern: '98765 43210', label: 'Mobile with space' }
+    ];
+  }
+
+  if (normPlat.includes('whatsapp')) {
+    return [
+      { pattern: '9876543210', label: '10-digit voter WhatsApp number' },
+      { pattern: '+91 9876543210', label: 'With +91 country code' },
+      { pattern: 'https://wa.me/919876543210', label: 'Direct WhatsApp link' }
+    ];
+  }
+
+  if (normPlat.includes('youtube')) {
+    return [
+      { pattern: '@channelname', label: 'Channel handle' },
+      { pattern: 'https://youtube.com/@channelname', label: 'Channel profile URL' },
+      { pattern: 'https://youtu.be/...', label: 'Video or Short link' }
+    ];
+  }
+
+  if (normPlat.includes('x') || normPlat.includes('twitter')) {
+    return [
+      { pattern: '@handle', label: 'Twitter / X handle' },
+      { pattern: 'https://x.com/handle', label: 'Profile link' }
+    ];
+  }
+
+  if (normPlat.includes('facebook')) {
+    return [
+      { pattern: 'https://facebook.com/username', label: 'Facebook profile link' }
+    ];
+  }
+
+  if (normType.includes('link') || normType.includes('url')) {
+    return [
+      { pattern: 'https://...', label: 'Full web URL link' }
+    ];
+  }
+
+  if (normType.includes('text') || normPlat.includes('survey')) {
+    return [
+      { pattern: 'ABC1234567', label: 'Voter ID card number' },
+      { pattern: 'Door No. 12-3, Ward 4', label: 'Citizen address or survey note' }
+    ];
+  }
+
+  // Default for Instagram
+  return [
+    { pattern: '@username', label: 'With @ prefix' },
+    { pattern: 'username', label: 'Plain handle' },
+    { pattern: 'https://instagram.com/username', label: 'Profile URL' },
+    { pattern: 'https://instagram.com/username?igsh=...', label: 'Share URL' }
+  ];
+}
+
+/**
+ * Format patterns array to a multiline editable string: "pattern | label"
+ */
+export function patternsToString(patterns) {
+  if (!Array.isArray(patterns) || patterns.length === 0) return '';
+  return patterns.map(p => `${p.pattern} | ${p.label}`).join('\n');
+}
+
+/**
+ * Parse multiline string back to patterns array
+ */
+export function stringToPatterns(str) {
+  if (!str || !str.trim()) return [];
+  return str.split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const parts = line.split('|');
+      return {
+        pattern: parts[0]?.trim() || '',
+        label: parts[1]?.trim() || 'Format'
+      };
+    })
+    .filter(p => p.pattern);
+}

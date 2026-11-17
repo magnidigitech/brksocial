@@ -1,0 +1,51 @@
+[
+  {
+    "id": "TASK-1793028519355",
+    "name": "wahtsapp",
+    "title": "wahtsapp",
+    "description": "",
+    "targetDate": "2026-10-26",
+    "campaignName": "Individual Staff Outreach",
+    "targetPerStaff": 10,
+    "dailyTarget": 10,
+    "platform": "WhatsApp",
+    "submissionType": "Mobile Number",
+    "targetUrl": "https://chat.whatsapp.com/",
+    "urlSlug": "whatsapp",
+    "status": "Active",
+    "createdAt": "2026-10-26T15:28:39.392Z"
+  },
+  {
+    "id": "TASK-INSTA-001",
+    "name": "Instagram Follower Outreach",
+    "title": "Instagram Follower Outreach",
+    "description": "",
+    "platform": "Instagram",
+    "submissionType": "Instagram Username",
+    "targetUrl": "https://www.instagram.com/ramakrishnabhashyam/",
+    "urlSlug": "instagram",
+    "dailyTarget": 10,
+    "targetPerStaff": 10,
+    "frequency": "Daily",
+    "status": "Active",
+    "createdDate": "2026-09-17",
+    "targetDate": "2026-10-26",
+    "campaignName": "Individual Staff Outreach",
+    "createdAt": "2026-10-26T20:15:57.898Z"
+  },
+  {
+    "id": "TASK-WA-002",
+    "name": "WhatsApp Voter Connect",
+    "title": "WhatsApp Voter Connect",
+    "description": "Gather verified WhatsApp contact numbers of constituency booth leads.",
+    "platform": "WhatsApp",
+    "submissionType": "Mobile Number",
+    "targetUrl": "https://chat.whatsapp.com/",
+    "urlSlug": "whatsapp",
+    "dailyTarget": 15,
+    "targetPerStaff": 15,
+    "frequency": "Daily",
+    "status": "Active",
+    "createdDate": "2026-09-18"
+  }
+]

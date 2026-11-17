@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  Minus,
   Plus, 
   Sliders, 
   CheckCircle2, 
@@ -28,6 +29,8 @@ import {
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
+import { getDefaultSamplePatterns, patternsToString, stringToPatterns } from '../services/normalization.js';
+import { getMondayOfCurrentWeekIST, getTodayISTDateString, getTaskCycleInfo, addDaysToDateStr } from '../services/istUtils.js';
 
 const PLATFORM_ICONS = {
   'Instagram': Instagram,
@@ -75,10 +78,15 @@ export function TaskManagementView() {
     urlSlug: 'instagram',
     dailyTarget: 10,
     frequency: 'Daily',
+    startDate: getTodayISTDateString(),
+    weekStartDate: getMondayOfCurrentWeekIST(),
+    endDate: '',
+    cycleDays: 10,
     scopeType: 'ALL_STAFF',
     duplicateScope: 'Entire Campaign',
     allowExtraSubmissions: true,
-    requireProof: false
+    requireProof: false,
+    samplePatternsText: patternsToString(getDefaultSamplePatterns('Instagram', 'Instagram Handle'))
   });
 
   // Flatten assemblies list once
@@ -118,10 +126,15 @@ export function TaskManagementView() {
       urlSlug: 'instagram',
       dailyTarget: 10,
       frequency: 'Daily',
+      startDate: getTodayISTDateString(),
+      weekStartDate: getMondayOfCurrentWeekIST(),
+      endDate: '',
+      cycleDays: 10,
       scopeType: 'ALL_STAFF',
       duplicateScope: 'Entire Campaign',
       allowExtraSubmissions: true,
-      requireProof: false
+      requireProof: false,
+      samplePatternsText: patternsToString(getDefaultSamplePatterns('Instagram', 'Instagram Handle'))
     });
     setIsModalOpen(true);
   };
@@ -145,6 +158,10 @@ export function TaskManagementView() {
 
     setParliamentSearchText('');
     setAssemblySearchText('');
+    const initialPatterns = (task.samplePatterns && task.samplePatterns.length > 0)
+      ? task.samplePatterns
+      : getDefaultSamplePatterns(task.platform || 'Instagram', task.submissionType || 'Instagram Handle');
+
     setFormData({
       name: task.name || '',
       description: task.description || '',
@@ -152,12 +169,17 @@ export function TaskManagementView() {
       submissionType: task.submissionType || 'Instagram Handle',
       targetUrl: task.targetUrl || (task.platform === 'Instagram' ? 'https://www.instagram.com/ramakrishnabhashyam/' : ''),
       urlSlug: task.urlSlug || (task.platform === 'Instagram' ? 'instagram' : 'go'),
-      dailyTarget: task.dailyTarget || 10,
+      dailyTarget: task.dailyTarget || task.weeklyTarget || task.cycleTarget || task.campaignTarget || 10,
       frequency: task.frequency || 'Daily',
+      startDate: task.startDate || task.weekStartDate || getTodayISTDateString(),
+      weekStartDate: task.startDate || task.weekStartDate || getMondayOfCurrentWeekIST(),
+      endDate: task.endDate || '',
+      cycleDays: task.cycleDays || 10,
       scopeType: scope.scopeType || 'ALL_STAFF',
       duplicateScope: task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign',
       allowExtraSubmissions: task.rules?.allowExtraSubmissions ?? task.allowExtraSubmissions ?? true,
-      requireProof: task.rules?.requireProof ?? task.requireProof ?? false
+      requireProof: task.rules?.requireProof ?? task.requireProof ?? false,
+      samplePatternsText: patternsToString(initialPatterns)
     });
     setIsModalOpen(true);
   };
@@ -234,82 +256,101 @@ export function TaskManagementView() {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
-
-    let targetCodes = [];
-    let targetName = 'All Staff & Constituencies';
-
-    if (formData.scopeType === 'ALL_ASSEMBLIES') {
-      targetName = 'All 175 Assemblies';
-    } else if (formData.scopeType === 'ALL_PARLIAMENTS') {
-      targetName = 'All 25 Parliaments';
-    } else if (formData.scopeType === 'SPECIFIC_PARLIAMENT' || formData.scopeType === 'SELECTED_PARLIAMENTS') {
-      targetCodes = selectedParliaments;
-      if (selectedParliaments.length === 0) {
-        alert('Please check at least one Parliament constituency.');
-        return;
-      }
-      if (selectedParliaments.length === 1) {
-        const pObj = AP_CONSTITUENCIES.find(p => p.code === selectedParliaments[0]);
-        targetName = pObj ? `${pObj.code} - ${pObj.name} Parliament` : selectedParliaments[0];
-      } else {
-        targetName = `${selectedParliaments.length} Parliaments Selected (${selectedParliaments.slice(0, 3).join(', ')}${selectedParliaments.length > 3 ? '...' : ''})`;
-      }
-    } else if (formData.scopeType === 'SPECIFIC_ASSEMBLY' || formData.scopeType === 'SELECTED_ASSEMBLIES') {
-      targetCodes = selectedAssemblies;
-      if (selectedAssemblies.length === 0) {
-        alert('Please check at least one Assembly constituency.');
-        return;
-      }
-      if (selectedAssemblies.length === 1) {
-        const aObj = allAssembliesList.find(a => a.code === selectedAssemblies[0]);
-        targetName = aObj ? `${aObj.code} - ${aObj.name} Assembly` : selectedAssemblies[0];
-      } else {
-        targetName = `${selectedAssemblies.length} Assemblies Selected (${selectedAssemblies.slice(0, 3).join(', ')}${selectedAssemblies.length > 3 ? '...' : ''})`;
-      }
+    if (!formData.name.trim()) {
+      alert('Please enter a Task Name.');
+      return;
     }
 
-    const cleanSlug = (formData.urlSlug || 'go')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9_-]/g, '') || 'go';
+    try {
+      let targetCodes = [];
+      let targetName = 'All Staff & Constituencies';
 
-    const payload = {
-      id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
-      name: formData.name,
-      description: formData.description,
-      platform: formData.platform,
-      submissionType: formData.submissionType,
-      targetUrl: formData.targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
-      urlSlug: cleanSlug,
-      dailyTarget: Number(formData.dailyTarget),
-      frequency: formData.frequency,
-      assignmentScope: {
-        scopeType: normalizedScopeType,
-        targetCodes,
-        targetCode: targetCodes.length > 0 ? targetCodes[0] : null,
-        targetName
-      },
-      rules: {
-        duplicateScope: formData.duplicateScope,
-        allowExtraSubmissions: formData.allowExtraSubmissions,
-        requireProof: formData.requireProof
-      },
-      duplicateScope: formData.duplicateScope,
-      allowExtraSubmissions: formData.allowExtraSubmissions,
-      requireProof: formData.requireProof,
-      status: editingTask ? editingTask.status : 'Active',
-      createdDate: editingTask ? editingTask.createdDate : new Date().toISOString().split('T')[0]
-    };
+      if (formData.scopeType === 'ALL_ASSEMBLIES') {
+        targetName = 'All 175 Assemblies';
+      } else if (formData.scopeType === 'ALL_PARLIAMENTS') {
+        targetName = 'All 25 Parliaments';
+      } else if (formData.scopeType === 'SPECIFIC_PARLIAMENT' || formData.scopeType === 'SELECTED_PARLIAMENTS') {
+        targetCodes = selectedParliaments;
+        if (selectedParliaments.length === 0) {
+          alert('Please check at least one Parliament constituency.');
+          return;
+        }
+        if (selectedParliaments.length === 1) {
+          const pObj = AP_CONSTITUENCIES.find(p => p.code === selectedParliaments[0]);
+          targetName = pObj ? `${pObj.code} - ${pObj.name} Parliament` : selectedParliaments[0];
+        } else {
+          targetName = `${selectedParliaments.length} Parliaments Selected (${selectedParliaments.slice(0, 3).join(', ')}${selectedParliaments.length > 3 ? '...' : ''})`;
+        }
+      } else if (formData.scopeType === 'SPECIFIC_ASSEMBLY' || formData.scopeType === 'SELECTED_ASSEMBLIES') {
+        targetCodes = selectedAssemblies;
+        if (selectedAssemblies.length === 0) {
+          alert('Please check at least one Assembly constituency.');
+          return;
+        }
+        if (selectedAssemblies.length === 1) {
+          const aObj = allAssembliesList.find(a => a.code === selectedAssemblies[0]);
+          targetName = aObj ? `${aObj.code} - ${aObj.name} Assembly` : selectedAssemblies[0];
+        } else {
+          targetName = `${selectedAssemblies.length} Assemblies Selected (${selectedAssemblies.slice(0, 3).join(', ')}${selectedAssemblies.length > 3 ? '...' : ''})`;
+        }
+      }
 
-    if (editingTask) {
-      dbService.updateTask(payload);
-    } else {
-      dbService.addTask(payload);
+      const cleanSlug = (formData.urlSlug || 'go')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9_-]/g, '') || 'go';
+
+      const normalizedScopeType = formData.scopeType === 'SPECIFIC_PARLIAMENT' ? 'SELECTED_PARLIAMENTS' : 
+                                 (formData.scopeType === 'SPECIFIC_ASSEMBLY' ? 'SELECTED_ASSEMBLIES' : (formData.scopeType || 'ALL_STAFF'));
+
+      const payload = {
+        id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || '',
+        platform: formData.platform || 'Instagram',
+        submissionType: formData.submissionType || 'Instagram Handle',
+        targetUrl: formData.targetUrl?.trim() || 'https://www.instagram.com/ramakrishnabhashyam/',
+        urlSlug: cleanSlug,
+        dailyTarget: Number(formData.dailyTarget) || 10,
+        frequency: formData.frequency || 'Daily',
+        startDate: formData.startDate || formData.weekStartDate || getTodayISTDateString(),
+        weekStartDate: formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST(),
+        endDate: formData.endDate ? formData.endDate : null,
+        cycleDays: formData.frequency === 'Weekly' ? 7 : (formData.frequency === 'Custom' ? Math.max(1, Number(formData.cycleDays) || 10) : 1),
+        weeklyTarget: formData.frequency === 'Weekly' ? (Number(formData.dailyTarget) || 10) : (editingTask?.weeklyTarget || null),
+        cycleTarget: formData.frequency === 'Custom' ? (Number(formData.dailyTarget) || 10) : (editingTask?.cycleTarget || null),
+        campaignTarget: formData.frequency === 'Campaign Total' ? (Number(formData.dailyTarget) || 100) : (editingTask?.campaignTarget || null),
+        assignmentScope: {
+          scopeType: normalizedScopeType,
+          targetCodes,
+          targetCode: targetCodes.length > 0 ? targetCodes[0] : null,
+          targetName
+        },
+        rules: {
+          duplicateScope: formData.duplicateScope || 'Entire Campaign',
+          allowExtraSubmissions: formData.allowExtraSubmissions ?? true,
+          requireProof: formData.requireProof ?? false
+        },
+        duplicateScope: formData.duplicateScope || 'Entire Campaign',
+        allowExtraSubmissions: formData.allowExtraSubmissions ?? true,
+        requireProof: formData.requireProof ?? false,
+        samplePatterns: stringToPatterns(formData.samplePatternsText),
+        status: editingTask ? editingTask.status : 'Active',
+        createdDate: editingTask ? editingTask.createdDate : new Date().toISOString().split('T')[0]
+      };
+
+      if (editingTask) {
+        dbService.updateTask(payload);
+      } else {
+        dbService.addTask(payload);
+      }
+
+      setIsModalOpen(false);
+      loadTasks();
+    } catch (err) {
+      console.error('Failed to save task:', err);
+      alert('Failed to save task: ' + err.message);
     }
-
-    setIsModalOpen(false);
-    loadTasks();
   };
 
   const filteredTasks = tasks.filter(t => {
@@ -527,27 +568,39 @@ export function TaskManagementView() {
                     </span>
                   </div>
 
-                  {/* Daily Target */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    color: '#1d1d1f',
-                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                    padding: '5px 8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0, 0, 0, 0.04)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Target size={12} style={{ color: '#0071e3' }} />
-                      <span>Daily Target:</span>
-                    </div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
-                      {task.dailyTarget} {task.submissionType || 'entries'} / day
-                    </span>
-                  </div>
+                  {/* Target & Cycle details */}
+                  {(() => {
+                    const cycle = getTaskCycleInfo(task);
+                    return (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: '#1d1d1f',
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        padding: '5px 8px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(0, 0, 0, 0.04)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Target size={12} style={{ color: '#0071e3' }} />
+                          <span>
+                            {task.frequency === 'Weekly' ? 'Weekly Target:' : 
+                             task.frequency === 'Custom' ? `Cycle (${task.cycleDays || 10}d) Target:` :
+                             task.frequency === 'Campaign Total' ? 'Campaign Total:' : 'Daily Target:'}
+                          </span>
+                        </div>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '11.5px', color: '#1d1d1f' }}>
+                          {task.dailyTarget || cycle.target} {task.submissionType || 'entries'}
+                          {task.frequency === 'Weekly' ? ` / week (${cycle.shortLabel})` :
+                           task.frequency === 'Custom' ? ` / ${task.cycleDays || 10} days (${cycle.shortLabel})` :
+                           task.frequency === 'Campaign Total' ? ' (Entire Duration)' : ' / day'}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Outreach Tracking Target Link */}
                   {task.targetUrl && (
@@ -799,17 +852,29 @@ export function TaskManagementView() {
                       const newPlatform = e.target.value;
                       let newUrl = formData.targetUrl;
                       let newSlug = formData.urlSlug;
+                      let newSub = formData.submissionType;
                       if (newPlatform === 'Instagram') {
                         newUrl = 'https://www.instagram.com/ramakrishnabhashyam/';
                         newSlug = 'instagram';
+                        newSub = 'Instagram Handle';
                       } else if (newPlatform === 'WhatsApp') {
                         newUrl = 'https://chat.whatsapp.com/';
                         newSlug = 'whatsapp';
+                        newSub = 'Mobile Number';
                       } else if (newPlatform === 'YouTube') {
                         newUrl = 'https://youtube.com/@ramakrishnabhashyam';
                         newSlug = 'youtube';
+                        newSub = 'Profile Link';
                       }
-                      setFormData({ ...formData, platform: newPlatform, targetUrl: newUrl, urlSlug: newSlug });
+                      const defPatterns = getDefaultSamplePatterns(newPlatform, newSub);
+                      setFormData({ 
+                        ...formData, 
+                        platform: newPlatform, 
+                        targetUrl: newUrl, 
+                        urlSlug: newSlug,
+                        submissionType: newSub,
+                        samplePatternsText: patternsToString(defPatterns)
+                      });
                     }}
                     style={{
                       width: '100%',
@@ -838,7 +903,15 @@ export function TaskManagementView() {
                   </label>
                   <select
                     value={formData.submissionType}
-                    onChange={(e) => setFormData({ ...formData, submissionType: e.target.value })}
+                    onChange={(e) => {
+                      const newSub = e.target.value;
+                      const defPatterns = getDefaultSamplePatterns(formData.platform, newSub);
+                      setFormData({ 
+                        ...formData, 
+                        submissionType: newSub,
+                        samplePatternsText: patternsToString(defPatterns)
+                      });
+                    }}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -857,6 +930,64 @@ export function TaskManagementView() {
                     <option value="Text Input">Lead / Citizen Text Info</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ACCEPTED SAMPLE PATTERNS & STAFF TOOLTIP GUIDANCE */}
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#1d1d1f', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                    Accepted Submission Patterns (Staff Tooltip Guidance)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const def = getDefaultSamplePatterns(formData.platform, formData.submissionType);
+                      setFormData({ ...formData, samplePatternsText: patternsToString(def) });
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0071e3',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    Reset Defaults ({formData.platform})
+                  </button>
+                </div>
+
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+                  Enter one format per line: <strong>Format | Description</strong>. These will be dynamically fetched and displayed to staff in the tooltip:
+                </p>
+
+                <textarea
+                  rows={3}
+                  value={formData.samplePatternsText}
+                  onChange={(e) => setFormData({ ...formData, samplePatternsText: e.target.value })}
+                  placeholder="9876543210 | 10-digit mobile number&#10;+91 9876543210 | With country code"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                    fontWeight: 500,
+                    outline: 'none',
+                    backgroundColor: '#ffffff',
+                    boxSizing: 'border-box'
+                  }}
+                />
               </div>
 
               {/* OUTREACH TRACKING LINK & TARGET REDIRECT URL */}
@@ -927,30 +1058,101 @@ export function TaskManagementView() {
                 </div>
               </div>
 
-              {/* Daily Target & Frequency */}
+              {/* Target & Frequency */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>
-                    Daily Target (per employee)
+                    {formData.frequency === 'Weekly' ? 'Weekly Target (per employee)' :
+                     formData.frequency === 'Custom' ? `Cycle Target (per ${formData.cycleDays || 10} days)` :
+                     formData.frequency === 'Campaign Total' ? 'Campaign Total Target (per employee)' :
+                     'Daily Target (per employee)'}
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    required
-                    value={formData.dailyTarget}
-                    onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(0, 0, 0, 0.12)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    overflow: 'hidden',
+                    height: '37px',
+                    boxSizing: 'border-box'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const step = formData.frequency === 'Daily' ? 1 : 5;
+                        const curr = Number(formData.dailyTarget) || 10;
+                        setFormData({ ...formData, dailyTarget: Math.max(1, curr - step) });
+                      }}
+                      title="Decrease Target"
+                      style={{
+                        width: '34px',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        color: '#1d1d1f',
+                        cursor: 'pointer',
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.04)'}
+                    >
+                      <Minus size={13} strokeWidth={2.5} />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      required
+                      value={formData.dailyTarget}
+                      onChange={(e) => setFormData({ ...formData, dailyTarget: e.target.value })}
+                      style={{
+                        flex: 1,
+                        width: '100%',
+                        textAlign: 'center',
+                        border: 'none',
+                        padding: '0 4px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#1d1d1f',
+                        outline: 'none',
+                        backgroundColor: 'transparent'
+                      }}
+                      className="no-spinners"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const step = formData.frequency === 'Daily' ? 1 : 5;
+                        const curr = Number(formData.dailyTarget) || 10;
+                        setFormData({ ...formData, dailyTarget: Math.min(10000, curr + step) });
+                      }}
+                      title="Increase Target"
+                      style={{
+                        width: '34px',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        color: '#1d1d1f',
+                        cursor: 'pointer',
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.04)'}
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -959,7 +1161,16 @@ export function TaskManagementView() {
                   </label>
                   <select
                     value={formData.frequency}
-                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                    onChange={(e) => {
+                      const newFreq = e.target.value;
+                      setFormData({
+                        ...formData,
+                        frequency: newFreq,
+                        startDate: formData.startDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
+                        weekStartDate: formData.weekStartDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
+                        cycleDays: newFreq === 'Weekly' ? 7 : (formData.cycleDays || 10)
+                      });
+                    }}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -971,12 +1182,357 @@ export function TaskManagementView() {
                       backgroundColor: '#ffffff'
                     }}
                   >
-                    <option value="Daily">Daily Target</option>
-                    <option value="Weekly">Weekly Target</option>
-                    <option value="Campaign Total">Campaign Total Target</option>
+                    <option value="Daily">Daily Target (Resets Every Day)</option>
+                    <option value="Weekly">Weekly Target (7-Day Recurring Cycles: Week 1, Week 2...)</option>
+                    <option value="Custom">Custom Days Cycle (Repeat Every N Days: 1st, 11th, 21st...)</option>
+                    <option value="Campaign Total">Campaign Duration (Start Date to Today - Entire Duration)</option>
                   </select>
                 </div>
               </div>
+
+              {/* Conditional Configuration for Weekly */}
+              {formData.frequency === 'Weekly' && (() => {
+                const start = formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST();
+                const week1End = addDaysToDateStr(start, 6);
+                const week2Start = addDaysToDateStr(start, 7);
+                const week2End = addDaysToDateStr(start, 13);
+                const week3Start = addDaysToDateStr(start, 14);
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(0, 113, 227, 0.05)',
+                    border: '1px solid rgba(0, 113, 227, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Week 1 Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 113, 227, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 Campaign End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(0, 113, 227, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#334155',
+                      lineHeight: 1.5
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#0071e3', marginBottom: '3px' }}>
+                        ⚡ Automatic 7-Day Cycle Sequence:
+                      </div>
+                      <div>• <strong>Week 1:</strong> {start} → {week1End}</div>
+                      <div>• <strong>Week 2:</strong> {week2Start} → {week2End} (auto-starts after Week 1 ends)</div>
+                      <div>• <strong>Week 3:</strong> {week3Start} → ...</div>
+                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '11px' }}>
+                        When Week 1 reaches its end date, the system seamlessly transitions to Week 2 and tracks new progress!
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Conditional Configuration for Custom Cycle Days */}
+              {formData.frequency === 'Custom' && (() => {
+                const start = formData.startDate || getTodayISTDateString();
+                const cycleDays = Math.max(1, Number(formData.cycleDays) || 10);
+                const c1End = addDaysToDateStr(start, cycleDays - 1);
+                const c2Start = addDaysToDateStr(start, cycleDays);
+                const c2End = addDaysToDateStr(c2Start, cycleDays - 1);
+                const c3Start = addDaysToDateStr(start, cycleDays * 2);
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(147, 51, 234, 0.05)',
+                    border: '1px solid rgba(147, 51, 234, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#9333ea', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(147, 51, 234, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#9333ea', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🔄 Repeat For (N Days)
+                        </label>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: '#ffffff',
+                          borderRadius: '8px',
+                          border: '1.5px solid rgba(147, 51, 234, 0.4)',
+                          overflow: 'hidden',
+                          height: '35px',
+                          boxSizing: 'border-box',
+                          boxShadow: '0 1px 2px rgba(147, 51, 234, 0.05)'
+                        }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = Number(formData.cycleDays) || 10;
+                              setFormData({ ...formData, cycleDays: Math.max(1, curr - 1) });
+                            }}
+                            title="Decrease days (-1)"
+                            style={{
+                              width: '34px',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: 'none',
+                              backgroundColor: 'rgba(147, 51, 234, 0.08)',
+                              color: '#9333ea',
+                              cursor: 'pointer',
+                              padding: 0,
+                              flexShrink: 0,
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.08)'}
+                          >
+                            <Minus size={14} strokeWidth={2.5} />
+                          </button>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            required
+                            value={formData.cycleDays || 10}
+                            onChange={(e) => setFormData({ ...formData, cycleDays: e.target.value })}
+                            style={{
+                              flex: 1,
+                              width: '100%',
+                              textAlign: 'center',
+                              border: 'none',
+                              padding: '0 4px',
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              color: '#1d1d1f',
+                              backgroundColor: 'transparent',
+                              outline: 'none'
+                            }}
+                            className="no-spinners"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = Number(formData.cycleDays) || 10;
+                              setFormData({ ...formData, cycleDays: Math.min(365, curr + 1) });
+                            }}
+                            title="Increase days (+1)"
+                            style={{
+                              width: '34px',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: 'none',
+                              backgroundColor: 'rgba(147, 51, 234, 0.08)',
+                              color: '#9333ea',
+                              cursor: 'pointer',
+                              padding: 0,
+                              flexShrink: 0,
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(147, 51, 234, 0.08)'}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(147, 51, 234, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#334155',
+                      lineHeight: 1.5
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#9333ea', marginBottom: '3px' }}>
+                        ⚡ Recurring {cycleDays}-Day Cycles Preview:
+                      </div>
+                      <div>• <strong>Cycle 1:</strong> {start} → {c1End}</div>
+                      <div>• <strong>Cycle 2:</strong> {c2Start} → {c2End} (repeats automatically)</div>
+                      <div>• <strong>Cycle 3:</strong> {c3Start} → ...</div>
+                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '11px' }}>
+                        Cycles repeat on 1st, {c2Start.split('-')[2] || '11'}th, {c3Start.split('-')[2] || '21'}st! Once a cycle ends, the next cycle automatically begins.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Conditional Configuration for Campaign Duration */}
+              {formData.frequency === 'Campaign Total' && (() => {
+                const start = formData.startDate || getTodayISTDateString();
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          📅 Campaign Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={start}
+                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                          🏁 Campaign End Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.endDate || ''}
+                          onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0, 0, 0, 0.12)',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#1d1d1f',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid rgba(16, 185, 129, 0.15)',
+                      fontSize: '11.5px',
+                      color: '#047857'
+                    }}>
+                      ⚡ <strong>Entire Duration Mode:</strong> Progress counts continuously from <strong>{start}</strong> to today without any weekly limits across the entire duration.
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* GEOGRAPHIC ASSIGNMENT SCOPE WITH MULTI-SELECT CHECKBOXES */}
               <div style={{

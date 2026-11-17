@@ -48,14 +48,14 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--bg-main);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.08) 0px, transparent 50%);
-  color: var(--text-primary);
+  background-color: #f5f5f7;
+  color: #1d1d1f;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
   line-height: 1.5;
   overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 
 button {
@@ -664,7 +664,7 @@ input::-ms-clear {
   background-color: #f5f5f7;
   color: #1d1d1f;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  padding: 8px;
+  padding: 0;
   box-sizing: border-box;
   position: relative;
   padding-bottom: max(16px, env(safe-area-inset-bottom));
@@ -673,19 +673,19 @@ input::-ms-clear {
 
 @media (min-width: 640px) {
   .dashboard-page-wrapper {
-    padding: 16px 20px;
+    padding: 0;
   }
 }
 
 @media (min-width: 1024px) {
   .dashboard-page-wrapper {
-    padding: 24px 36px 48px 36px;
+    padding: 0;
   }
 }
 
 @media (min-width: 1440px) {
   .dashboard-page-wrapper {
-    padding: 32px 52px 56px 52px;
+    padding: 0;
   }
 }
 
@@ -694,10 +694,10 @@ input::-ms-clear {
   max-width: 100%;
   margin: 0 auto;
   background-color: #ffffff;
-  border-radius: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-  padding: 14px;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  padding: 12px 10px;
   position: relative;
   z-index: 10;
   box-sizing: border-box;
@@ -706,7 +706,10 @@ input::-ms-clear {
 @media (min-width: 640px) {
   .dashboard-main-frame {
     border-radius: 22px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
     padding: 24px;
+    margin: 0 auto;
   }
 }
 
@@ -714,6 +717,7 @@ input::-ms-clear {
   .dashboard-main-frame {
     padding: 28px 34px;
     max-width: 1400px;
+    margin: 0 auto;
   }
 }
 
@@ -721,7 +725,91 @@ input::-ms-clear {
   .dashboard-main-frame {
     padding: 32px 40px;
     max-width: 1520px;
+    margin: 0 auto;
   }
+}
+
+/* Employee Portal Responsive 2-Column Desktop & Streamlined Mobile Layout */
+.portal-content-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.portal-column {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .portal-column {
+    display: contents;
+  }
+
+  .portal-area-task {
+    order: 1;
+    width: 100%;
+  }
+
+  .portal-area-entry {
+    order: 2;
+    width: 100%;
+  }
+
+  .portal-area-tracking {
+    order: 3;
+    width: 100%;
+  }
+
+  .portal-area-history {
+    order: 4;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .portal-content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .portal-column {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .portal-area-task,
+  .portal-area-entry,
+  .portal-area-tracking,
+  .portal-area-history {
+    order: unset;
+  }
+}
+
+@media (min-width: 1280px) {
+  .portal-content-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .portal-column {
+    gap: 28px;
+  }
+}
+
+/* Campaign Tasks Landing Page Cards */
+.task-landing-card {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+}
+
+.task-landing-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.08), 0 6px 12px -4px rgba(0, 0, 0, 0.04);
 }
 
 .dashboard-section-card {
@@ -810,6 +898,199 @@ input::-ms-clear {
     gap: 16px;
   }
 }
+
+/* MagniDigi Preloader Animations */
+@keyframes mdLogoSpin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes mdHaloPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes mdCircleSpinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Single-row responsive KPI cards for Employee Portal Landing Page */
+.portal-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-grid {
+    gap: 14px;
+    margin-top: 22px;
+  }
+}
+
+.portal-kpi-card {
+  border-radius: 14px;
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-card {
+    padding: 14px 16px;
+  }
+}
+
+.portal-kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.portal-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+}
+
+.portal-kpi-value {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-value {
+    font-size: 24px;
+  }
+}
+
+.portal-kpi-sub {
+  font-size: 9.5px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .portal-kpi-sub {
+    display: block;
+  }
+}
+
+@media (min-width: 640px) {
+  .portal-kpi-sub {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 500px) {
+  .kpi-label-full {
+    display: none !important;
+  }
+  .kpi-label-short {
+    display: inline !important;
+  }
+}
+
+@media (min-width: 501px) {
+  .kpi-label-full {
+    display: inline !important;
+  }
+  .kpi-label-short {
+    display: none !important;
+  }
+}
+
+/* Hide number input spinners for custom steppers */
+.no-spinners::-webkit-inner-spin-button,
+.no-spinners::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.no-spinners {
+  -moz-appearance: textfield !important;
+}
+
+/* Date Range Picker Popover Animation */
+@keyframes datePickerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 520px) {
+  .date-range-picker-container > div[style*="position: absolute"] {
+    flex-direction: column !important;
+    width: min(340px, calc(100vw - 20px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+    padding: 8px 10px !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child > div:first-child {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  .date-range-picker-container > div[style*="position: absolute"] > div:first-child > div:first-child button {
+    white-space: nowrap !important;
+    width: auto !important;
+    padding: 4px 10px !important;
+  }
+}
+
+
+
 
 
 
