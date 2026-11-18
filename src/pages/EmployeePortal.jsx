@@ -154,6 +154,7 @@ export function EmployeePortal({ session, onLogout }) {
   const empActiveSubmissionsEver = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
   const empUnfollowedSubmissionsEver = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
   const empPendingSubmissionsEver = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+  const empNotFoundSubmissionsEver = empAllSubs.filter(s => s.status === 'Handle Not Found').length;
   const empRefollowedSubmissionsEver = empAllSubs.filter(s => !!s.re_followed_at).length;
   const empNetActiveSubmissionsEver = empActiveSubmissionsEver;
 
@@ -1407,6 +1408,12 @@ export function EmployeePortal({ session, onLogout }) {
                         <div style={{ fontSize: '10px', fontWeight: 600, color: '#c2410c', textTransform: 'uppercase' }}>Pending</div>
                         <div style={{ fontSize: '17px', fontWeight: 800, color: '#9a3412', marginTop: '2px' }}>{empPendingSubmissionsEver}</div>
                         <div style={{ fontSize: '9.5px', color: '#ea580c' }}>Awaiting match</div>
+                      </div>
+
+                      <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fff1f2', border: '1px solid #ffe4e6' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#e11d48', textTransform: 'uppercase' }}>Not Found</div>
+                        <div style={{ fontSize: '17px', fontWeight: 800, color: '#be123c', marginTop: '2px' }}>{empNotFoundSubmissionsEver}</div>
+                        <div style={{ fontSize: '9.5px', color: '#e11d48' }}>Unmatched</div>
                       </div>
 
                       <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>

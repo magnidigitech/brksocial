@@ -337,6 +337,55 @@ function loadFollowersFromDisk() {
 }
 
 /**
+ * Reconcile pending submissions against followers database.
+ * If submitted before or during the latest import and not found, updates status to 'Handle Not Found'.
+ * If follower later appears in snapshot, updates status to 'Valid Submission'.
+ */
+function reconcilePendingSubmissionsWithDb(submissions) {
+  if (!FOLLOWERS_MAP || FOLLOWERS_MAP.size === 0 || !Array.isArray(submissions) || !submissions.length) return false;
+  const imports = getStoredImports();
+  const latestImportTime = imports.length > 0 && imports[0].timestamp ? new Date(imports[0].timestamp).getTime() : 0;
+  if (!latestImportTime) return false;
+
+  let changed = false;
+  const syncTimeFormatted = formatFollowerTimestamp(Math.floor(latestImportTime / 1000));
+
+  for (const sub of submissions) {
+    if (!sub.username) continue;
+    const clean = String(sub.username).trim().toLowerCase().replace(/^@+/, '');
+    const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : 0;
+
+    // If submitted AFTER the latest import, it stays in Pending Submission (awaiting next sync)!
+    if (subTime && subTime > latestImportTime) {
+      continue;
+    }
+
+    const follower = FOLLOWERS_MAP.get(clean);
+    if (follower && follower.status !== 'unfollowed') {
+      if (sub.status !== 'Valid Submission' || !sub.isValid) {
+        sub.status = 'Valid Submission';
+        sub.isValid = true;
+        sub.isFollower = true;
+        sub.verificationBadge = '✓ Follower Verified';
+        sub.verificationNote = `Verified genuine follower`;
+        changed = true;
+      }
+    } else if (!follower) {
+      if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
+        sub.status = 'Handle Not Found';
+        sub.isValid = false;
+        sub.isFollower = false;
+        sub.verificationBadge = 'Handle Not Found';
+        sub.verificationNote = `Not found in followers list (synced ${syncTimeFormatted})`;
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
+/**
  * Generate Reconciliation Preview (Non-mutating)
  */
 function generateReconciliationPreview(payload, mode = 'RECONCILIATION') {
@@ -558,6 +607,7 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
     const unfollowerSet = new Set(unfollowerKeys);
     const newFollowerSet = new Set(newFollowerKeys);
     const incomingSet = new Set(incomingMap.keys());
+    const syncTimeFormatted = formatFollowerTimestamp(Math.floor(Date.now() / 1000));
 
     for (const sub of submissions) {
       if (!sub.username) continue;
@@ -575,12 +625,12 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
             submissionsUpdatedCount++;
           }
         } else {
-          if (sub.status !== 'Pending Submission') {
-            sub.status = 'Pending Submission';
+          if (sub.status !== 'Handle Not Found') {
+            sub.status = 'Handle Not Found';
             sub.isValid = false;
             sub.isFollower = false;
-            sub.verificationBadge = 'Pending Follow Sync';
-            sub.verificationNote = 'Awaiting next official follower JSON sync';
+            sub.verificationBadge = 'Handle Not Found';
+            sub.verificationNote = `Not found in baseline followers snapshot (synced ${syncTimeFormatted})`;
             sub.lastReconciledAt = nowIso;
             submissionsUpdatedCount++;
           }
@@ -599,9 +649,9 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
             sub.lastReconciledAt = nowIso;
             submissionsUpdatedCount++;
           }
-        } else if (newFollowerSet.has(cleanSub)) {
-          // A follower returned or pending submission was matched
-          if (sub.status === 'unfollowed' || sub.status === 'Pending Submission') {
+        } else if (newFollowerSet.has(cleanSub) || incomingSet.has(cleanSub)) {
+          // A follower returned or pending/not-found submission was matched
+          if (sub.status === 'unfollowed' || sub.status === 'Pending Submission' || sub.status === 'Handle Not Found' || sub.status === 'not_found') {
             const wasUnfollowed = sub.status === 'unfollowed';
             sub.status = 'Valid Submission';
             sub.isValid = true;
@@ -611,6 +661,17 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
             sub.verificationNote = wasUnfollowed
               ? `Re-followed account detected in import ${importId}`
               : `Verified genuine follower in import ${importId}`;
+            sub.lastReconciledAt = nowIso;
+            submissionsUpdatedCount++;
+          }
+        } else if (!incomingSet.has(cleanSub)) {
+          // Not found in this follower snapshot
+          if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
+            sub.status = 'Handle Not Found';
+            sub.isValid = false;
+            sub.isFollower = false;
+            sub.verificationBadge = 'Handle Not Found';
+            sub.verificationNote = `Not found in followers list (synced ${syncTimeFormatted})`;
             sub.lastReconciledAt = nowIso;
             submissionsUpdatedCount++;
           }
@@ -1887,12 +1948,25 @@ app.post('/api/submissions/revalidate', (req, res) => {
       }
 
       if (!follower) {
-        if (sub.status !== 'Pending Submission') {
-          sub.status = 'Pending Submission';
+        const imports = getStoredImports();
+        const latestImportTime = imports.length > 0 && imports[0].timestamp ? new Date(imports[0].timestamp).getTime() : 0;
+        let maxFollowerTime = 0;
+        for (const f of FOLLOWERS_MAP.values()) {
+          const ts = Number(f.timestamp) * 1000;
+          if (ts > maxFollowerTime) maxFollowerTime = ts;
+        }
+        const fileMtime = fs.existsSync(FOLLOWERS_FILE) ? fs.statSync(FOLLOWERS_FILE).mtime.getTime() : 0;
+        const dbSyncTime = Math.max(latestImportTime, maxFollowerTime, fileMtime);
+        const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
+
+        const isAfterSync = dbSyncTime > subTime;
+        const targetStatus = isAfterSync ? 'Handle Not Found' : 'Pending Submission';
+        if (sub.status !== targetStatus) {
+          sub.status = targetStatus;
           sub.isValid = false;
           sub.isFollower = false;
-          sub.verificationBadge = 'Pending Follow Sync';
-          sub.verificationNote = 'Awaiting next official follower JSON sync';
+          sub.verificationBadge = isAfterSync ? 'Handle Not Found' : 'Pending Follow Sync';
+          sub.verificationNote = isAfterSync ? `Not in followers list (synced ${formatFollowerTimestamp(Math.floor(dbSyncTime / 1000))})` : 'Awaiting next official follower JSON sync';
           updatedCount++;
         }
         continue;
@@ -2257,8 +2331,14 @@ app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
     const latestImport = imports.length > 0 ? imports[0] : null;
 
     const submissions = getStoredSubmissions();
+    const changed = reconcilePendingSubmissionsWithDb(submissions);
+    if (changed) {
+      saveStoredSubmissions(submissions);
+    }
+
     const activeSubs = submissions.filter(s => s.status === 'Valid Submission' || s.status === 'active' || s.isValid);
     const unfollowedSubs = submissions.filter(s => s.status === 'unfollowed' || s.status === 'Unfollowed');
+    const notFoundSubs = submissions.filter(s => s.status === 'Handle Not Found' || s.status === 'not_found');
     const pendingSubs = submissions.filter(s => s.status === 'Pending Submission' || s.status === 'pending_verification');
 
     const statsObj = {
@@ -2271,6 +2351,8 @@ app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
       totalActiveSubmissions: activeSubs.length,
       unfollowedSubmissionsCount: unfollowedSubs.length,
       totalUnfollowedSubmissions: unfollowedSubs.length,
+      notFoundSubmissionsCount: notFoundSubs.length,
+      totalNotFoundSubmissions: notFoundSubs.length,
       pendingSubmissionsCount: pendingSubs.length,
       pendingSubmissions: pendingSubs.length,
       totalSubmissionsCount: submissions.length,

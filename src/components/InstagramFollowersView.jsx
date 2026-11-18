@@ -55,6 +55,7 @@ export function InstagramFollowersView() {
     totalTrackedFollowers: 0,
     activeSubmissionsCount: 0,
     unfollowedSubmissionsCount: 0,
+    notFoundSubmissionsCount: 0,
     pendingSubmissionsCount: 0,
     totalSubmissionsCount: 0,
     latestImport: null,
@@ -523,7 +524,8 @@ export function InstagramFollowersView() {
   const latestUnfollowers = reconcileStats.latestImport?.newUnfollowers ?? 0;
   const activeSubmissionsCount = reconcileStats.activeSubmissionsCount || submissions.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
   const unfollowedSubmissionsCount = reconcileStats.unfollowedSubmissionsCount || submissions.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
-  const pendingSubmissionsCount = reconcileStats.pendingSubmissionsCount || submissions.filter(s => s.status === 'Pending Submission').length;
+  const notFoundSubmissionsCount = reconcileStats.notFoundSubmissionsCount ?? submissions.filter(s => s.status === 'Handle Not Found' || s.status === 'not_found').length;
+  const pendingSubmissionsCount = reconcileStats.pendingSubmissionsCount ?? submissions.filter(s => s.status === 'Pending Submission' || s.status === 'pending_verification').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -742,7 +744,20 @@ export function InstagramFollowersView() {
           </div>
         </div>
 
-        {/* 7. Pending Staff Submissions */}
+        {/* 7. Handle Not Found Submissions */}
+        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Handle Not Found
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
+            {notFoundSubmissionsCount.toLocaleString()}
+          </div>
+          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+            Unmatched in latest snapshot
+          </div>
+        </div>
+
+        {/* 8. Pending Staff Submissions */}
         <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Pending Submissions
@@ -751,11 +766,11 @@ export function InstagramFollowersView() {
             {pendingSubmissionsCount.toLocaleString()}
           </div>
           <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Awaiting follower match
+            Awaiting next follower sync
           </div>
         </div>
 
-        {/* 8. Last Reconciliation Time */}
+        {/* 9. Last Reconciliation Time */}
         <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Last Reconciliation
