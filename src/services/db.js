@@ -311,11 +311,53 @@ export const dbService = {
       if (res.ok) {
         const serverEmps = await res.json();
         if (Array.isArray(serverEmps) && serverEmps.length > 0) {
-          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(serverEmps));
+          const normalized = serverEmps.map(e => ({
+            ...e,
+            id: String(e.id || e.supportCode || e.support_code || '').trim().toUpperCase(),
+            supportCode: String(e.supportCode || e.support_code || e.id || '').trim().toUpperCase(),
+            code: String(e.code || e.supportCode || e.id || '').trim().toUpperCase(),
+            name: e.name || 'Staff Member',
+            staffId: e.staffId || e.staff_id || '',
+            level: e.level || (e.assemblyCode || e.assembly_code ? 'Assembly' : 'Parliament'),
+            parliamentCode: e.parliamentCode || e.parliament_code || 'APP13',
+            parliamentName: e.parliamentName || e.parliament_name || 'Guntur',
+            assemblyCode: e.assemblyCode || e.assembly_code || null,
+            assemblyName: e.assemblyName || e.assembly_name || null,
+            mobilePersonal: e.mobilePersonal || e.mobile_personal || e.mobile || '',
+            mobileOffice: e.mobileOffice || e.mobile_office || '',
+            mobile: e.mobilePersonal || e.mobile_personal || e.mobile || '',
+            password: e.password || 'password123',
+            status: e.status || 'Active',
+            department: e.department || 'Outreach Staff'
+          }));
+
+          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(normalized));
+
+          // Also update active session if currently logged in as employee
+          try {
+            const activeSession = JSON.parse(localStorage.getItem('brk_auth_session_v1'));
+            if (activeSession && activeSession.role === 'employee') {
+              const currentEmpId = String(activeSession.employeeId || activeSession.id || activeSession.supportCode || '').trim().toUpperCase();
+              const freshEmp = normalized.find(emp => 
+                (emp.id && emp.id.toUpperCase() === currentEmpId) || 
+                (emp.supportCode && emp.supportCode.toUpperCase() === currentEmpId)
+              );
+              if (freshEmp) {
+                const refreshedSession = {
+                  ...activeSession,
+                  ...freshEmp,
+                  employeeName: freshEmp.name,
+                  employeeId: freshEmp.id
+                };
+                localStorage.setItem('brk_auth_session_v1', JSON.stringify(refreshedSession));
+              }
+            }
+          } catch (_) {}
+
           if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: serverEmps }));
+            window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: normalized }));
           }
-          return serverEmps;
+          return normalized;
         }
       }
     } catch (err) {

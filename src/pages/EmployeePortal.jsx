@@ -163,6 +163,11 @@ export function EmployeePortal({ session, onLogout }) {
     // Auto-revalidate existing submissions against follower DB on mount
     dbService.revalidateSubmissionsWithFollowers().catch(() => { });
 
+    // Immediately fetch fresh staff details from server so admin edits appear right away!
+    dbService.syncEmployeesWithServer().then(() => {
+      loadData();
+    }).catch(() => {});
+
     const handleStaffUpdate = () => {
       loadData();
     };
@@ -336,9 +341,10 @@ export function EmployeePortal({ session, onLogout }) {
   }, [inputVal, activeTask]);
 
   const loadData = () => {
-    const empId = session?.employeeId || session?.id || 'APP13';
+    const empId = session?.employeeId || session?.id || session?.supportCode || 'APP13';
     const empData = dbService.getEmployeeById(empId);
-    setEmployee(empData || session);
+    const resolved = empData ? { ...session, ...empData } : session;
+    setEmployee(resolved);
 
     // Get assigned tasks for this employee based on parliament/assembly scope
     const tasks = dbService.getTasksForEmployee(empId);

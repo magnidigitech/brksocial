@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, ShieldCheck, UserCheck } from 'lucide-react';
 import { authService } from '../services/auth.js';
+import { dbService } from '../services/db.js';
 
 export function LoginPage({ onLoginSuccess }) {
   const [isAdminMode, setIsAdminMode] = useState(false); // Default: Employee Sign-In (false)
+
+  // Pre-sync latest staff details & credentials from server on login page mount
+  useEffect(() => {
+    dbService.syncEmployeesWithServer().catch(() => {});
+  }, []);
 
   // Employee Login State
   const [empId, setEmpId] = useState('');
@@ -51,10 +57,15 @@ export function LoginPage({ onLoginSuccess }) {
     setTilt({ rotateX: 0, rotateY: 0, layerX: 0, layerY: 0 });
   };
 
-  const handleEmployeeSubmit = (e) => {
+  const handleEmployeeSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    const res = authService.loginEmployee(empId, empPass);
+    let res = authService.loginEmployee(empId, empPass);
+    if (!res.success) {
+      // Re-sync with server in case admin recently updated password or staff details
+      await dbService.syncEmployeesWithServer().catch(() => {});
+      res = authService.loginEmployee(empId, empPass);
+    }
     if (res.success) {
       onLoginSuccess(res.session);
     } else {

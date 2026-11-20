@@ -98,19 +98,27 @@ if (!fs.existsSync(TASKS_FILE)) {
   ], null, 2), 'utf8');
 }
 
+let CACHED_SUBMISSIONS = null;
+let CACHED_TASKS = null;
+let CACHED_CLICKS = null;
+
 function getStoredSubmissions() {
+  if (CACHED_SUBMISSIONS !== null) return CACHED_SUBMISSIONS;
   try {
     if (fs.existsSync(SUBMISSIONS_FILE)) {
       const data = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
-      return JSON.parse(data) || [];
+      CACHED_SUBMISSIONS = JSON.parse(data) || [];
+      return CACHED_SUBMISSIONS;
     }
   } catch (err) {
     console.error('Error reading submissions file:', err.message);
   }
-  return [];
+  CACHED_SUBMISSIONS = [];
+  return CACHED_SUBMISSIONS;
 }
 
 function saveStoredSubmissions(submissions) {
+  CACHED_SUBMISSIONS = submissions;
   try {
     fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions.slice(0, 50000), null, 2), 'utf8');
   } catch (err) {
@@ -119,18 +127,22 @@ function saveStoredSubmissions(submissions) {
 }
 
 function getStoredTasks() {
+  if (CACHED_TASKS !== null) return CACHED_TASKS;
   try {
     if (fs.existsSync(TASKS_FILE)) {
       const data = fs.readFileSync(TASKS_FILE, 'utf8');
-      return JSON.parse(data) || [];
+      CACHED_TASKS = JSON.parse(data) || [];
+      return CACHED_TASKS;
     }
   } catch (err) {
     console.error('Error reading tasks file:', err.message);
   }
-  return [];
+  CACHED_TASKS = [];
+  return CACHED_TASKS;
 }
 
 function saveStoredTasks(tasks) {
+  CACHED_TASKS = tasks;
   try {
     fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf8');
   } catch (err) {
@@ -139,18 +151,22 @@ function saveStoredTasks(tasks) {
 }
 
 function getStoredClicks() {
+  if (CACHED_CLICKS !== null) return CACHED_CLICKS;
   try {
     if (fs.existsSync(CLICKS_FILE)) {
       const data = fs.readFileSync(CLICKS_FILE, 'utf8');
-      return JSON.parse(data) || [];
+      CACHED_CLICKS = JSON.parse(data) || [];
+      return CACHED_CLICKS;
     }
   } catch (err) {
     console.error('Error reading clicks file:', err.message);
   }
-  return [];
+  CACHED_CLICKS = [];
+  return CACHED_CLICKS;
 }
 
 function saveStoredClicks(clicks) {
+  CACHED_CLICKS = clicks;
   try {
     fs.writeFileSync(CLICKS_FILE, JSON.stringify(clicks.slice(0, 10000), null, 2), 'utf8');
   } catch (err) {
@@ -1075,6 +1091,9 @@ async function initDb() {
       ALTER TABLE employees ADD COLUMN IF NOT EXISTS parliament_name VARCHAR(100);
       ALTER TABLE employees ADD COLUMN IF NOT EXISTS assembly_code VARCHAR(20);
       ALTER TABLE employees ADD COLUMN IF NOT EXISTS assembly_name VARCHAR(100);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS staff_id VARCHAR(100);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_personal VARCHAR(20);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_office VARCHAR(20);
 
       CREATE TABLE IF NOT EXISTS tasks (
         id VARCHAR(50) PRIMARY KEY,
@@ -1585,7 +1604,32 @@ app.get('/api/employees', async (req, res) => {
       try {
         const result = await pool.query('SELECT * FROM employees ORDER BY id ASC');
         if (result.rows.length > 0) {
-          return res.json(result.rows);
+          const mapped = result.rows.map(r => ({
+            id: r.id,
+            supportCode: r.id,
+            code: r.id,
+            name: r.name,
+            staffId: r.staff_id || '',
+            staff_id: r.staff_id || '',
+            level: r.level || (r.assembly_code ? 'Assembly' : 'Parliament'),
+            parliamentCode: r.parliament_code || 'APP13',
+            parliament_code: r.parliament_code || 'APP13',
+            parliamentName: r.parliament_name || 'Guntur',
+            parliament_name: r.parliament_name || 'Guntur',
+            assemblyCode: r.assembly_code || null,
+            assembly_code: r.assembly_code || null,
+            assemblyName: r.assembly_name || null,
+            assembly_name: r.assembly_name || null,
+            mobilePersonal: r.mobile_personal || r.mobile || '',
+            mobileOffice: r.mobile_office || '',
+            mobile: r.mobile_personal || r.mobile || '',
+            password: r.password || 'password123',
+            status: r.status || 'Active',
+            department: r.department || 'Outreach Staff'
+          }));
+          CURRENT_STAFF_LIST = mapped;
+          refreshStaffLookup(CURRENT_STAFF_LIST);
+          return res.json(mapped);
         }
       } catch (dbErr) {
         console.warn('PostgreSQL employees fetch error, using disk staff:', dbErr.message);
@@ -1632,13 +1676,22 @@ app.post('/api/employees', async (req, res) => {
       });
 
       if (idx !== -1) {
-        currentList[idx] = { ...currentList[idx], ...newItem };
+        currentList[idx] = { 
+          ...currentList[idx], 
+          ...newItem,
+          supportCode: newItem.supportCode || newItem.id || currentList[idx].supportCode,
+          staffId: newItem.staffId || currentList[idx].staffId || '',
+          mobilePersonal: newItem.mobilePersonal || newItem.mobile || currentList[idx].mobilePersonal || '',
+          mobileOffice: newItem.mobileOffice !== undefined ? newItem.mobileOffice : currentList[idx].mobileOffice || '',
+          mobile: newItem.mobilePersonal || newItem.mobile || currentList[idx].mobile || ''
+        };
         updatedCount++;
       } else {
         currentList.push({
           id: targetId || `EMP-${Date.now()}`,
           supportCode: targetId,
           name: newItem.name || 'Staff Member',
+          staffId: newItem.staffId || '',
           level: newItem.level || 'Assembly',
           parliamentCode: newItem.parliamentCode || 'APP13',
           parliamentName: newItem.parliamentName || 'Guntur',
@@ -1657,18 +1710,31 @@ app.post('/api/employees', async (req, res) => {
     });
 
     saveStaffToDisk(currentList);
+    refreshStaffLookup(currentList);
 
     // If PostgreSQL connected, sync into DB table
     if (isDbConnected) {
       for (const emp of incoming) {
         try {
-          const empId = emp.id || emp.supportCode;
+          const empId = String(emp.id || emp.supportCode || '').trim().toUpperCase();
+          if (!empId) continue;
           await pool.query(`
-            INSERT INTO employees (id, name, level, parliament_code, parliament_name, assembly_code, assembly_name, mobile, password, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO employees (
+              id, name, level, parliament_code, parliament_name, assembly_code, assembly_name,
+              mobile, mobile_personal, mobile_office, staff_id, password, status
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ON CONFLICT (id) DO UPDATE SET
               name = EXCLUDED.name,
+              level = EXCLUDED.level,
+              parliament_code = EXCLUDED.parliament_code,
+              parliament_name = EXCLUDED.parliament_name,
+              assembly_code = EXCLUDED.assembly_code,
+              assembly_name = EXCLUDED.assembly_name,
               mobile = EXCLUDED.mobile,
+              mobile_personal = EXCLUDED.mobile_personal,
+              mobile_office = EXCLUDED.mobile_office,
+              staff_id = EXCLUDED.staff_id,
               password = EXCLUDED.password,
               status = EXCLUDED.status
           `, [
@@ -1680,6 +1746,9 @@ app.post('/api/employees', async (req, res) => {
             emp.assemblyCode || null,
             emp.assemblyName || null,
             emp.mobilePersonal || emp.mobile || '9999999999',
+            emp.mobilePersonal || emp.mobile || '9999999999',
+            emp.mobileOffice || '',
+            emp.staffId || '',
             emp.password || 'password123',
             emp.status || 'Active'
           ]);
@@ -1714,8 +1783,54 @@ app.put('/api/employees/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: `Employee ${rawId} not found` });
     }
 
-    currentList[idx] = { ...currentList[idx], ...updateData };
+    currentList[idx] = { 
+      ...currentList[idx], 
+      ...updateData,
+      supportCode: updateData.supportCode || updateData.id || currentList[idx].supportCode,
+      staffId: updateData.staffId || currentList[idx].staffId || '',
+      mobilePersonal: updateData.mobilePersonal || updateData.mobile || currentList[idx].mobilePersonal || '',
+      mobileOffice: updateData.mobileOffice !== undefined ? updateData.mobileOffice : currentList[idx].mobileOffice || '',
+      mobile: updateData.mobilePersonal || updateData.mobile || currentList[idx].mobile || ''
+    };
+
     saveStaffToDisk(currentList);
+    refreshStaffLookup(currentList);
+
+    if (isDbConnected) {
+      try {
+        await pool.query(`
+          UPDATE employees 
+          SET name = COALESCE($1, name),
+              mobile = COALESCE($2, mobile),
+              mobile_personal = COALESCE($2, mobile_personal),
+              mobile_office = COALESCE($3, mobile_office),
+              staff_id = COALESCE($4, staff_id),
+              password = COALESCE($5, password),
+              status = COALESCE($6, status),
+              level = COALESCE($7, level),
+              parliament_code = COALESCE($8, parliament_code),
+              parliament_name = COALESCE($9, parliament_name),
+              assembly_code = COALESCE($10, assembly_code),
+              assembly_name = COALESCE($11, assembly_name)
+          WHERE UPPER(id) = $12
+        `, [
+          updateData.name || null,
+          updateData.mobilePersonal || updateData.mobile || null,
+          updateData.mobileOffice || null,
+          updateData.staffId || null,
+          updateData.password || null,
+          updateData.status || null,
+          updateData.level || null,
+          updateData.parliamentCode || null,
+          updateData.parliamentName || null,
+          updateData.assemblyCode || null,
+          updateData.assemblyName || null,
+          targetId
+        ]);
+      } catch (dbErr) {
+        console.warn('PostgreSQL employee update error:', dbErr.message);
+      }
+    }
 
     res.json({ success: true, employee: currentList[idx] });
   } catch (err) {
@@ -1752,8 +1867,12 @@ app.get('/api/submissions', async (req, res) => {
           ORDER BY submitted_at DESC
         `);
         if (result.rows.length > 0) {
-          const { merged } = mergeSubmissions(result.rows, list);
-          list = merged;
+          if (result.rows.length >= list.length) {
+            list = result.rows;
+          } else {
+            const { merged } = mergeSubmissions(result.rows, list);
+            list = merged;
+          }
         }
       } catch (dbErr) {
         console.warn('PostgreSQL submissions fetch error, using file storage:', dbErr.message);
