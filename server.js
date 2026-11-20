@@ -1235,6 +1235,17 @@ async function initDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE INDEX IF NOT EXISTS idx_submissions_employee ON submissions(employee_id, date);
+      CREATE INDEX IF NOT EXISTS idx_submissions_task ON submissions(task_id, status);
+      CREATE INDEX IF NOT EXISTS idx_submissions_username ON submissions(username);
+      CREATE INDEX IF NOT EXISTS idx_submissions_date ON submissions(date);
+      CREATE INDEX IF NOT EXISTS idx_submissions_parliament ON submissions(parliament_code, assembly_code);
+      CREATE INDEX IF NOT EXISTS idx_link_clicks_token ON link_clicks(token);
+      CREATE INDEX IF NOT EXISTS idx_link_clicks_task_emp ON link_clicks(task_id, employee_id);
+      CREATE INDEX IF NOT EXISTS idx_followers_status ON instagram_followers(status);
+      CREATE INDEX IF NOT EXISTS idx_events_username ON follower_events(username);
+      CREATE INDEX IF NOT EXISTS idx_employees_parliament ON employees(parliament_code, assembly_code);
     `);
 
     // Seed default admin if empty
