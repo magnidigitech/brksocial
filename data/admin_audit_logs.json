@@ -1,5 +1,29 @@
 [
   {
+    "id": "AUD_1795169630480_f1dfv",
+    "action": "DAILY_RECONCILIATION_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1795169591769_13lw3\",\"import_id\":\"IMP_1795169591769_13lw3\",\"timestamp\":\"2026-11-20T10:13:11.769Z\",\"mode\":\"RECONCILIATION\",\"totalSubmitted\":23568,\"total_submitted_records\":23568,\"validUnique\":23568,\"valid_unique_usernames\":23568,\"previousActiveFollowers\":22702,\"currentActiveFollowers\":23568,\"activeCount\":23568,\"retainedFollowers\":22671,\"retained_followers\":22671,\"newFollowers\":897,\"new_followers\":897,\"newUnfollowers\":31,\"new_unfollowers\":31,\"netChange\":866,\"invalidOrDuplicate\":0,\"submissionsUpdated\":531,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-11-20T10:13:50.481Z"
+  },
+  {
+    "id": "AUD_1795076882679_39guy",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1795076876377_we24o\",\"import_id\":\"IMP_1795076876377_we24o\",\"timestamp\":\"2026-11-19T08:27:56.377Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":22702,\"total_submitted_records\":22702,\"validUnique\":22702,\"valid_unique_usernames\":22702,\"previousActiveFollowers\":22230,\"currentActiveFollowers\":22702,\"activeCount\":22702,\"retainedFollowers\":0,\"retained_followers\":0,\"newFollowers\":0,\"new_followers\":0,\"newUnfollowers\":0,\"new_unfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":202,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-11-19T08:28:02.695Z"
+  },
+  {
+    "id": "AUD_1794992595290_18f5u",
+    "action": "INITIAL_BASELINE_IMPORT",
+    "operator": "Admin",
+    "details": "{\"id\":\"IMP_1794992592514_6kdxr\",\"import_id\":\"IMP_1794992592514_6kdxr\",\"timestamp\":\"2026-11-18T09:03:12.514Z\",\"mode\":\"BASELINE\",\"totalSubmitted\":22230,\"total_submitted_records\":22230,\"validUnique\":22230,\"valid_unique_usernames\":22230,\"previousActiveFollowers\":339,\"currentActiveFollowers\":22230,\"activeCount\":22230,\"retainedFollowers\":0,\"retained_followers\":0,\"newFollowers\":0,\"new_followers\":0,\"newUnfollowers\":0,\"new_unfollowers\":0,\"netChange\":0,\"invalidOrDuplicate\":0,\"submissionsUpdated\":371,\"status\":\"COMPLETED\",\"operator\":\"Admin\"}",
+    "result": "SUCCESS",
+    "createdAt": "2026-11-18T09:03:15.290Z"
+  },
+  {
     "id": "AUD_1793051434652_9xkv5",
     "action": "INITIAL_BASELINE_IMPORT",
     "operator": "Admin",

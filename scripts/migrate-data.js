@@ -157,14 +157,16 @@ async function importLocalData(pool) {
       console.log(`  ✓ Successfully imported ${tasks.length} tasks.`);
     }
 
-    // 3. Submissions
+    // 3. Submissions (Batch UNNEST)
     const subsFile = path.join(DATA_DIR, 'submissions.json');
     if (fs.existsSync(subsFile)) {
       const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8')) || [];
-      console.log(`Importing ${subs.length} submissions...`);
+      const validSubs = subs.filter(s => s && s.id && s.username);
+      console.log(`Importing ${validSubs.length.toLocaleString()} submissions in batches of 250...`);
+      const BATCH = 250;
       let subCount = 0;
-      for (const s of subs) {
-        if (!s.id || !s.username) continue;
+      for (let i = 0; i < validSubs.length; i += BATCH) {
+        const chunk = validSubs.slice(i, i + BATCH);
         await client.query(`
           INSERT INTO submissions (
             id, task_id, employee_id, employee_name, support_code, staff_id,
@@ -172,7 +174,14 @@ async function importLocalData(pool) {
             platform, username, raw_input, status, is_valid, is_follower,
             is_duplicate, duplicate_of, followed_at_formatted, followed_at_timestamp,
             verification_badge, verification_note, submitted_at, date, time_formatted_ist
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+          )
+          SELECT * FROM UNNEST(
+            $1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[], $5::varchar[], $6::varchar[],
+            $7::varchar[], $8::varchar[], $9::varchar[], $10::varchar[],
+            $11::varchar[], $12::varchar[], $13::text[], $14::varchar[], $15::boolean[], $16::boolean[],
+            $17::boolean[], $18::varchar[], $19::varchar[], $20::bigint[],
+            $21::varchar[], $22::text[], $23::timestamptz[], $24::date[], $25::varchar[]
+          )
           ON CONFLICT (id) DO UPDATE SET
             status = EXCLUDED.status,
             is_valid = EXCLUDED.is_valid,
@@ -180,35 +189,35 @@ async function importLocalData(pool) {
             verification_badge = EXCLUDED.verification_badge,
             verification_note = EXCLUDED.verification_note
         `, [
-          String(s.id),
-          s.taskId || 'TASK-INSTA-001',
-          s.employeeId || 'UNKNOWN',
-          s.employeeName || 'Staff Member',
-          s.supportCode || s.employeeId,
-          s.staffId || '',
-          s.parliamentCode || 'APP13',
-          s.parliamentName || 'Guntur',
-          s.assemblyCode || null,
-          s.assemblyName || null,
-          s.platform || 'Instagram',
-          String(s.username).trim().toLowerCase().replace(/^@+/, ''),
-          s.rawInput || s.username,
-          s.status || 'Valid Submission',
-          s.isValid !== undefined ? Boolean(s.isValid) : true,
-          Boolean(s.isFollower),
-          Boolean(s.isDuplicate),
-          s.duplicateOf || null,
-          s.followedAtFormatted || null,
-          s.followedAtTimestamp ? Number(s.followedAtTimestamp) : null,
-          s.verificationBadge || null,
-          s.verificationNote || null,
-          s.submittedAt || new Date().toISOString(),
-          s.date || new Date().toISOString().split('T')[0],
-          s.timeFormattedIST || ''
+          chunk.map(s => String(s.id)),
+          chunk.map(s => s.taskId || 'TASK-INSTA-001'),
+          chunk.map(s => s.employeeId || 'UNKNOWN'),
+          chunk.map(s => s.employeeName || 'Staff Member'),
+          chunk.map(s => s.supportCode || s.employeeId || ''),
+          chunk.map(s => s.staffId || ''),
+          chunk.map(s => s.parliamentCode || 'APP13'),
+          chunk.map(s => s.parliamentName || 'Guntur'),
+          chunk.map(s => s.assemblyCode || null),
+          chunk.map(s => s.assemblyName || null),
+          chunk.map(s => s.platform || 'Instagram'),
+          chunk.map(s => String(s.username).trim().toLowerCase().replace(/^@+/, '')),
+          chunk.map(s => String(s.rawInput || s.username || '')),
+          chunk.map(s => s.status || 'Valid Submission'),
+          chunk.map(s => s.isValid !== undefined ? Boolean(s.isValid) : true),
+          chunk.map(s => Boolean(s.isFollower)),
+          chunk.map(s => Boolean(s.isDuplicate)),
+          chunk.map(s => s.duplicateOf || null),
+          chunk.map(s => s.followedAtFormatted || null),
+          chunk.map(s => s.followedAtTimestamp ? Number(s.followedAtTimestamp) : null),
+          chunk.map(s => s.verificationBadge || null),
+          chunk.map(s => s.verificationNote || null),
+          chunk.map(s => s.submittedAt || new Date().toISOString()),
+          chunk.map(s => (s.date && s.date.includes('-')) ? s.date : new Date().toISOString().split('T')[0]),
+          chunk.map(s => s.timeFormattedIST || '')
         ]);
-        subCount++;
+        subCount += chunk.length;
       }
-      console.log(`  ✓ Successfully imported ${subCount} submissions.`);
+      console.log(`  ✓ Successfully imported ${subCount.toLocaleString()} submissions.`);
     }
 
     // 4. Instagram Followers (Fast chunked UNNEST batching)
@@ -289,41 +298,79 @@ async function importLocalData(pool) {
       console.log(`  ✓ Successfully imported ${imports.length} follower import records.`);
     }
 
-    // 6. Link Clicks
+    // 6. Link Clicks (Batch UNNEST)
     const clicksFile = path.join(DATA_DIR, 'link_clicks.json');
     if (fs.existsSync(clicksFile)) {
       const clicks = JSON.parse(fs.readFileSync(clicksFile, 'utf8')) || [];
-      console.log(`Importing ${clicks.length} link click analytics records...`);
-      for (const c of clicks) {
+      const validClicks = clicks.filter(c => c && c.id);
+      console.log(`Importing ${validClicks.length.toLocaleString()} link click analytics records in batches of 500...`);
+      const BATCH = 500;
+      let clickCount = 0;
+      for (let i = 0; i < validClicks.length; i += BATCH) {
+        const chunk = validClicks.slice(i, i + BATCH);
         await client.query(`
           INSERT INTO link_clicks (
             id, token, task_id, employee_id, parliament_code, assembly_code,
             ip_address, user_agent, referrer, device_type, is_bot, bot_name,
             is_duplicate, is_valid, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          )
+          SELECT * FROM UNNEST(
+            $1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[], $5::varchar[], $6::varchar[],
+            $7::varchar[], $8::text[], $9::text[], $10::varchar[], $11::boolean[], $12::varchar[],
+            $13::boolean[], $14::boolean[], $15::timestamptz[]
+          )
           ON CONFLICT (id) DO NOTHING
         `, [
-          c.id,
-          c.token,
-          c.taskId || 'TASK-INSTA-001',
-          c.employeeId || 'UNKNOWN',
-          c.parliamentCode || '',
-          c.assemblyCode || '',
-          c.ip || c.ip_address || '127.0.0.1',
-          c.userAgent || c.user_agent || '',
-          c.referrer || '',
-          c.deviceType || c.device_type || 'Mobile',
-          Boolean(c.isBot),
-          c.botName || null,
-          Boolean(c.isDuplicate),
-          c.isValid !== undefined ? Boolean(c.isValid) : true,
-          c.timestamp || c.created_at || new Date().toISOString()
+          chunk.map(c => String(c.id)),
+          chunk.map(c => c.token || ''),
+          chunk.map(c => c.taskId || 'TASK-INSTA-001'),
+          chunk.map(c => c.employeeId || 'UNKNOWN'),
+          chunk.map(c => c.parliamentCode || ''),
+          chunk.map(c => c.assemblyCode || ''),
+          chunk.map(c => c.ip || c.ip_address || '127.0.0.1'),
+          chunk.map(c => c.userAgent || c.user_agent || ''),
+          chunk.map(c => c.referrer || ''),
+          chunk.map(c => c.deviceType || c.device_type || 'Mobile'),
+          chunk.map(c => Boolean(c.isBot)),
+          chunk.map(c => c.botName || null),
+          chunk.map(c => Boolean(c.isDuplicate)),
+          chunk.map(c => c.isValid !== undefined ? Boolean(c.isValid) : true),
+          chunk.map(c => c.timestamp || c.created_at || new Date().toISOString())
         ]);
+        clickCount += chunk.length;
       }
-      console.log(`  ✓ Successfully imported ${clicks.length} link clicks.`);
+      console.log(`  ✓ Successfully imported ${clickCount.toLocaleString()} link clicks.`);
     }
 
-    // 7. Admin Audit Logs
+    // 7. Follower Events
+    const eventsFile = path.join(DATA_DIR, 'follower_events.json');
+    if (fs.existsSync(eventsFile)) {
+      const events = JSON.parse(fs.readFileSync(eventsFile, 'utf8')) || [];
+      console.log(`Importing ${events.length} follower events in batches of 500...`);
+      const BATCH = 500;
+      let evtCount = 0;
+      for (let i = 0; i < events.length; i += BATCH) {
+        const chunk = events.slice(i, i + BATCH);
+        await client.query(`
+          INSERT INTO follower_events (id, username, event_type, import_id, event_time, notes)
+          SELECT * FROM UNNEST(
+            $1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[], $5::timestamptz[], $6::text[]
+          )
+          ON CONFLICT (id) DO NOTHING
+        `, [
+          chunk.map(e => e.id || `EVT_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`),
+          chunk.map(e => (e.username || '').toLowerCase().replace(/^@+/, '').trim()),
+          chunk.map(e => e.eventType || 'FOLLOW'),
+          chunk.map(e => e.importId || null),
+          chunk.map(e => e.eventTime || new Date().toISOString()),
+          chunk.map(e => e.notes || null)
+        ]);
+        evtCount += chunk.length;
+      }
+      console.log(`  ✓ Successfully imported ${evtCount} follower events.`);
+    }
+
+    // 8. Admin Audit Logs
     const auditFile = path.join(DATA_DIR, 'admin_audit_logs.json');
     if (fs.existsSync(auditFile)) {
       const logs = JSON.parse(fs.readFileSync(auditFile, 'utf8')) || [];

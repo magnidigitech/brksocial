@@ -20,5 +20,8 @@ dist-ssr/
 # Runtime local data
 data/webauthn_credentials.json
 image*.png
+vps_data.tar.gz
+vps_extracted/
 
 
+.neon

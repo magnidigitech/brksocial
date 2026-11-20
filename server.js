@@ -1071,6 +1071,11 @@ async function initDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS level VARCHAR(50);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS parliament_name VARCHAR(100);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS assembly_code VARCHAR(20);
+      ALTER TABLE employees ADD COLUMN IF NOT EXISTS assembly_name VARCHAR(100);
+
       CREATE TABLE IF NOT EXISTS tasks (
         id VARCHAR(50) PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
