@@ -167,8 +167,9 @@ export function AdminMetricsDashboardView() {
     window.addEventListener('focus', fetchLiveData);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Live sync polling every 20 seconds (reduced from 2.5s to prevent server CPU saturation)
+    // Live sync polling every 20 seconds only when tab is active
     const interval = setInterval(() => {
+      if (document.hidden) return;
       Promise.allSettled([
         dbService.syncClicksWithServer(),
         dbService.syncSubmissionsWithServer()

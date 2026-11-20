@@ -1663,26 +1663,19 @@ export const dbService = {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
     }
     try {
-      const localSubs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
-      const res = await fetch('/api/submissions/sync?_t=' + Date.now(), {
-        method: 'POST',
+      const res = await fetch('/api/submissions?_t=' + Date.now(), {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
-        },
-        body: JSON.stringify({ localSubmissions: localSubs })
+        }
       });
 
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
-          const data = await res.json();
-          const serverSubs = Array.isArray(data.submissions) 
-            ? data.submissions 
-            : (Array.isArray(data) ? data : null);
-
-          if (serverSubs) {
+          const serverSubs = await res.json();
+          if (Array.isArray(serverSubs)) {
             // SAFE UNION: Never lose any submission existing in client's localStorage
             const freshLocal = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
             const serverIdMap = new Map();
@@ -1690,7 +1683,7 @@ export const dbService = {
               if (s && s.id) serverIdMap.set(String(s.id), s);
             });
 
-            // Keep any local submissions that haven't appeared in the server response yet
+            // Keep any local submissions created offline that haven't appeared on server
             const unmergedLocal = freshLocal.filter(s => s && s.id && !serverIdMap.has(String(s.id)));
             const fullMerged = [...serverSubs, ...unmergedLocal];
             fullMerged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
@@ -1701,6 +1694,14 @@ export const dbService = {
               localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, serverStr);
               broadcastSyncEvent('brk_submission_event', { submissions: fullMerged });
             }
+
+            // If there are unmerged local submissions, sync only the pending items
+            if (unmergedLocal.length > 0 && unmergedLocal.length < 50) {
+              for (const pending of unmergedLocal) {
+                this.sendSubmissionToServer(pending).catch(() => {});
+              }
+            }
+
             return fullMerged;
           }
         }

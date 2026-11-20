@@ -89,6 +89,7 @@ export function LinkAnalyticsView() {
     document.addEventListener('visibilitychange', handleVisibility);
 
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchLiveClicks();
     }, 20000);
 

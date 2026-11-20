@@ -259,7 +259,10 @@ export function EmployeePortal({ session, onLogout }) {
     document.addEventListener('visibilitychange', triggerSync);
 
     // Optimized background polling: syncs every 45s (plus instant sync on submit/focus) to prevent server CPU spikes
-    const interval = setInterval(triggerSync, 45000);
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      triggerSync();
+    }, 45000);
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleLiveRefresh);
