@@ -1450,49 +1450,52 @@ function normalizeSubmissionRecord(input) {
   };
 }
 
-// Bi-directional Submissions Merger
+// Bi-directional Submissions Merger (High-Performance O(1) indexed lookups)
 function mergeSubmissions(serverList, clientList) {
   const map = new Map();
+  const taskEmpUserMap = new Map();
+  const taskUserMap = new Map();
+
   // 1. Existing server submissions are baseline
   (serverList || []).forEach(s => {
     if (s && s.id) {
       map.set(String(s.id), s);
+      if (s.taskId && s.username) {
+        const u = String(s.username).toLowerCase();
+        if (s.employeeId) taskEmpUserMap.set(`${s.taskId}_${s.employeeId}_${u}`, s);
+        if (!taskUserMap.has(`${s.taskId}_${u}`)) taskUserMap.set(`${s.taskId}_${u}`, s);
+      }
     }
   });
 
   let addedCount = 0;
   let updatedCount = 0;
+  const changedItems = [];
 
-  // 2. Incorporate client submissions
+  // 2. Incorporate client submissions with O(1) Map lookups
   (clientList || []).forEach(raw => {
     const norm = normalizeSubmissionRecord(raw);
     if (!norm || !norm.username) return;
+    const u = String(norm.username).toLowerCase();
 
     if (!map.has(norm.id)) {
-      // Check if this exact employee already submitted this handle on the server
-      const existingSameEmpSub = Array.from(map.values()).find(s => 
-        s.taskId === norm.taskId &&
-        s.employeeId === norm.employeeId &&
-        String(s.username).toLowerCase() === norm.username.toLowerCase()
-      );
+      const sameEmpKey = `${norm.taskId}_${norm.employeeId}_${u}`;
+      const existingSameEmpSub = taskEmpUserMap.get(sameEmpKey);
 
       if (existingSameEmpSub) {
-        // Same employee, update status if client has newer verification
         if (existingSameEmpSub.status === 'Pending Submission' && (norm.status === 'Valid Submission' || norm.status === 'Already Followed')) {
-          map.set(existingSameEmpSub.id, { ...existingSameEmpSub, ...norm, id: existingSameEmpSub.id });
+          const updated = { ...existingSameEmpSub, ...norm, id: existingSameEmpSub.id };
+          map.set(existingSameEmpSub.id, updated);
+          changedItems.push(updated);
           updatedCount++;
         }
         return;
       }
 
-      // Check if another staff member already submitted this handle (cross-staff duplicate)
-      const existingOtherSub = Array.from(map.values()).find(s => 
-        s.taskId === norm.taskId &&
-        String(s.username).toLowerCase() === norm.username.toLowerCase()
-      );
+      const otherSubKey = `${norm.taskId}_${u}`;
+      const existingOtherSub = taskUserMap.get(otherSubKey);
 
       if (existingOtherSub) {
-        // Tag as duplicate submission, but KEEP the record so staff entry is never lost!
         norm.isDuplicate = true;
         norm.duplicateOf = existingOtherSub.id;
         if (!norm.verificationBadge || norm.status === 'Valid Submission') {
@@ -1504,12 +1507,16 @@ function mergeSubmissions(serverList, clientList) {
       }
 
       map.set(norm.id, norm);
+      taskEmpUserMap.set(sameEmpKey, norm);
+      if (!taskUserMap.has(otherSubKey)) taskUserMap.set(otherSubKey, norm);
+      changedItems.push(norm);
       addedCount++;
     } else {
       const existing = map.get(norm.id);
-      // If server was pending and client has updated verification
       if (existing.status === 'Pending Submission' && (norm.status === 'Valid Submission' || norm.status === 'Already Followed')) {
-        map.set(norm.id, { ...existing, ...norm });
+        const updated = { ...existing, ...norm };
+        map.set(norm.id, updated);
+        changedItems.push(updated);
         updatedCount++;
       }
     }
@@ -1517,7 +1524,7 @@ function mergeSubmissions(serverList, clientList) {
 
   const merged = Array.from(map.values());
   merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-  return { merged, addedCount, updatedCount };
+  return { merged, addedCount, updatedCount, changedItems };
 }
 
 // GET All Tasks
@@ -2007,15 +2014,14 @@ app.post('/api/submissions/sync', async (req, res) => {
       : (Array.isArray(body) ? body : []);
 
     const serverSubs = getStoredSubmissions();
-    const { merged, addedCount, updatedCount } = mergeSubmissions(serverSubs, localSubs);
+    const { merged, addedCount, updatedCount, changedItems } = mergeSubmissions(serverSubs, localSubs);
 
     if (addedCount > 0 || updatedCount > 0) {
       saveStoredSubmissions(merged);
 
-      if (isDbConnected) {
-        for (const sub of localSubs) {
-          const norm = normalizeSubmissionRecord(sub);
-          if (!norm) continue;
+      if (isDbConnected && Array.isArray(changedItems) && changedItems.length > 0) {
+        // ONLY insert/update the specific records that actually changed (avoiding 2,000 redundant queries)
+        for (const norm of changedItems.slice(0, 50)) {
           try {
             await pool.query(
               `INSERT INTO submissions (
