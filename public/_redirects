@@ -1,0 +1,6 @@
+/api/*  https://social.bhashyamramakrishna.in/api/:splat  200
+/go/*  https://social.bhashyamramakrishna.in/go/:splat  200
+/instagram/*  https://social.bhashyamramakrishna.in/instagram/:splat  200
+/whatsapp/*  https://social.bhashyamramakrishna.in/whatsapp/:splat  200
+/track/*  https://social.bhashyamramakrishna.in/track/:splat  200
+/*  /index.html  200

@@ -1030,7 +1030,14 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL?.includes('sslmode=require') || process.env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
-    : false
+    : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected idle PostgreSQL client error (prevented crash):', err.message);
 });
 
 let isDbConnected = false;
@@ -2121,6 +2128,9 @@ async function recordClickEvent({ token, userAgent, referrer, clientIp, forcedEm
   // Save to persistent JSON store
   stored.unshift(clickRecord);
   saveStoredClicks(stored);
+  if (typeof invalidateAnalyticsCache === 'function') {
+    invalidateAnalyticsCache();
+  }
 
   // Also save to PostgreSQL if connected
   if (isDbConnected) {
@@ -2225,8 +2235,37 @@ app.post('/api/links/click', async (req, res) => {
   }
 });
 
+// In-memory cache for live link analytics (TTL: 15s to prevent database overload with 200+ users)
+let cachedAnalyticsData = null;
+let cachedAnalyticsTime = 0;
+const ANALYTICS_CACHE_TTL_MS = 15000;
+
+function invalidateAnalyticsCache() {
+  cachedAnalyticsData = null;
+  cachedAnalyticsTime = 0;
+}
+
+// In-memory cache for follower & reconciliation stats (TTL: 15s)
+let cachedFollowerStats = null;
+let cachedFollowerStatsTime = 0;
+let cachedReconciliationStats = null;
+let cachedReconciliationStatsTime = 0;
+const STATS_CACHE_TTL_MS = 15000;
+
+function invalidateStatsCache() {
+  cachedFollowerStats = null;
+  cachedFollowerStatsTime = 0;
+  cachedReconciliationStats = null;
+  cachedReconciliationStatsTime = 0;
+}
+
 // API: Query Live Link Clicks & Analytics
 async function handleAnalytics(req, res) {
+  const now = Date.now();
+  if (cachedAnalyticsData && (now - cachedAnalyticsTime) < ANALYTICS_CACHE_TTL_MS) {
+    return res.json(cachedAnalyticsData);
+  }
+
   try {
     let clicks = [];
     if (isDbConnected) {
@@ -2265,12 +2304,17 @@ async function handleAnalytics(req, res) {
       clicks = getStoredClicks();
     }
 
-    return res.json({
+    const payload = {
       success: true,
       clicks,
       total: clicks.length,
       valid: clicks.filter(c => c.isValid).length
-    });
+    };
+
+    cachedAnalyticsData = payload;
+    cachedAnalyticsTime = Date.now();
+
+    return res.json(payload);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2283,12 +2327,13 @@ app.get('/api/links/clicks', handleAnalytics);
 // Instagram Followers Verification & Management APIs
 // ==========================================
 
-// ==========================================
-// Instagram Followers Verification & Management APIs
-// ==========================================
-
 // Get follower stats & count (active only by default for accurate counts)
 app.get('/api/instagram/followers/stats', (req, res) => {
+  const now = Date.now();
+  if (cachedFollowerStats && (now - cachedFollowerStatsTime) < STATS_CACHE_TTL_MS) {
+    return res.json(cachedFollowerStats);
+  }
+
   try {
     const list = Array.from(FOLLOWERS_MAP.values());
     const activeList = list.filter(f => f.status === 'active' || !f.status);
@@ -2301,7 +2346,7 @@ app.get('/api/instagram/followers/stats', (req, res) => {
     const imports = getStoredImports();
     const latestImport = imports.length > 0 ? imports[0] : null;
 
-    res.json({
+    const payload = {
       success: true,
       total: activeList.length,
       activeCount: activeList.length,
@@ -2314,7 +2359,12 @@ app.get('/api/instagram/followers/stats', (req, res) => {
       } : null,
       latestImport,
       lastUpdated: fs.existsSync(FOLLOWERS_FILE) ? fs.statSync(FOLLOWERS_FILE).mtime : new Date().toISOString()
-    });
+    };
+
+    cachedFollowerStats = payload;
+    cachedFollowerStatsTime = Date.now();
+
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2322,6 +2372,11 @@ app.get('/api/instagram/followers/stats', (req, res) => {
 
 // Comprehensive Reconciliation & Audit Statistics
 app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
+  const now = Date.now();
+  if (cachedReconciliationStats && (now - cachedReconciliationStatsTime) < STATS_CACHE_TTL_MS) {
+    return res.json(cachedReconciliationStats);
+  }
+
   try {
     const list = Array.from(FOLLOWERS_MAP.values());
     const activeFollowers = list.filter(f => f.status === 'active' || !f.status);
@@ -2362,11 +2417,16 @@ app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
       baselineEstablished: imports.some(imp => imp.mode === 'BASELINE') || list.length > 0
     };
 
-    res.json({
+    const payload = {
       success: true,
       stats: statsObj,
       ...statsObj
-    });
+    };
+
+    cachedReconciliationStats = payload;
+    cachedReconciliationStatsTime = Date.now();
+
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2739,6 +2799,10 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(` BRK Social Express Backend Server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(` BRK Social Express Backend Server running on http://0.0.0.0:${PORT}`);
 });
+
+// Keep-alive timeouts configured to prevent 502 Bad Gateway behind reverse proxies (Traefik, Nginx, ALB)
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;

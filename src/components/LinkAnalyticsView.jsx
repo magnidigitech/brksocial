@@ -90,7 +90,7 @@ export function LinkAnalyticsView() {
 
     const interval = setInterval(() => {
       fetchLiveClicks();
-    }, 2500);
+    }, 20000);
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleUpdate);

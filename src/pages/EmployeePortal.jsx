@@ -243,18 +243,23 @@ export function EmployeePortal({ session, onLogout }) {
     // Immediate sync on load
     triggerSync();
 
+    const handleSubmissionEvent = () => {
+      triggerSync();
+    };
+
     window.addEventListener('brk_link_click_event', handleLiveRefresh);
     window.addEventListener('storage', handleLiveRefresh);
-    window.addEventListener('brk_submission_event', handleLiveRefresh);
+    window.addEventListener('brk_submission_event', handleSubmissionEvent);
     window.addEventListener('focus', triggerSync);
     document.addEventListener('visibilitychange', triggerSync);
 
-    const interval = setInterval(triggerSync, 2000);
+    // Optimized background polling: syncs every 45s (plus instant sync on submit/focus) to prevent server CPU spikes
+    const interval = setInterval(triggerSync, 45000);
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleLiveRefresh);
       window.removeEventListener('storage', handleLiveRefresh);
-      window.removeEventListener('brk_submission_event', handleLiveRefresh);
+      window.removeEventListener('brk_submission_event', handleSubmissionEvent);
       window.removeEventListener('focus', triggerSync);
       document.removeEventListener('visibilitychange', triggerSync);
       clearInterval(interval);

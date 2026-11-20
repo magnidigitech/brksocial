@@ -167,7 +167,7 @@ export function AdminMetricsDashboardView() {
     window.addEventListener('focus', fetchLiveData);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Live sync polling every 2.5 seconds: pulls server clicks & submissions & refreshes UI
+    // Live sync polling every 20 seconds (reduced from 2.5s to prevent server CPU saturation)
     const interval = setInterval(() => {
       Promise.allSettled([
         dbService.syncClicksWithServer(),
@@ -175,7 +175,7 @@ export function AdminMetricsDashboardView() {
       ]).then(() => {
         setRefreshTrigger(prev => prev + 1);
       }).catch(() => {});
-    }, 2500);
+    }, 20000);
 
     return () => {
       window.removeEventListener('brk_submission_event', handleUpdate);
