@@ -31,7 +31,7 @@ export async function onRequest(context) {
     });
   }
 
-  const backendHost = context.env.BACKEND_URL || 'https://social.bhashyamramakrishna.in';
+  const backendHost = context.env.BACKEND_URL || 'https://api.bhashyamramakrishna.in';
   const targetUrl = new URL(url.pathname + url.search, backendHost);
 
   const requestHeaders = new Headers(context.request.headers);
