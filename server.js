@@ -329,7 +329,60 @@ function logAuditAction(action, operator, details, result = 'SUCCESS') {
 // Instagram Followers Canonical In-Memory Map
 // ==========================================
 let FOLLOWERS_MAP = new Map();
+let FOLLOWERS_PUNCTUATION_MAP = new Map();
 let isReconciliationLocked = false;
+
+function rebuildFollowersPunctuationMap() {
+  FOLLOWERS_PUNCTUATION_MAP.clear();
+  for (const f of FOLLOWERS_MAP.values()) {
+    const rawKey = (f.key || f.username || '').toLowerCase();
+    const stripped = rawKey.replace(/[^a-z0-9]/g, '');
+    if (stripped.length >= 4) {
+      if (!FOLLOWERS_PUNCTUATION_MAP.has(stripped)) {
+        FOLLOWERS_PUNCTUATION_MAP.set(stripped, []);
+      }
+      FOLLOWERS_PUNCTUATION_MAP.get(stripped).push(f);
+    }
+  }
+}
+
+/**
+ * Robust Instagram follower resolution helper:
+ * 1. Direct lowercase lookup
+ * 2. Full URL extraction & query parameters/hash stripping
+ * 3. Smart punctuation-insensitive matching (dots vs underscores)
+ */
+function resolveFollower(inputUsername) {
+  if (!inputUsername) return null;
+  const raw = String(inputUsername).trim();
+  if (!raw) return null;
+
+  // 1. Direct lowercase without leading @
+  const directClean = raw.toLowerCase().replace(/^@+/, '');
+  if (FOLLOWERS_MAP.has(directClean)) {
+    return FOLLOWERS_MAP.get(directClean);
+  }
+
+  // 2. Extract from full Instagram URL & strip query parameters / hashes / trailing slashes
+  const urlMatch = raw.match(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i);
+  let extracted = urlMatch && urlMatch[1] ? urlMatch[1] : directClean;
+  extracted = extracted.replace(/^@+/, '').split('?')[0].split('#')[0].split('/')[0].trim().toLowerCase();
+
+  if (extracted && FOLLOWERS_MAP.has(extracted)) {
+    return FOLLOWERS_MAP.get(extracted);
+  }
+
+  // 3. Punctuation-insensitive match (e.g. triveni_uppalapati vs triveni.uppalapati)
+  if (extracted && extracted.length >= 4 && FOLLOWERS_PUNCTUATION_MAP && FOLLOWERS_PUNCTUATION_MAP.size > 0) {
+    const stripped = extracted.replace(/[^a-z0-9]/g, '');
+    const candidates = FOLLOWERS_PUNCTUATION_MAP.get(stripped);
+    if (candidates && candidates.length === 1) {
+      return candidates[0];
+    }
+  }
+
+  return null;
+}
 
 function formatFollowerTimestamp(ts) {
   if (!ts) return '';
@@ -374,6 +427,7 @@ function loadFollowersFromDisk() {
             FOLLOWERS_MAP.set(k, f);
           }
         });
+        rebuildFollowersPunctuationMap();
         console.log(`Loaded ${FOLLOWERS_MAP.size} Instagram followers from disk into memory.`);
         return;
       }
@@ -434,15 +488,9 @@ function reconcilePendingSubmissionsWithDb(submissions) {
 
   for (const sub of submissions) {
     if (!sub.username) continue;
-    const clean = String(sub.username).trim().toLowerCase().replace(/^@+/, '');
     const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : 0;
 
-    // If submitted AFTER the latest import, it stays in Pending Submission (awaiting next sync)!
-    if (subTime && subTime > latestImportTime) {
-      continue;
-    }
-
-    const follower = FOLLOWERS_MAP.get(clean);
+    const follower = resolveFollower(sub.username);
     if (follower && follower.status !== 'unfollowed') {
       if (sub.status !== 'Valid Submission' || !sub.isValid) {
         sub.status = 'Valid Submission';
@@ -450,10 +498,17 @@ function reconcilePendingSubmissionsWithDb(submissions) {
         sub.isFollower = true;
         sub.verificationBadge = '✓ Follower Verified';
         sub.verificationNote = `Verified genuine follower`;
+        if (follower.username && sub.username !== follower.username) {
+          sub.normalizedUsername = follower.username;
+        }
         changed = true;
       }
     } else if (!follower) {
-      if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
+      // If submitted AFTER the latest import, it stays in Pending Submission (awaiting next sync)!
+      if (subTime && subTime > latestImportTime) {
+        continue;
+      }
+      if (sub.status === 'Pending Submission' || sub.status === 'pending_verification' || sub.status === 'Handle Not Found' || sub.status === 'not_found') {
         sub.status = 'Not Following';
         sub.isValid = false;
         sub.isFollower = false;
@@ -683,6 +738,8 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
       }
     }
 
+    rebuildFollowersPunctuationMap();
+
     // 4. Reconcile Linked Employee Submissions
     const submissions = getStoredSubmissions();
     let submissionsUpdatedCount = 0;
@@ -693,7 +750,11 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
 
     for (const sub of submissions) {
       if (!sub.username) continue;
-      const cleanSub = String(sub.username).trim().toLowerCase().replace(/^@+/, '');
+      const follower = resolveFollower(sub.username);
+      const cleanSub = follower ? (follower.key || follower.username).toLowerCase() : String(sub.username).trim().toLowerCase().replace(/^@+/, '');
+      if (follower && follower.username && sub.username !== follower.username) {
+        sub.normalizedUsername = follower.username;
+      }
 
       if (mode === 'BASELINE') {
         if (incomingSet.has(cleanSub)) {
@@ -748,7 +809,7 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
           }
         } else if (!incomingSet.has(cleanSub)) {
           // Not found in this follower snapshot
-          if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
+          if (sub.status === 'Pending Submission' || sub.status === 'pending_verification' || sub.status === 'Handle Not Found' || sub.status === 'not_found') {
             sub.status = 'Not Following';
             sub.isValid = false;
             sub.isFollower = false;
@@ -1009,6 +1070,8 @@ function upsertFollowersData(incomingData, mode = 'RECONCILIATION', operator = '
     }
     FOLLOWERS_MAP.set(norm.key, record);
   }
+
+  rebuildFollowersPunctuationMap();
 
   try {
     const list = Array.from(FOLLOWERS_MAP.values());
@@ -2312,11 +2375,14 @@ app.post('/api/submissions/revalidate', (req, res) => {
 
     for (let i = 0; i < list.length; i++) {
       const sub = list[i];
-      const clean = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
-      const follower = FOLLOWERS_MAP.get(clean);
+      const follower = resolveFollower(sub.username);
+      const clean = (sub.normalizedUsername || follower?.username || String(sub.username || '').trim().toLowerCase().replace(/^@+/, '')).replace(/[^a-z0-9]/g, '');
 
       // Check duplicates against earlier submissions
-      const prior = list.slice(i + 1).find(p => String(p.username || '').trim().toLowerCase().replace(/^@+/, '') === clean);
+      const prior = list.slice(i + 1).find(p => {
+        const pClean = (p.normalizedUsername || String(p.username || '').trim().toLowerCase().replace(/^@+/, '')).replace(/[^a-z0-9]/g, '');
+        return pClean === clean;
+      });
       if (prior) {
         if (sub.status !== 'Already Followed' || !sub.isDuplicate) {
           sub.status = 'Already Followed';
@@ -2359,26 +2425,13 @@ app.post('/api/submissions/revalidate', (req, res) => {
       const followTime = Number(follower.timestamp) * 1000;
       const formattedDate = follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp);
 
-      if (followTime < (subTime - WINDOW_MS)) {
-        if (sub.status !== 'Already Followed') {
-          sub.status = 'Already Followed';
+      if (follower.status === 'unfollowed') {
+        if (sub.status !== 'unfollowed') {
+          sub.status = 'unfollowed';
           sub.isValid = false;
-          sub.isFollower = true;
-          sub.followedAtFormatted = formattedDate;
-          sub.followedAtTimestamp = follower.timestamp;
-          sub.verificationBadge = `✓ Existing Follower: ${formattedDate}`;
-          sub.verificationNote = 'Followed prior to campaign window';
-          updatedCount++;
-        }
-      } else if (followTime > (subTime + WINDOW_MS)) {
-        if (sub.status !== 'Invalid Submission') {
-          sub.status = 'Invalid Submission';
-          sub.isValid = false;
-          sub.isFollower = true;
-          sub.followedAtFormatted = formattedDate;
-          sub.followedAtTimestamp = follower.timestamp;
-          sub.verificationBadge = `Outside 24h Window: ${formattedDate}`;
-          sub.verificationNote = 'Followed after 24h window expired';
+          sub.isFollower = false;
+          sub.verificationBadge = '⚠️ Unfollowed Account';
+          sub.verificationNote = 'Follower unfollowed official account';
           updatedCount++;
         }
       } else {
@@ -2388,8 +2441,11 @@ app.post('/api/submissions/revalidate', (req, res) => {
           sub.isFollower = true;
           sub.followedAtFormatted = formattedDate;
           sub.followedAtTimestamp = follower.timestamp;
-          sub.verificationBadge = `✓ Followed: ${formattedDate}`;
-          sub.verificationNote = 'Verified genuine new follower';
+          sub.verificationBadge = '✓ Follower Verified';
+          sub.verificationNote = 'Verified genuine follower';
+          if (follower.username && sub.username !== follower.username) {
+            sub.normalizedUsername = follower.username;
+          }
           updatedCount++;
         }
       }
@@ -2960,7 +3016,7 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
   try {
     const raw = req.params.username || '';
     const clean = raw.trim().toLowerCase().replace(/^@+/, '');
-    const follower = FOLLOWERS_MAP.get(clean);
+    const follower = resolveFollower(raw);
 
     if (follower) {
       const isActive = follower.status === 'active' || !follower.status;
@@ -3022,8 +3078,8 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
     const dbSyncTime = Math.max(maxFollowerTime, fileMtime);
 
     const results = submissions.map(sub => {
-      const clean = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
-      const follower = FOLLOWERS_MAP.get(clean);
+      const follower = resolveFollower(sub.username || sub);
+      const clean = (follower?.username || String(sub.username || sub || '')).trim().toLowerCase().replace(/^@+/, '');
       const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
 
       if (!follower) {
