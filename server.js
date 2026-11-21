@@ -3056,7 +3056,6 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
         isUnfollowed: !isActive,
         status: follower.status || 'active',
         isPreExisting,
-        isInsideWindow,
         follower: {
           username: follower.username,
           href: follower.href,
@@ -3186,7 +3185,13 @@ app.post('/api/instagram/followers/upsert', async (req, res) => {
 // Search & Paginate Followers (supports ?status=active|unfollowed|all)
 app.get('/api/instagram/followers', (req, res) => {
   try {
-    const search = (req.query.search || '').trim().toLowerCase().replace(/^@+/, '');
+    let search = (req.query.search || '').trim().toLowerCase();
+    const urlMatch = search.match(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i);
+    if (urlMatch && urlMatch[1]) {
+      search = urlMatch[1].toLowerCase();
+    }
+    search = search.replace(/^@+/, '').trim();
+
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const statusFilter = (req.query.status || 'active').toLowerCase();
@@ -3199,7 +3204,7 @@ app.get('/api/instagram/followers', (req, res) => {
     }
 
     if (search) {
-      list = list.filter(f => f.key.includes(search) || f.username.toLowerCase().includes(search));
+      list = list.filter(f => (f.key && f.key.includes(search)) || (f.username && f.username.toLowerCase().includes(search)));
     }
 
     // Sort by timestamp descending (newest followers first)

@@ -98,10 +98,13 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
 
-  // Single Profile Checker
+  // Single Profile Checker & Real-Time AJAX Search
   const [checkInput, setCheckInput] = useState('');
   const [checkResult, setCheckResult] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [liveSuggestions, setLiveSuggestions] = useState([]);
+  const [isLiveSearching, setIsLiveSearching] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   // Visual Progress Import Modal State
   const fileInputRef = useRef(null);
@@ -272,14 +275,152 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
     fetchUnfollowed(1, unfollowedSearch);
   };
 
-  const handleProfileCheck = async (e) => {
+  // Helper to extract clean Instagram handle from handle string or profile URL
+  const extractCleanHandle = (input) => {
+    if (!input) return '';
+    let val = String(input).trim().toLowerCase();
+    const urlMatch = val.match(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i);
+    if (urlMatch && urlMatch[1]) {
+      val = urlMatch[1].toLowerCase();
+    }
+    return val.replace(/^@+/, '').trim();
+  };
+
+  // Real-time AJAX debounced search on typing (minimum 3 characters)
+  useEffect(() => {
+    const clean = extractCleanHandle(checkInput);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!clean || clean.length < 3) {
+      setLiveSuggestions([]);
+      setIsLiveSearching(false);
+      return;
+    }
+
+    setIsLiveSearching(true);
+
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const dbMatches = await followerStorage.searchProfiles(clean, 12).catch(() => []);
+
+        // Find matches in staff submissions
+        const subMatches = submissions.filter(s => {
+          const u = extractCleanHandle(s.username);
+          return u && u.includes(clean);
+        });
+
+        // Merge results into unified map by handle
+        const resultMap = new Map();
+
+        // 1. Add DB followers
+        (dbMatches || []).forEach(f => {
+          const k = (f.key || f.username || '').toLowerCase();
+          const sub = staffByUsername.get(k);
+          resultMap.set(k, {
+            key: k,
+            username: f.username || k,
+            href: f.href || `https://www.instagram.com/${f.username || k}`,
+            status: f.status || 'active',
+            timestamp: f.timestamp || 0,
+            followedAtFormatted: f.followedAtFormatted || '',
+            isFollower: f.status === 'active' || !f.status,
+            matchedSubmission: sub || null,
+            source: 'db'
+          });
+        });
+
+        // 2. Add/merge Staff Submissions
+        subMatches.forEach(s => {
+          const k = extractCleanHandle(s.username);
+          if (!k) return;
+          if (resultMap.has(k)) {
+            const existing = resultMap.get(k);
+            if (!existing.matchedSubmission) {
+              existing.matchedSubmission = s;
+            }
+          } else {
+            const isUnfollowed = s.status === 'Unfollowed' || s.status === 'unfollowed';
+            resultMap.set(k, {
+              key: k,
+              username: s.username.replace(/^@+/, ''),
+              href: `https://www.instagram.com/${k}`,
+              status: isUnfollowed ? 'unfollowed' : (s.status === 'Valid Submission' || s.status === 'Valid' ? 'active' : (s.status || 'not_following')),
+              timestamp: s.createdAt ? new Date(s.createdAt).getTime() / 1000 : 0,
+              followedAtFormatted: s.date || 'Staff Submitted',
+              isFollower: !isUnfollowed && (s.status === 'Valid Submission' || s.status === 'Valid'),
+              matchedSubmission: s,
+              source: 'submission'
+            });
+          }
+        });
+
+        const merged = Array.from(resultMap.values());
+        setLiveSuggestions(merged);
+
+        // Auto-populate exact match inspector card if exact handle matches
+        const exact = merged.find(m => m.key === clean);
+        if (exact) {
+          setCheckResult({
+            exists: exact.isFollower || exact.status === 'unfollowed',
+            isFollower: exact.isFollower,
+            status: exact.status,
+            searchedHandle: exact.username,
+            followedAtFormatted: exact.followedAtFormatted,
+            href: exact.href,
+            matchedSubmission: exact.matchedSubmission
+          });
+        }
+      } catch (err) {
+        console.warn('[ProfileInspector] Live search error:', err);
+      } finally {
+        setIsLiveSearching(false);
+      }
+    }, 280);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [checkInput, submissions, staffByUsername]);
+
+  const handleSelectSuggestion = async (item) => {
+    setCheckInput(item.username);
+    setIsChecking(true);
+    try {
+      const result = await followerStorage.checkFollower(item.username);
+      const sub = item.matchedSubmission || staffByUsername.get(item.key);
+      setCheckResult({
+        ...result,
+        searchedHandle: item.username,
+        matchedSubmission: sub || null
+      });
+    } catch (_) {
+      setCheckResult({
+        exists: item.isFollower,
+        isFollower: item.isFollower,
+        status: item.status,
+        searchedHandle: item.username,
+        followedAtFormatted: item.followedAtFormatted,
+        matchedSubmission: item.matchedSubmission || null
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleProfileCheck = async (e, overrideHandle) => {
     if (e) e.preventDefault();
-    if (!checkInput.trim()) return;
+    const target = overrideHandle || checkInput;
+    if (!target || !target.trim()) return;
 
     setIsChecking(true);
     setCheckResult(null);
 
-    const clean = checkInput.trim().toLowerCase().replace(/^@+/, '');
+    const clean = extractCleanHandle(target);
     try {
       const result = await followerStorage.checkFollower(clean);
       const matchedSubmission = staffByUsername.get(clean);
@@ -1804,88 +1945,428 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
 
       {/* TAB CONTENT 5: PROFILE INSPECTOR */}
       {activeTab === 'CHECKER' && (
-        <div className="dashboard-section-card" style={{ padding: '20px', maxWidth: '640px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <Search size={18} style={{ color: '#0071e3' }} />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-              Instant O(1) Follower & Attribution Inspector
-            </h3>
+        <div className="dashboard-section-card" style={{ padding: '24px', maxWidth: '720px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#0071e3'
+              }}>
+                <Search size={18} />
+              </div>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
+                Instant O(1) Follower & Attribution Inspector
+              </h3>
+            </div>
+            {isLiveSearching && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#0071e3', fontWeight: 600 }}>
+                <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Searching...</span>
+              </div>
+            )}
           </div>
-          <p style={{ fontSize: '12.5px', color: '#86868b', margin: '0 0 14px 0' }}>
-            Enter any Instagram handle or profile URL to inspect active status, follow timestamp, and linked employee attribution.
+          <p style={{ fontSize: '12.5px', color: '#86868b', margin: '0 0 16px 0' }}>
+            Enter any Instagram handle or profile URL to inspect active status, follow timestamp, and linked employee attribution in real time (minimum 3 characters).
           </p>
 
-          <form onSubmit={handleProfileCheck} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <input
-              type="text"
-              placeholder="e.g. @username or instagram.com/username"
-              value={checkInput}
-              onChange={(e) => setCheckInput(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '8px 14px',
-                borderRadius: '980px',
-                border: '1px solid rgba(0, 0, 0, 0.1)',
-                backgroundColor: 'rgba(118, 118, 128, 0.08)',
-                fontSize: '13px',
-                color: '#1d1d1f',
-                outline: 'none',
-                fontWeight: 500
-              }}
-            />
+          <form onSubmit={handleProfileCheck} style={{ position: 'relative', display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#86868b', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Type handle e.g. @username or paste instagram.com/username..."
+                value={checkInput}
+                onChange={(e) => setCheckInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 38px 10px 38px',
+                  borderRadius: '980px',
+                  border: '1px solid rgba(0, 0, 0, 0.12)',
+                  backgroundColor: '#ffffff',
+                  fontSize: '13.5px',
+                  color: '#1d1d1f',
+                  outline: 'none',
+                  fontWeight: 500,
+                  boxSizing: 'border-box',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                }}
+              />
+              {checkInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckInput('');
+                    setLiveSuggestions([]);
+                    setCheckResult(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#86868b',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
             <button
               type="submit"
               disabled={isChecking || !checkInput.trim()}
               style={{
-                padding: '8px 18px',
+                padding: '10px 20px',
                 borderRadius: '980px',
                 backgroundColor: '#1d1d1f',
                 color: '#ffffff',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: '13px',
                 fontWeight: 600,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
               }}
             >
-              {isChecking ? 'Checking...' : 'Inspect Handle'}
+              {isChecking ? 'Inspecting...' : 'Inspect Handle'}
             </button>
           </form>
 
+          {/* Typing helper / Character count */}
+          <div style={{ fontSize: '11.5px', color: '#86868b', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {(() => {
+              const clean = extractCleanHandle(checkInput);
+              if (!clean) {
+                return <span>⌨️ Enter at least 3 characters to search across 23,568 followers.</span>;
+              }
+              if (clean.length < 3) {
+                return <span style={{ color: '#f59e0b', fontWeight: 600 }}>⌨️ Type {3 - clean.length} more character{3 - clean.length > 1 ? 's' : ''} to search ({clean.length}/3)...</span>;
+              }
+              if (isLiveSearching) {
+                return <span style={{ color: '#0071e3', fontWeight: 600 }}>⚡ Searching database for "@{clean}"...</span>;
+              }
+              return (
+                <span style={{ color: '#10b981', fontWeight: 600 }}>
+                  ✓ Found {liveSuggestions.length} matching result{liveSuggestions.length === 1 ? '' : 's'} for "@{clean}"
+                </span>
+              );
+            })()}
+          </div>
+
+          {/* LIVE AJAX SUGGESTIONS LIST */}
+          {extractCleanHandle(checkInput).length >= 3 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
+                  Live Search Results ({liveSuggestions.length})
+                </span>
+                {liveSuggestions.length > 0 && (
+                  <span style={{ fontSize: '11px', color: '#86868b' }}>
+                    Click any account to inspect
+                  </span>
+                )}
+              </div>
+
+              {liveSuggestions.length > 0 ? (
+                <div style={{
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
+                }}>
+                  {liveSuggestions.map((item, idx) => {
+                    const isSelected = checkResult?.searchedHandle?.toLowerCase() === item.username.toLowerCase();
+                    return (
+                      <div
+                        key={item.key || idx}
+                        onClick={() => handleSelectSuggestion(item)}
+                        style={{
+                          padding: '12px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          cursor: 'pointer',
+                          backgroundColor: isSelected ? 'rgba(0, 113, 227, 0.06)' : (idx % 2 === 0 ? '#ffffff' : '#fafafa'),
+                          borderBottom: idx < liveSuggestions.length - 1 ? '1px solid rgba(0, 0, 0, 0.05)' : 'none',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f4f4f6';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#fafafa';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: item.status === 'active' || item.isFollower ? 'rgba(34, 197, 94, 0.12)' : (item.status === 'unfollowed' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)'),
+                            color: item.status === 'active' || item.isFollower ? '#16a34a' : (item.status === 'unfollowed' ? '#dc2626' : '#64748b'),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <Instagram size={16} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1d1d1f', fontFamily: 'monospace' }}>
+                                @{item.username}
+                              </span>
+                              {item.status === 'active' || item.isFollower ? (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '980px',
+                                  backgroundColor: '#dcfce7',
+                                  color: '#15803d'
+                                }}>
+                                  ✓ Active Follower
+                                </span>
+                              ) : item.status === 'unfollowed' ? (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '980px',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#b91c1c'
+                                }}>
+                                  ⚠ Unfollowed
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '980px',
+                                  backgroundColor: '#f1f5f9',
+                                  color: '#475569'
+                                }}>
+                                  {item.status === 'not_following' ? 'Not Following' : item.status}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              {item.followedAtFormatted && (
+                                <span>Followed: <strong>{item.followedAtFormatted}</strong></span>
+                              )}
+                              {item.matchedSubmission && (
+                                <span style={{ color: '#0071e3', fontWeight: 600 }}>
+                                  • Staff: {item.matchedSubmission.employeeName} ({item.matchedSubmission.employeeId})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectSuggestion(item);
+                            }}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '980px',
+                              backgroundColor: isSelected ? '#0071e3' : '#f1f5f9',
+                              color: isSelected ? '#ffffff' : '#334155',
+                              border: 'none',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isSelected ? 'Inspecting' : 'Inspect'}
+                          </button>
+                          <a
+                            href={`https://www.instagram.com/${item.username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Open Instagram Profile"
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '8px',
+                              color: '#86868b',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !isLiveSearching && (
+                  <div style={{
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: '1px dashed rgba(0, 0, 0, 0.15)',
+                    backgroundColor: '#fafafa',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '12.5px'
+                  }}>
+                    No exact follower or staff submission found matching <strong>@{extractCleanHandle(checkInput)}</strong>.
+                    <div style={{ marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={handleProfileCheck}
+                        style={{
+                          background: 'none',
+                          border: '1px solid rgba(0,0,0,0.15)',
+                          borderRadius: '980px',
+                          padding: '4px 12px',
+                          fontSize: '11.5px',
+                          color: '#0071e3',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Inspect Handle Anyway
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+          {/* DETAILED INSPECTION CARD */}
           {checkResult && (
             <div style={{
-              padding: '14px 16px',
-              borderRadius: '12px',
+              padding: '18px 20px',
+              borderRadius: '16px',
               backgroundColor: checkResult.isFollower ? 'rgba(52, 199, 89, 0.08)' : (checkResult.status === 'unfollowed' ? '#fee2e2' : '#f8fafc'),
-              border: `1px solid ${checkResult.isFollower ? 'rgba(52, 199, 89, 0.25)' : (checkResult.status === 'unfollowed' ? '#fca5a5' : '#e2e8f0')}`,
+              border: `1px solid ${checkResult.isFollower ? 'rgba(52, 199, 89, 0.3)' : (checkResult.status === 'unfollowed' ? '#fca5a5' : '#e2e8f0')}`,
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px'
+              gap: '12px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#1d1d1f', fontFamily: 'monospace' }}>
-                  @{checkResult.searchedHandle}
-                </span>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '3px 10px',
-                  borderRadius: '980px',
-                  backgroundColor: checkResult.isFollower ? '#16a34a' : (checkResult.status === 'unfollowed' ? '#dc2626' : '#64748b'),
-                  color: '#ffffff'
-                }}>
-                  {checkResult.isFollower ? '✓ Verified Active Follower' : (checkResult.status === 'unfollowed' ? '⚠ Unfollowed Account' : 'Not In Database')}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: checkResult.isFollower ? '#16a34a' : (checkResult.status === 'unfollowed' ? '#dc2626' : '#64748b'),
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Instagram size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#1d1d1f', fontFamily: 'monospace' }}>
+                      @{checkResult.searchedHandle}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Canonical Profile Key: {checkResult.searchedHandle?.toLowerCase()}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    padding: '4px 12px',
+                    borderRadius: '980px',
+                    backgroundColor: checkResult.isFollower ? '#16a34a' : (checkResult.status === 'unfollowed' ? '#dc2626' : '#64748b'),
+                    color: '#ffffff'
+                  }}>
+                    {checkResult.isFollower ? '✓ Verified Active Follower' : (checkResult.status === 'unfollowed' ? '⚠ Detected Unfollower' : '✕ Not Following / Not In Database')}
+                  </span>
+                  <a
+                    href={`https://www.instagram.com/${checkResult.searchedHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '980px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.12)',
+                      color: '#0071e3',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <span>View Profile</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
               </div>
 
               {checkResult.followedAtFormatted && (
-                <div style={{ fontSize: '12px', color: '#334155' }}>
-                  Followed on: <strong style={{ color: '#0071e3', fontFamily: 'monospace' }}>{checkResult.followedAtFormatted}</strong>
+                <div style={{ fontSize: '12.5px', color: '#334155', backgroundColor: 'rgba(255,255,255,0.7)', padding: '8px 12px', borderRadius: '8px' }}>
+                  📅 Followed on: <strong style={{ color: '#0071e3', fontFamily: 'monospace' }}>{checkResult.followedAtFormatted}</strong>
                 </div>
               )}
 
-              {checkResult.matchedSubmission && (
-                <div style={{ fontSize: '11.5px', color: '#475569', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '6px' }}>
-                  Linked Employee: <strong style={{ color: '#0f172a' }}>{checkResult.matchedSubmission.employeeName}</strong> ({checkResult.matchedSubmission.employeeId}) • Status: <strong>{checkResult.matchedSubmission.status}</strong>
+              {checkResult.matchedSubmission ? (
+                <div style={{
+                  fontSize: '12px',
+                  color: '#475569',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={14} style={{ color: '#0071e3' }} />
+                    <span>Staff Outreach Attribution</span>
+                  </div>
+                  <div>
+                    Submitted by: <strong style={{ color: '#0f172a' }}>{checkResult.matchedSubmission.employeeName}</strong> ({checkResult.matchedSubmission.employeeId})
+                  </div>
+                  <div>
+                    Assembly: <strong>{checkResult.matchedSubmission.assemblyName || 'General Staff'}</strong> • Task: <strong>{checkResult.matchedSubmission.taskName || 'Instagram Follower Outreach'}</strong>
+                  </div>
+                  <div>
+                    Submission Date: <strong>{checkResult.matchedSubmission.date}</strong> • Status: <span style={{
+                      fontWeight: 700,
+                      color: checkResult.matchedSubmission.status === 'Valid Submission' || checkResult.matchedSubmission.status === 'Valid' ? '#16a34a' : (checkResult.matchedSubmission.status === 'Unfollowed' ? '#dc2626' : '#d97706')
+                    }}>{checkResult.matchedSubmission.status}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic', paddingLeft: '4px' }}>
+                  ℹ️ Not linked to any staff outreach submission in the portal.
                 </div>
               )}
             </div>

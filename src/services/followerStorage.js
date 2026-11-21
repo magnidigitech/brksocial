@@ -500,6 +500,64 @@ export const followerStorage = {
   },
 
   /**
+   * Real-time AJAX follower profile search (min 3 characters)
+   * Searches authoritative backend database with fallback to local cache
+   */
+  async searchProfiles(query, limit = 10) {
+    await this.init();
+    if (!query) return [];
+
+    let clean = String(query).trim().toLowerCase();
+    const urlMatch = clean.match(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i);
+    if (urlMatch && urlMatch[1]) {
+      clean = urlMatch[1].toLowerCase();
+    }
+    clean = clean.replace(/^@+/, '').trim();
+    if (clean.length < 3) return [];
+
+    // 1. Query authoritative backend API first
+    try {
+      const res = await fetch(getBackendUrl(`/api/instagram/followers?status=all&search=${encodeURIComponent(clean)}&limit=${limit}`), {
+        signal: getTimeoutSignal(4000)
+      });
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        const data = await res.json();
+        if (data && Array.isArray(data.followers)) {
+          return data.followers.map(f => ({
+            key: f.key || (f.username || '').toLowerCase(),
+            username: f.username || f.key,
+            href: f.href || `https://www.instagram.com/${f.username || f.key}`,
+            status: f.status || 'active',
+            timestamp: f.timestamp || 0,
+            followedAtFormatted: f.followedAtFormatted || (f.timestamp ? formatFollowerTimestamp(f.timestamp) : '')
+          }));
+        }
+      }
+    } catch (_) {
+      // Backend request timed out or offline, proceed with local memory map
+    }
+
+    // 2. Fallback to client-side memoryMap
+    const matches = [];
+    for (const [key, val] of memoryMap.entries()) {
+      const u = val.username ? val.username.toLowerCase() : key;
+      if (key.includes(clean) || u.includes(clean)) {
+        matches.push({
+          key: val.key || key,
+          username: val.username || key,
+          href: val.href || `https://www.instagram.com/${val.username || key}`,
+          status: val.status || 'active',
+          timestamp: val.timestamp || 0,
+          followedAtFormatted: val.followedAtFormatted || (val.timestamp ? formatFollowerTimestamp(val.timestamp) : '')
+        });
+        if (matches.length >= limit) break;
+      }
+    }
+    return matches;
+  },
+
+  /**
    * Instant O(1) follower check
    */
   async checkFollower(username) {
