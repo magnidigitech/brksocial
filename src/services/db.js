@@ -18,6 +18,7 @@ import {
   VALIDATION_WINDOW_MS
 } from './istUtils.js';
 import { followerStorage, getTimeoutSignal } from './followerStorage.js';
+import { getBackendUrl } from './apiConfig.js';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
@@ -330,7 +331,7 @@ export const dbService = {
 
   async syncEmployeesWithServer() {
     try {
-      const res = await fetch('/api/employees?_t=' + Date.now(), {
+      const res = await fetch(getBackendUrl('/api/employees?_t=' + Date.now()), {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
@@ -444,7 +445,7 @@ export const dbService = {
     }
 
     try {
-      fetch('/api/employees', {
+      fetch(getBackendUrl('/api/employees'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEmp)
@@ -530,7 +531,7 @@ export const dbService = {
 
     // Sync to server API
     try {
-      fetch('/api/employees', {
+      fetch(getBackendUrl('/api/employees'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(savedItem)
@@ -600,7 +601,7 @@ export const dbService = {
 
     // Sync batch to server API
     try {
-      fetch('/api/employees', {
+      fetch(getBackendUrl('/api/employees'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedArray)
@@ -621,7 +622,7 @@ export const dbService = {
         window.dispatchEvent(new CustomEvent('brk_staff_updated', { detail: emp }));
       }
       try {
-        fetch('/api/employees', {
+        fetch(getBackendUrl('/api/employees'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(emp)
@@ -784,7 +785,7 @@ export const dbService = {
 
     // Background sync to server if available
     try {
-      fetch('/api/tasks', {
+      fetch(getBackendUrl('/api/tasks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTask),
@@ -848,7 +849,7 @@ export const dbService = {
       }
 
       try {
-        await fetch('/api/tasks', {
+        await fetch(getBackendUrl('/api/tasks'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(taskToSave),
@@ -899,7 +900,7 @@ export const dbService = {
     // 4. Call server API to delete from disk and Neon DB
     try {
       if (typeof fetch !== 'undefined') {
-        fetch('/api/tasks/' + encodeURIComponent(cleanId), {
+        fetch(getBackendUrl('/api/tasks/' + encodeURIComponent(cleanId)), {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         }).catch(err => console.warn('Server task delete warning:', err.message));
@@ -923,7 +924,7 @@ export const dbService = {
 
       try {
         if (typeof fetch !== 'undefined') {
-          fetch('/api/tasks/' + encodeURIComponent(taskId) + '/status', {
+          fetch(getBackendUrl('/api/tasks/' + encodeURIComponent(taskId) + '/status'), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: newStatus })
@@ -949,7 +950,7 @@ export const dbService = {
   async syncTasksWithServer() {
     if (typeof fetch === 'undefined') return this.getTasks();
     try {
-      const res = await fetch('/api/tasks?_t=' + Date.now(), {
+      const res = await fetch(getBackendUrl('/api/tasks?_t=' + Date.now()), {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
@@ -1009,7 +1010,7 @@ export const dbService = {
 
           if (hasLocalUpgrade) {
             merged.forEach(task => {
-              fetch('/api/tasks', {
+              fetch(getBackendUrl('/api/tasks'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(task),
@@ -1192,7 +1193,7 @@ export const dbService = {
     let dbSyncTimeMs = null;
 
     try {
-      const res = await fetch('/api/instagram/followers/batch-check', {
+      const res = await fetch(getBackendUrl('/api/instagram/followers/batch-check'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ submissions: subs }),
@@ -1817,7 +1818,7 @@ export const dbService = {
     if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         const blob = new Blob([payload], { type: 'application/json' });
-        beaconSent = navigator.sendBeacon('/api/links/click', blob);
+        beaconSent = navigator.sendBeacon(getBackendUrl('/api/links/click'), blob);
       } catch (e) {
         beaconSent = false;
       }
@@ -1825,7 +1826,7 @@ export const dbService = {
 
     if (!beaconSent && typeof fetch !== 'undefined') {
       try {
-        fetch('/api/links/click', {
+        fetch(getBackendUrl('/api/links/click'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: payload,
@@ -1844,7 +1845,7 @@ export const dbService = {
   async sendSubmissionToServer(sub) {
     if (typeof fetch === 'undefined' || !sub) return sub;
     try {
-      const res = await fetch('/api/submissions', {
+      const res = await fetch(getBackendUrl('/api/submissions'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1872,7 +1873,7 @@ export const dbService = {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
     }
     try {
-      const res = await fetch('/api/submissions?_t=' + Date.now(), {
+      const res = await fetch(getBackendUrl('/api/submissions?_t=' + Date.now()), {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
@@ -1924,7 +1925,7 @@ export const dbService = {
   async syncClicksWithServer() {
     if (typeof fetch === 'undefined') return [];
     try {
-      const res = await fetch('/api/links/analytics?_t=' + Date.now(), {
+      const res = await fetch(getBackendUrl('/api/links/analytics?_t=' + Date.now()), {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'

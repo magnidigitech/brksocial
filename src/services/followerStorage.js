@@ -7,6 +7,8 @@
  * and handles any Instagram/Meta follower export format.
  */
 
+import { getBackendUrl } from './apiConfig.js';
+
 const DB_NAME = 'BRK_FOLLOWERS_DB';
 const DB_VERSION = 1;
 const STORE_NAME = 'followers';
@@ -199,7 +201,7 @@ export const followerStorage = {
         // Otherwise, check if backend has data (and backend is actually serving JSON)
         let backendCount = 0;
         try {
-          const res = await fetch('/api/instagram/followers/stats', { signal: getTimeoutSignal(3000) });
+          const res = await fetch(getBackendUrl('/api/instagram/followers/stats'), { signal: getTimeoutSignal(3000) });
           const contentType = res.headers.get('content-type') || '';
           if (res.ok && contentType.includes('application/json')) {
             const stats = await res.json();
@@ -352,7 +354,7 @@ export const followerStorage = {
       for (let i = 0; i < records.length; i += CHUNK_SIZE) {
         const chunk = records.slice(i, i + CHUNK_SIZE);
         try {
-          const res = await fetch('/api/instagram/followers/upsert', {
+          const res = await fetch(getBackendUrl('/api/instagram/followers/upsert'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(chunk)
@@ -394,7 +396,7 @@ export const followerStorage = {
    * Reset follower database on server (requires server password)
    */
   async resetDatabase(password, confirmation) {
-    const res = await fetch('/api/admin/reset-followers-database', {
+    const res = await fetch(getBackendUrl('/api/admin/reset-followers-database'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password, confirmation })
@@ -411,7 +413,7 @@ export const followerStorage = {
    * Generate non-mutating preview of reconciliation before committing
    */
   async generatePreview(payload, mode = 'RECONCILIATION') {
-    const res = await fetch('/api/instagram/followers/reconcile-preview', {
+    const res = await fetch(getBackendUrl('/api/instagram/followers/reconcile-preview'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode, payload })
@@ -427,7 +429,7 @@ export const followerStorage = {
    * Commit reconciliation atomically to database
    */
   async commitReconciliation(payload, mode = 'RECONCILIATION', operator = 'Admin') {
-    const res = await fetch('/api/instagram/followers/reconcile-commit', {
+    const res = await fetch(getBackendUrl('/api/instagram/followers/reconcile-commit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode, operator, payload })
@@ -446,7 +448,7 @@ export const followerStorage = {
    */
   async reloadFromBackend() {
     try {
-      const res = await fetch('/api/instagram/followers?status=all&limit=200000');
+      const res = await fetch(getBackendUrl('/api/instagram/followers?status=all&limit=200000'));
       if (res.ok) {
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
@@ -464,7 +466,7 @@ export const followerStorage = {
    * Get reconciliation stats
    */
   async getReconciliationStats() {
-    const res = await fetch('/api/instagram/followers/reconciliation/stats');
+    const res = await fetch(getBackendUrl('/api/instagram/followers/reconciliation/stats'));
     if (!res.ok) throw new Error('Failed to fetch reconciliation stats');
     return await res.json();
   },
@@ -473,7 +475,7 @@ export const followerStorage = {
    * Get historical imports list
    */
   async getImportHistory() {
-    const res = await fetch('/api/instagram/followers/imports');
+    const res = await fetch(getBackendUrl('/api/instagram/followers/imports'));
     if (!res.ok) throw new Error('Failed to fetch import history');
     return await res.json();
   },
@@ -483,7 +485,7 @@ export const followerStorage = {
    */
   async getUnfollowedList(search = '', page = 1, limit = 50) {
     const params = new URLSearchParams({ search, page, limit });
-    const res = await fetch(`/api/instagram/followers/unfollowed?${params.toString()}`);
+    const res = await fetch(getBackendUrl(`/api/instagram/followers/unfollowed?${params.toString()}`));
     if (!res.ok) throw new Error('Failed to fetch unfollowed list');
     return await res.json();
   },
@@ -492,7 +494,7 @@ export const followerStorage = {
    * Get admin audit logs
    */
   async getAuditLogs() {
-    const res = await fetch('/api/admin/audit-logs');
+    const res = await fetch(getBackendUrl('/api/admin/audit-logs'));
     if (!res.ok) throw new Error('Failed to fetch audit logs');
     return await res.json();
   },
@@ -565,7 +567,7 @@ export const followerStorage = {
 
     // Check backend first if backend is running with JSON
     try {
-      const res = await fetch('/api/instagram/followers/stats', { signal: getTimeoutSignal(2000) });
+      const res = await fetch(getBackendUrl('/api/instagram/followers/stats'), { signal: getTimeoutSignal(2000) });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
