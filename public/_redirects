@@ -1,6 +1,1 @@
-/api/*  https://api.bhashyamramakrishna.in/api/:splat  200
-/go/*  https://api.bhashyamramakrishna.in/go/:splat  200
-/instagram/*  https://api.bhashyamramakrishna.in/instagram/:splat  200
-/whatsapp/*  https://api.bhashyamramakrishna.in/whatsapp/:splat  200
-/track/*  https://api.bhashyamramakrishna.in/track/:splat  200
 /*  /index.html  200
