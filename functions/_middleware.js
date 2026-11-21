@@ -15,7 +15,11 @@ export async function onRequest(context) {
   
   if (!needsProxy) {
     // Serve static frontend assets (HTML, JS, CSS, images, PWA manifests)
-    return context.next();
+    const res = await context.next();
+    if (res.status === 404 && !url.pathname.includes('.')) {
+      return context.env.ASSETS.fetch(new URL('/', url.origin));
+    }
+    return res;
   }
 
   // Handle CORS preflight OPTIONS request immediately at the edge
