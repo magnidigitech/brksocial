@@ -104,6 +104,18 @@ export function TaskManagementView() {
 
   useEffect(() => {
     loadTasks();
+    dbService.syncTasksWithServer().then(() => loadTasks()).catch(() => {});
+
+    const handleTaskUpdate = () => {
+      loadTasks();
+    };
+    window.addEventListener('brk_task_updated', handleTaskUpdate);
+    window.addEventListener('storage', handleTaskUpdate);
+
+    return () => {
+      window.removeEventListener('brk_task_updated', handleTaskUpdate);
+      window.removeEventListener('storage', handleTaskUpdate);
+    };
   }, []);
 
   const loadTasks = () => {
@@ -195,8 +207,9 @@ export function TaskManagementView() {
 
   const confirmDeleteTask = () => {
     if (deleteConfirmTask) {
-      dbService.deleteTask(deleteConfirmTask.id);
-      loadTasks();
+      const targetId = deleteConfirmTask.id;
+      dbService.deleteTask(targetId);
+      setTasks(prev => prev.filter(t => t.id !== targetId));
       setDeleteConfirmTask(null);
     }
   };

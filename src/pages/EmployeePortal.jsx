@@ -253,6 +253,7 @@ export function EmployeePortal({ session, onLogout }) {
     };
 
     window.addEventListener('brk_link_click_event', handleLiveRefresh);
+    window.addEventListener('brk_task_updated', handleLiveRefresh);
     window.addEventListener('storage', handleLiveRefresh);
     window.addEventListener('brk_submission_event', handleSubmissionEvent);
     window.addEventListener('focus', triggerSync);
@@ -266,6 +267,7 @@ export function EmployeePortal({ session, onLogout }) {
 
     return () => {
       window.removeEventListener('brk_link_click_event', handleLiveRefresh);
+      window.removeEventListener('brk_task_updated', handleLiveRefresh);
       window.removeEventListener('storage', handleLiveRefresh);
       window.removeEventListener('brk_submission_event', handleSubmissionEvent);
       window.removeEventListener('focus', triggerSync);

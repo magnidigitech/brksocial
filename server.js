@@ -1601,6 +1601,27 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+// DELETE Task (Permanently from memory, disk and PostgreSQL)
+app.delete('/api/tasks/:id', async (req, res) => {
+  const taskId = req.params.id;
+  try {
+    let tasks = getStoredTasks();
+    tasks = tasks.filter(t => t.id !== taskId);
+    saveStoredTasks(tasks);
+
+    if (isDbConnected) {
+      try {
+        await pool.query('DELETE FROM tasks WHERE id = $1', [taskId]);
+      } catch (dbErr) {
+        console.warn('PostgreSQL task delete error:', dbErr.message);
+      }
+    }
+    return res.json({ success: true, deletedId: taskId, remaining: tasks.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET All Employees (Live, disk-backed & synced)
 app.get('/api/employees', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

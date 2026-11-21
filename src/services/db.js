@@ -146,21 +146,24 @@ export const dbService = {
       }
     }
     if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
-      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
+      const deletedIds = new Set(JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]'));
+      const initial = DEFAULT_TASKS.filter(t => !deletedIds.has(t.id));
+      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(initial));
     } else {
-      // Ensure all tasks have targetUrl & urlSlug & ALL_STAFF scope migration
+      // Ensure all tasks have targetUrl & urlSlug & ALL_STAFF scope migration without resurrecting deleted tasks!
       try {
-        const existingTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
+        const deletedIds = new Set(JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]'));
+        let existingTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
         let taskModified = false;
 
-        // Ensure all DEFAULT_TASKS exist in existingTasks
-        DEFAULT_TASKS.forEach(defTask => {
-          const found = existingTasks.find(t => t.id === defTask.id);
-          if (!found) {
-            existingTasks.push(defTask);
+        // Purge any tasks that were marked deleted by admin
+        if (deletedIds.size > 0) {
+          const purged = existingTasks.filter(t => t && t.id && !deletedIds.has(t.id));
+          if (purged.length !== existingTasks.length) {
+            existingTasks = purged;
             taskModified = true;
           }
-        });
+        }
 
         existingTasks.forEach(t => {
           if (!t.targetUrl) {
@@ -169,15 +172,6 @@ export const dbService = {
           }
           if (!t.urlSlug) {
             t.urlSlug = t.platform?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'instagram';
-            taskModified = true;
-          }
-          // Enable ALL_STAFF scope for default campaigns so all employees can select & switch
-          if (t.id === 'TASK-WA-002' && (!t.assignmentScope || t.assignmentScope.scopeType !== 'ALL_STAFF')) {
-            t.assignmentScope = {
-              scopeType: 'ALL_STAFF',
-              targetCode: null,
-              targetName: 'All Constituencies & Staff'
-            };
             taskModified = true;
           }
         });
@@ -651,7 +645,14 @@ export const dbService = {
 
   getTasks() {
     this.init();
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
+    const tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
+    try {
+      const deletedIds = new Set(JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]'));
+      if (deletedIds.size > 0) {
+        return tasks.filter(t => t && t.id && !deletedIds.has(t.id));
+      }
+    } catch (_) {}
+    return tasks;
   },
 
   getTaskById(id) {
@@ -809,10 +810,75 @@ export const dbService = {
   },
 
   deleteTask(taskId) {
-    const tasks = this.getTasks();
-    const filtered = tasks.filter(t => t.id !== taskId);
+    if (!taskId) return false;
+    const cleanId = String(taskId).trim();
+
+    // 1. Record in persistent tombstone so init() and server sync never resurrect it
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]');
+      if (!deletedList.includes(cleanId)) {
+        deletedList.push(cleanId);
+        localStorage.setItem('brk_deleted_task_ids', JSON.stringify(deletedList));
+      }
+    } catch (_) {}
+
+    // 2. Remove from local tasks storage
+    const currentTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
+    const filtered = currentTasks.filter(t => t && t.id !== cleanId);
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(filtered));
+
+    // 3. Dispatch reactivity event across windows / tabs
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: { action: 'delete', taskId: cleanId, remaining: filtered } }));
+    }
+
+    // 4. Call server API to delete from disk and Neon DB
+    try {
+      if (typeof fetch !== 'undefined') {
+        fetch('/api/tasks/' + encodeURIComponent(cleanId), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        }).catch(err => console.warn('Server task delete warning:', err.message));
+      }
+    } catch (_) {}
+
     return true;
+  },
+
+  async syncTasksWithServer() {
+    if (typeof fetch === 'undefined') return this.getTasks();
+    try {
+      const res = await fetch('/api/tasks?_t=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
+      if (res.ok) {
+        const serverTasks = await res.json();
+        if (Array.isArray(serverTasks) && serverTasks.length > 0) {
+          let deletedIds = new Set();
+          try {
+            deletedIds = new Set(JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]'));
+          } catch (_) {}
+
+          const activeServerTasks = serverTasks.filter(t => t && t.id && !deletedIds.has(t.id));
+          const localTasks = this.getTasks();
+          const taskMap = new Map();
+          activeServerTasks.forEach(t => taskMap.set(t.id, t));
+          localTasks.forEach(t => {
+            if (!taskMap.has(t.id) && !deletedIds.has(t.id)) {
+              taskMap.set(t.id, t);
+            }
+          });
+          const merged = Array.from(taskMap.values());
+          localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(merged));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: merged }));
+          }
+          return merged;
+        }
+      }
+    } catch (_) {}
+    return this.getTasks();
   },
 
   toggleTaskStatus(taskId) {
