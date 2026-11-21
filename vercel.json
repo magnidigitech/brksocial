@@ -5,23 +5,23 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://social.bhashyamramakrishna.in/api/:path*"
+      "destination": "https://api.bhashyamramakrishna.in/api/:path*"
     },
     {
       "source": "/go/:token",
-      "destination": "https://social.bhashyamramakrishna.in/go/:token"
+      "destination": "https://api.bhashyamramakrishna.in/go/:token"
     },
     {
       "source": "/instagram/:token",
-      "destination": "https://social.bhashyamramakrishna.in/instagram/:token"
+      "destination": "https://api.bhashyamramakrishna.in/instagram/:token"
     },
     {
       "source": "/whatsapp/:token",
-      "destination": "https://social.bhashyamramakrishna.in/whatsapp/:token"
+      "destination": "https://api.bhashyamramakrishna.in/whatsapp/:token"
     },
     {
       "source": "/track/:slug/:token",
-      "destination": "https://social.bhashyamramakrishna.in/track/:slug/:token"
+      "destination": "https://api.bhashyamramakrishna.in/track/:slug/:token"
     },
     {
       "source": "/(.*)",
