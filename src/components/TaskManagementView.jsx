@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Minus,
   Plus, 
@@ -25,7 +25,12 @@ import {
   CheckSquare,
   Square,
   Link2,
-  ExternalLink
+  ExternalLink,
+  Archive,
+  CheckCircle,
+  RotateCcw,
+  AlertTriangle,
+  FolderArchive
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
@@ -55,12 +60,15 @@ const PLATFORM_COLORS = {
 export function TaskManagementView() {
   const [tasks, setTasks] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'Active', 'Paused'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'Active', 'Completed', 'Archived', 'Paused'
+  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'Active' | 'Completed' | 'Archived'
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null);
+  const [confirmTaskNameInput, setConfirmTaskNameInput] = useState('');
+  const [statusModalTask, setStatusModalTask] = useState(null); // { task, nextStatus }
 
   // Multi-Select Checkbox States
   const [selectedParliaments, setSelectedParliaments] = useState(['APP13']); // default Guntur
@@ -196,21 +204,63 @@ export function TaskManagementView() {
     setIsModalOpen(true);
   };
 
+  const taskSubmissionCounts = useMemo(() => {
+    const allSubs = dbService.getSubmissions();
+    const counts = {};
+    allSubs.forEach(s => {
+      if (s && s.taskId) {
+        counts[s.taskId] = (counts[s.taskId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [tasks]);
+
+  const tabCounts = useMemo(() => {
+    let active = 0, completed = 0, archived = 0;
+    tasks.forEach(t => {
+      const s = t.status || 'Active';
+      if (s === 'Active' || s === 'Paused') active++;
+      else if (s === 'Completed') completed++;
+      else if (s === 'Archived') archived++;
+    });
+    return { all: tasks.length, active, completed, archived };
+  }, [tasks]);
+
   const handleToggleStatus = (taskId) => {
     dbService.toggleTaskStatus(taskId);
     loadTasks();
   };
 
   const handlePromptDeleteTask = (task) => {
+    const subCount = taskSubmissionCounts[task.id] || 0;
+    if (subCount > 0) {
+      // Submissions exist: deletion is blocked! Direct admin to Archive or Complete instead
+      setStatusModalTask({ task, nextStatus: 'Archived' });
+      return;
+    }
+    setConfirmTaskNameInput('');
     setDeleteConfirmTask(task);
   };
 
   const confirmDeleteTask = () => {
     if (deleteConfirmTask) {
+      if (confirmTaskNameInput.trim() !== deleteConfirmTask.name.trim()) {
+        return;
+      }
       const targetId = deleteConfirmTask.id;
       dbService.deleteTask(targetId);
       setTasks(prev => prev.filter(t => t.id !== targetId));
       setDeleteConfirmTask(null);
+      setConfirmTaskNameInput('');
+    }
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (statusModalTask) {
+      const { task, nextStatus } = statusModalTask;
+      dbService.setTaskStatus(task.id, nextStatus);
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: nextStatus } : t));
+      setStatusModalTask(null);
     }
   };
 
@@ -367,10 +417,24 @@ export function TaskManagementView() {
   };
 
   const filteredTasks = tasks.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+                          t.name?.toLowerCase().includes(q) || 
+                          (t.description && t.description.toLowerCase().includes(q)) ||
+                          t.platform?.toLowerCase().includes(q);
+
+    const taskStatus = t.status || 'Active';
+    let matchesTab = true;
+    if (activeTab === 'Active') {
+      matchesTab = taskStatus === 'Active' || taskStatus === 'Paused';
+    } else if (activeTab === 'Completed') {
+      matchesTab = taskStatus === 'Completed';
+    } else if (activeTab === 'Archived') {
+      matchesTab = taskStatus === 'Archived';
+    }
+
     const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesTab && matchesStatus;
   });
 
   // Filtered Parliaments & Assemblies for Checkbox Modal lists
@@ -483,6 +547,70 @@ export function TaskManagementView() {
         </div>
       </div>
 
+      {/* Task Management Category Tabs */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '8px 12px',
+        backgroundColor: '#ffffff',
+        borderRadius: '16px',
+        border: '1px solid rgba(0, 0, 0, 0.06)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'ALL', label: 'All Campaigns', count: tabCounts.all, icon: Sliders },
+            { id: 'Active', label: 'Active Tasks', count: tabCounts.active, icon: CheckCircle2, color: '#34c759' },
+            { id: 'Completed', label: 'Completed Tasks', count: tabCounts.completed, icon: CheckCircle, color: '#0071e3' },
+            { id: 'Archived', label: 'Archived Tasks', count: tabCounts.archived, icon: Archive, color: '#f59e0b' }
+          ].map(tab => {
+            const isActive = activeTab === tab.id;
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '980px',
+                  border: isActive ? '1px solid rgba(0, 113, 227, 0.2)' : '1px solid transparent',
+                  backgroundColor: isActive ? 'rgba(0, 113, 227, 0.08)' : 'transparent',
+                  color: isActive ? '#0071e3' : '#64748b',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <TabIcon size={13} style={{ color: isActive ? (tab.color || '#0071e3') : '#86868b' }} />
+                <span>{tab.label}</span>
+                <span style={{
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: '980px',
+                  backgroundColor: isActive ? '#0071e3' : 'rgba(100, 116, 139, 0.12)',
+                  color: isActive ? '#ffffff' : '#64748b'
+                }}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ fontSize: '11px', color: '#86868b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <ShieldCheck size={13} style={{ color: '#16a34a' }} />
+          <span>Submissions Protected: Tasks with entries cannot be deleted</span>
+        </div>
+      </div>
+
       {/* Task Cards Grid - 3 per row on Desktop */}
       <div className="tasks-grid-layout">
         {filteredTasks.map((task) => {
@@ -490,6 +618,22 @@ export function TaskManagementView() {
           const pColors = PLATFORM_COLORS[task.platform] || PLATFORM_COLORS['Custom'];
           const scope = task.assignmentScope || {};
           const isTaskActive = task.status === 'Active';
+          const subCount = taskSubmissionCounts[task.id] || 0;
+          const hasEntries = subCount > 0;
+          const taskStatus = task.status || 'Active';
+
+          let statusBadgeBg = 'rgba(52, 199, 89, 0.1)';
+          let statusBadgeColor = '#34c759';
+          if (taskStatus === 'Completed') {
+            statusBadgeBg = 'rgba(0, 113, 227, 0.1)';
+            statusBadgeColor = '#0071e3';
+          } else if (taskStatus === 'Archived') {
+            statusBadgeBg = 'rgba(245, 158, 11, 0.12)';
+            statusBadgeColor = '#d97706';
+          } else if (taskStatus === 'Paused') {
+            statusBadgeBg = 'rgba(100, 116, 139, 0.12)';
+            statusBadgeColor = '#64748b';
+          }
 
           return (
             <div
@@ -528,27 +672,29 @@ export function TaskManagementView() {
                       borderRadius: '980px',
                       fontSize: '10.5px',
                       fontWeight: 600,
-                      backgroundColor: isTaskActive ? 'rgba(52, 199, 89, 0.1)' : 'rgba(118, 118, 128, 0.1)',
-                      color: isTaskActive ? '#34c759' : '#86868b'
+                      backgroundColor: statusBadgeBg,
+                      color: statusBadgeColor
                     }}>
-                      {task.status}
+                      {taskStatus}
                     </span>
 
-                    <button
-                      onClick={() => handleToggleStatus(task.id)}
-                      title={isTaskActive ? 'Pause Task' : 'Activate Task'}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: isTaskActive ? '#34c759' : '#86868b',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: 0
-                      }}
-                    >
-                      {isTaskActive ? <CheckCircle2 size={16} /> : <PauseCircle size={16} />}
-                    </button>
+                    {(taskStatus === 'Active' || taskStatus === 'Paused') && (
+                      <button
+                        onClick={() => handleToggleStatus(task.id)}
+                        title={isTaskActive ? 'Pause Task' : 'Activate Task'}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: isTaskActive ? '#34c759' : '#86868b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: 0
+                        }}
+                      >
+                        {isTaskActive ? <CheckCircle2 size={16} /> : <PauseCircle size={16} />}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -665,6 +811,36 @@ export function TaskManagementView() {
                     <ShieldCheck size={11} style={{ color: '#34c759' }} />
                     <span>Dup Scope: <strong style={{ color: '#1d1d1f', fontWeight: 500 }}>{task.rules?.duplicateScope || task.duplicateScope || 'Entire Campaign'}</strong></span>
                   </div>
+
+                  {/* Submission Safeguard Indicator */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '10.5px',
+                    fontWeight: 500,
+                    padding: '5px 8px',
+                    borderRadius: '8px',
+                    backgroundColor: hasEntries ? 'rgba(52, 199, 89, 0.08)' : 'rgba(100, 116, 139, 0.05)',
+                    border: hasEntries ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(0, 0, 0, 0.04)',
+                    marginTop: '2px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <ShieldCheck size={12} style={{ color: hasEntries ? '#16a34a' : '#94a3b8' }} />
+                      <span style={{ color: hasEntries ? '#15803d' : '#64748b', fontWeight: 600 }}>
+                        {hasEntries ? `${subCount} Submissions Protected` : '0 Submissions (Deletable)'}
+                      </span>
+                    </div>
+                    {hasEntries ? (
+                      <span style={{ fontSize: '9.5px', color: '#16a34a', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Archivable
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 600 }}>
+                        No Entries
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -675,7 +851,8 @@ export function TaskManagementView() {
                 gap: '8px',
                 marginTop: '14px',
                 paddingTop: '10px',
-                borderTop: '1px solid rgba(0, 0, 0, 0.05)'
+                borderTop: '1px solid rgba(0, 0, 0, 0.05)',
+                flexWrap: 'wrap'
               }}>
                 <button
                   onClick={() => openEditModal(task)}
@@ -700,27 +877,106 @@ export function TaskManagementView() {
                   <span>Edit Rules</span>
                 </button>
 
-                <button
-                  onClick={() => handlePromptDeleteTask(task)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '5px 10px',
-                    borderRadius: '980px',
-                    backgroundColor: 'rgba(255, 59, 48, 0.08)',
-                    color: '#ff3b30',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    border: '1px solid rgba(255, 59, 48, 0.15)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Trash2 size={11} />
-                  <span>Delete</span>
-                </button>
+                {hasEntries ? (
+                  // For tasks with entries: NEVER allow deletion! Provide Complete / Archive / Reactivate
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {taskStatus !== 'Completed' && (
+                      <button
+                        onClick={() => setStatusModalTask({ task, nextStatus: 'Completed' })}
+                        title="Mark task completed and lock submissions"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '980px',
+                          backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                          color: '#0071e3',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(0, 113, 227, 0.18)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <CheckCircle size={11} />
+                        <span>Complete</span>
+                      </button>
+                    )}
+
+                    {taskStatus !== 'Archived' && (
+                      <button
+                        onClick={() => setStatusModalTask({ task, nextStatus: 'Archived' })}
+                        title="Archive task while preserving 100% of submission data"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '980px',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          color: '#d97706',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(245, 158, 11, 0.2)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Archive size={11} />
+                        <span>Archive</span>
+                      </button>
+                    )}
+
+                    {(taskStatus === 'Completed' || taskStatus === 'Archived') && (
+                      <button
+                        onClick={() => setStatusModalTask({ task, nextStatus: 'Active' })}
+                        title="Restore task to Active status"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '980px',
+                          backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                          color: '#16a34a',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(52, 199, 89, 0.2)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <RotateCcw size={11} />
+                        <span>Reactivate</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  // For 0-submission tasks: Allow permanent deletion with typed task name confirmation
+                  <button
+                    onClick={() => handlePromptDeleteTask(task)}
+                    title="Permanently delete this 0-submission task"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      padding: '5px 10px',
+                      borderRadius: '980px',
+                      backgroundColor: 'rgba(255, 59, 48, 0.08)',
+                      color: '#ff3b30',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid rgba(255, 59, 48, 0.15)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Trash2 size={11} />
+                    <span>Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -1942,13 +2198,14 @@ export function TaskManagementView() {
         </div>
       )}
 
-      {/* CUSTOM DELETE CONFIRMATION MODAL DIALOG */}
+      {/* DELETE TASK CONFIRMATION MODAL (Requires exact task name match) */}
       {deleteConfirmTask && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(6px)',
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1961,11 +2218,11 @@ export function TaskManagementView() {
             border: '1px solid #e2e8f0',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             width: '100%',
-            maxWidth: '440px',
+            maxWidth: '460px',
             padding: '28px',
             position: 'relative'
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '18px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -1983,18 +2240,52 @@ export function TaskManagementView() {
 
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
-                  Delete Task Campaign?
+                  Delete Task Campaign Permanently?
                 </h3>
                 <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
-                  Are you sure you want to delete <strong style={{ color: '#0f172a' }}>"{deleteConfirmTask.name}"</strong>? Existing staff submissions for this task will remain archived.
+                  This task currently has <strong style={{ color: '#16a34a' }}>0 submissions</strong>. Deleting it is permanent and cannot be undone.
                 </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+            <div style={{
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '18px'
+            }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '8px' }}>
+                Please type <span style={{ color: '#e11d48', fontFamily: 'monospace', fontWeight: 700 }}>{deleteConfirmTask.name}</span> to confirm:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={confirmTaskNameInput}
+                onChange={(e) => setConfirmTaskNameInput(e.target.value)}
+                placeholder={`Type "${deleteConfirmTask.name}"`}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: confirmTaskNameInput.trim() === deleteConfirmTask.name.trim() 
+                    ? '1.5px solid #16a34a' 
+                    : '1.5px solid #cbd5e1',
+                  fontSize: '13px',
+                  outline: 'none',
+                  backgroundColor: '#ffffff',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 type="button"
-                onClick={() => setDeleteConfirmTask(null)}
+                onClick={() => {
+                  setDeleteConfirmTask(null);
+                  setConfirmTaskNameInput('');
+                }}
                 style={{
                   padding: '10px 20px',
                   borderRadius: '9999px',
@@ -2012,21 +2303,156 @@ export function TaskManagementView() {
 
               <button
                 type="button"
+                disabled={confirmTaskNameInput.trim() !== deleteConfirmTask.name.trim()}
                 onClick={confirmDeleteTask}
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                   padding: '10px 22px',
                   borderRadius: '9999px',
-                  backgroundColor: '#dc2626',
+                  backgroundColor: confirmTaskNameInput.trim() === deleteConfirmTask.name.trim() ? '#dc2626' : '#cbd5e1',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: confirmTaskNameInput.trim() === deleteConfirmTask.name.trim() ? 'pointer' : 'not-allowed',
+                  boxShadow: confirmTaskNameInput.trim() === deleteConfirmTask.name.trim() ? '0 4px 12px rgba(220, 38, 38, 0.3)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Trash2 size={14} />
+                <span>Delete Forever</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CHANGE / ARCHIVE / COMPLETE MODAL (Safeguards all submission data) */}
+      {statusModalTask && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            width: '100%',
+            maxWidth: '460px',
+            padding: '28px',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '18px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: statusModalTask.nextStatus === 'Archived' ? '#fef3c7' :
+                                 statusModalTask.nextStatus === 'Completed' ? '#dbeafe' : '#dcfce7',
+                border: statusModalTask.nextStatus === 'Archived' ? '1px solid #fde68a' :
+                        statusModalTask.nextStatus === 'Completed' ? '1px solid #bfdbfe' : '1px solid #bbf7d0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: statusModalTask.nextStatus === 'Archived' ? '#d97706' :
+                       statusModalTask.nextStatus === 'Completed' ? '#0071e3' : '#16a34a',
+                flexShrink: 0
+              }}>
+                {statusModalTask.nextStatus === 'Archived' ? <Archive size={24} /> :
+                 statusModalTask.nextStatus === 'Completed' ? <CheckCircle size={24} /> : <RotateCcw size={24} />}
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                  {statusModalTask.nextStatus === 'Archived' ? 'Archive Task Campaign?' :
+                   statusModalTask.nextStatus === 'Completed' ? 'Mark Campaign Completed?' :
+                   'Reactivate Task Campaign?'}
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
+                  Campaign: <strong style={{ color: '#0f172a' }}>"{statusModalTask.task.name}"</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Zero Data Loss Guarantee Notice */}
+            <div style={{
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '18px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <ShieldCheck size={16} style={{ color: '#16a34a' }} />
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#15803d' }}>
+                  Zero Data Loss Guarantee
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#166534', margin: 0, lineHeight: 1.5 }}>
+                {statusModalTask.nextStatus === 'Archived' 
+                  ? 'All historical submissions, staff analytics, voter entries, and audit logs are 100% preserved. The task will be hidden from staff members\' daily lists, but will remain permanently available in reports.'
+                  : statusModalTask.nextStatus === 'Completed'
+                  ? 'Marks this campaign goal as reached. Submissions are closed while preserving all existing analytics and leaderboard rankings.'
+                  : 'Restores this task so staff members can once again submit outreach entries under this campaign.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setStatusModalTask(null)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: '1px solid #cbd5e1',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmStatusChange}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 22px',
+                  borderRadius: '9999px',
+                  backgroundColor: statusModalTask.nextStatus === 'Archived' ? '#d97706' :
+                                   statusModalTask.nextStatus === 'Completed' ? '#0071e3' : '#16a34a',
                   color: '#ffffff',
                   fontSize: '13px',
                   fontWeight: 700,
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                   transition: 'all 0.15s ease'
                 }}
               >
-                Delete Task
+                {statusModalTask.nextStatus === 'Archived' ? <Archive size={14} /> :
+                 statusModalTask.nextStatus === 'Completed' ? <CheckCircle size={14} /> : <RotateCcw size={14} />}
+                <span>
+                  {statusModalTask.nextStatus === 'Archived' ? 'Confirm Archive' :
+                   statusModalTask.nextStatus === 'Completed' ? 'Mark Completed' : 'Reactivate Task'}
+                </span>
               </button>
             </div>
           </div>

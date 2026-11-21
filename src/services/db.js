@@ -813,6 +813,14 @@ export const dbService = {
     if (!taskId) return false;
     const cleanId = String(taskId).trim();
 
+    // Safety check: Never delete a task that has submissions to protect analytics!
+    const subs = this.getSubmissions();
+    const hasEntries = subs.some(s => s && s.taskId === cleanId);
+    if (hasEntries) {
+      console.warn(`Prevented deletion of task ${cleanId} because it contains existing staff submissions.`);
+      return false;
+    }
+
     // 1. Record in persistent tombstone so init() and server sync never resurrect it
     try {
       const deletedList = JSON.parse(localStorage.getItem('brk_deleted_task_ids') || '[]');
@@ -843,6 +851,43 @@ export const dbService = {
     } catch (_) {}
 
     return true;
+  },
+
+  setTaskStatus(taskId, newStatus) {
+    if (!taskId || !newStatus) return null;
+    const tasks = this.getTasks();
+    const idx = tasks.findIndex(t => t.id === taskId);
+    if (idx !== -1) {
+      tasks[idx].status = newStatus;
+      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: { action: 'status', taskId, status: newStatus, task: tasks[idx] } }));
+      }
+
+      try {
+        if (typeof fetch !== 'undefined') {
+          fetch('/api/tasks/' + encodeURIComponent(taskId) + '/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          }).catch(err => console.warn('Server task status update warning:', err.message));
+        }
+      } catch (_) {}
+
+      return tasks[idx];
+    }
+    return null;
+  },
+
+  toggleTaskStatus(taskId) {
+    const tasks = this.getTasks();
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      const nextStatus = task.status === 'Active' ? 'Paused' : 'Active';
+      return this.setTaskStatus(taskId, nextStatus)?.status || nextStatus;
+    }
+    return null;
   },
 
   async syncTasksWithServer() {

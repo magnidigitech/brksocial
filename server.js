@@ -1601,10 +1601,34 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-// DELETE Task (Permanently from memory, disk and PostgreSQL)
+// DELETE Task (Permanently from memory, disk and PostgreSQL - only allowed if 0 submissions)
 app.delete('/api/tasks/:id', async (req, res) => {
   const taskId = req.params.id;
   try {
+    // Safety check: ensure task has 0 submissions before allowing permanent deletion
+    let hasSubmissions = false;
+    if (isDbConnected) {
+      try {
+        const subCount = await pool.query('SELECT COUNT(*) as count FROM submissions WHERE task_id = $1', [taskId]);
+        if (parseInt(subCount.rows[0]?.count || 0) > 0) {
+          hasSubmissions = true;
+        }
+      } catch (_) {}
+    }
+    if (!hasSubmissions) {
+      const fileSubs = getStoredSubmissions();
+      if (fileSubs.some(s => s.taskId === taskId)) {
+        hasSubmissions = true;
+      }
+    }
+
+    if (hasSubmissions) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete task with existing submissions. Move to Archive or Completed instead to preserve staff records and analytics.'
+      });
+    }
+
     let tasks = getStoredTasks();
     tasks = tasks.filter(t => t.id !== taskId);
     saveStoredTasks(tasks);
@@ -1617,6 +1641,33 @@ app.delete('/api/tasks/:id', async (req, res) => {
       }
     }
     return res.json({ success: true, deletedId: taskId, remaining: tasks.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/tasks/:id/status - Update task status (Active, Completed, Archived, Paused)
+app.patch('/api/tasks/:id/status', async (req, res) => {
+  const taskId = req.params.id;
+  const { status } = req.body;
+  if (!status) return res.status(400).json({ success: false, error: 'Status is required' });
+
+  try {
+    let tasks = getStoredTasks();
+    const idx = tasks.findIndex(t => t.id === taskId);
+    if (idx !== -1) {
+      tasks[idx].status = status;
+      saveStoredTasks(tasks);
+    }
+
+    if (isDbConnected) {
+      try {
+        await pool.query('UPDATE tasks SET status = $1 WHERE id = $2', [status, taskId]);
+      } catch (dbErr) {
+        console.warn('PostgreSQL task status update error:', dbErr.message);
+      }
+    }
+    return res.json({ success: true, taskId, status, task: idx !== -1 ? tasks[idx] : null });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
