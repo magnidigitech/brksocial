@@ -351,7 +351,7 @@ export function TaskManagementView({ isStaffAdmin: propIsStaffAdmin }) {
     }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       alert('Please enter a Task Name.');
@@ -446,9 +446,9 @@ export function TaskManagementView({ isStaffAdmin: propIsStaffAdmin }) {
       };
 
       if (editingTask) {
-        dbService.updateTask(payload);
+        await dbService.updateTask(payload);
       } else {
-        dbService.addTask(payload);
+        await dbService.addTask(payload);
       }
 
       setIsModalOpen(false);

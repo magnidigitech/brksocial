@@ -70,7 +70,13 @@ const DEFAULT_TASKS = [
     targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/',
     urlSlug: 'instagram',
     dailyTarget: 10,
-    frequency: 'Daily',
+    weeklyTarget: 10,
+    targetPerStaff: 10,
+    frequency: 'Weekly',
+    cycleDays: 7,
+    startDate: '2026-09-17',
+    weekStartDate: '2026-09-17',
+    endDate: null,
     assignmentScope: {
       scopeType: 'ALL_STAFF',
       targetCode: null,
@@ -85,7 +91,8 @@ const DEFAULT_TASKS = [
     allowExtraSubmissions: true,
     requireProof: false,
     status: 'Active',
-    createdDate: '2026-09-17'
+    createdDate: '2026-09-17',
+    updatedAt: '2026-11-21T09:30:00.000Z'
   },
   {
     id: 'TASK-WA-002',
@@ -96,6 +103,8 @@ const DEFAULT_TASKS = [
     targetUrl: 'https://chat.whatsapp.com/',
     urlSlug: 'whatsapp',
     dailyTarget: 15,
+    weeklyTarget: 15,
+    targetPerStaff: 15,
     frequency: 'Daily',
     assignmentScope: {
       scopeType: 'ALL_STAFF',
@@ -110,8 +119,9 @@ const DEFAULT_TASKS = [
     duplicateScope: 'Same Day Only',
     allowExtraSubmissions: true,
     requireProof: false,
-    status: 'Active',
-    createdDate: '2026-09-18'
+    status: 'Archived',
+    createdDate: '2026-09-18',
+    updatedAt: '2026-11-21T09:30:00.000Z'
   }
 ];
 
@@ -172,6 +182,18 @@ export const dbService = {
           }
           if (!t.urlSlug) {
             t.urlSlug = t.platform?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'instagram';
+            taskModified = true;
+          }
+          if (t.id === 'TASK-INSTA-001' && (t.frequency !== 'Weekly' || !t.weeklyTarget || !t.startDate)) {
+            t.frequency = 'Weekly';
+            t.weeklyTarget = t.weeklyTarget || t.dailyTarget || 10;
+            t.cycleDays = 7;
+            t.startDate = t.startDate || '2026-09-17';
+            t.weekStartDate = t.weekStartDate || '2026-09-17';
+            taskModified = true;
+          }
+          if (t.id === 'TASK-WA-002' && t.status === 'Active') {
+            t.status = 'Archived';
             taskModified = true;
           }
         });
@@ -751,24 +773,29 @@ export const dbService = {
       requireProof: taskData.rules?.requireProof ?? false,
       samplePatterns: taskData.samplePatterns || null,
       status: taskData.status || 'Active',
-      createdDate: taskData.createdDate || getTodayISTDateString()
+      createdDate: taskData.createdDate || getTodayISTDateString(),
+      updatedAt: new Date().toISOString()
     };
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: tasks }));
+    }
 
     // Background sync to server if available
     try {
       fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask)
+        body: JSON.stringify(newTask),
+        keepalive: true
       }).catch(() => {});
     } catch (_) {}
 
     return newTask;
   },
 
-  updateTask(updatedTask) {
+  async updateTask(updatedTask) {
     const tasks = this.getTasks();
     const idx = tasks.findIndex(t => t.id === updatedTask.id);
     if (idx !== -1) {
@@ -800,7 +827,7 @@ export const dbService = {
       const cycleTarget = isCustom ? rawTarget : (updatedTask.cycleTarget || existing.cycleTarget || rawTarget);
       const campaignTarget = isCampaignTotal ? rawTarget : (updatedTask.campaignTarget || existing.campaignTarget || rawTarget);
 
-      tasks[idx] = { 
+      const taskToSave = { 
         ...existing, 
         ...updatedTask,
         dailyTarget: rawTarget,
@@ -811,19 +838,25 @@ export const dbService = {
         startDate,
         weekStartDate: startDate,
         endDate,
-        cycleDays
+        cycleDays,
+        updatedAt: new Date().toISOString()
       };
+      tasks[idx] = taskToSave;
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: tasks }));
+      }
 
       try {
-        fetch('/api/tasks', {
+        await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tasks[idx])
-        }).catch(() => {});
+          body: JSON.stringify(taskToSave),
+          keepalive: true
+        });
       } catch (_) {}
 
-      return tasks[idx];
+      return taskToSave;
     }
     return null;
   },
@@ -932,15 +965,57 @@ export const dbService = {
           const localTasks = this.getTasks();
           const taskMap = new Map();
           activeServerTasks.forEach(t => taskMap.set(t.id, t));
-          localTasks.forEach(t => {
-            if (!taskMap.has(t.id) && !deletedIds.has(t.id)) {
-              taskMap.set(t.id, t);
+
+          // Intelligent merge with local tasks:
+          // Never let an older/default server task overwrite custom frequency, targets, or start dates!
+          let hasLocalUpgrade = false;
+          localTasks.forEach(lt => {
+            if (taskMap.has(lt.id)) {
+              const st = taskMap.get(lt.id);
+              const localTime = lt.updatedAt ? new Date(lt.updatedAt).getTime() : 0;
+              const serverTime = st.updatedAt ? new Date(st.updatedAt).getTime() : 0;
+
+              const localHasCustomFreq = lt.frequency && lt.frequency !== 'Daily';
+              const serverIsDefaultDaily = !st.frequency || st.frequency === 'Daily';
+
+              if (localTime >= serverTime || (localHasCustomFreq && serverIsDefaultDaily) || lt.id === 'TASK-INSTA-001') {
+                const mergedTask = {
+                  ...st,
+                  ...lt,
+                  frequency: (lt.id === 'TASK-INSTA-001') ? 'Weekly' : (lt.frequency || st.frequency || 'Weekly'),
+                  weeklyTarget: lt.weeklyTarget || st.weeklyTarget || lt.dailyTarget || 10,
+                  cycleDays: lt.cycleDays || st.cycleDays || (lt.frequency === 'Weekly' ? 7 : 1),
+                  startDate: lt.startDate || st.startDate || (lt.id === 'TASK-INSTA-001' ? '2026-09-17' : null),
+                  weekStartDate: lt.weekStartDate || st.weekStartDate || (lt.id === 'TASK-INSTA-001' ? '2026-09-17' : null),
+                  rules: lt.rules || st.rules || {},
+                  assignmentScope: lt.assignmentScope || st.assignmentScope || {}
+                };
+                taskMap.set(lt.id, mergedTask);
+                hasLocalUpgrade = true;
+              } else {
+                taskMap.set(lt.id, { ...lt, ...st });
+              }
+            } else if (!deletedIds.has(lt.id)) {
+              taskMap.set(lt.id, lt);
+              hasLocalUpgrade = true;
             }
           });
+
           const merged = Array.from(taskMap.values());
           localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(merged));
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('brk_task_updated', { detail: merged }));
+          }
+
+          if (hasLocalUpgrade) {
+            merged.forEach(task => {
+              fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(task),
+                keepalive: true
+              }).catch(() => {});
+            });
           }
           return merged;
         }

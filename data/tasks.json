@@ -1,37 +1,40 @@
 [
   {
-    "id": "TASK-1793028519355",
-    "name": "wahtsapp",
-    "title": "wahtsapp",
-    "description": "",
-    "targetDate": "2026-10-26",
-    "campaignName": "Individual Staff Outreach",
-    "targetPerStaff": 10,
-    "dailyTarget": 10,
-    "platform": "WhatsApp",
-    "submissionType": "Mobile Number",
-    "targetUrl": "https://chat.whatsapp.com/",
-    "urlSlug": "whatsapp",
-    "status": "Active",
-    "createdAt": "2026-10-26T15:28:39.392Z"
-  },
-  {
     "id": "TASK-INSTA-001",
     "name": "Instagram Follower Outreach",
     "title": "Instagram Follower Outreach",
-    "description": "",
+    "description": "Connect with local youth and active social media users via Instagram outreach.",
     "platform": "Instagram",
-    "submissionType": "Instagram Username",
+    "submissionType": "Instagram Handle",
     "targetUrl": "https://www.instagram.com/ramakrishnabhashyam/",
     "urlSlug": "instagram",
     "dailyTarget": 10,
+    "weeklyTarget": 10,
     "targetPerStaff": 10,
-    "frequency": "Daily",
+    "frequency": "Weekly",
+    "cycleDays": 7,
+    "startDate": "2026-09-17",
+    "weekStartDate": "2026-09-17",
+    "endDate": null,
     "status": "Active",
     "createdDate": "2026-09-17",
-    "targetDate": "2026-10-26",
+    "targetDate": "2026-09-17",
     "campaignName": "Individual Staff Outreach",
-    "createdAt": "2026-10-26T20:15:57.898Z"
+    "createdAt": "2026-09-17T00:00:00.000Z",
+    "updatedAt": "2026-11-21T09:30:00.000Z",
+    "assignmentScope": {
+      "scopeType": "ALL_STAFF",
+      "targetCode": null,
+      "targetName": "All Constituencies & Staff"
+    },
+    "rules": {
+      "duplicateScope": "Entire Campaign",
+      "allowExtraSubmissions": true,
+      "requireProof": false
+    },
+    "duplicateScope": "Entire Campaign",
+    "allowExtraSubmissions": true,
+    "requireProof": false
   },
   {
     "id": "TASK-WA-002",
@@ -43,9 +46,27 @@
     "targetUrl": "https://chat.whatsapp.com/",
     "urlSlug": "whatsapp",
     "dailyTarget": 15,
+    "weeklyTarget": 15,
     "targetPerStaff": 15,
     "frequency": "Daily",
-    "status": "Active",
-    "createdDate": "2026-09-18"
+    "status": "Archived",
+    "createdDate": "2026-09-18",
+    "targetDate": "2026-09-18",
+    "campaignName": "Individual Staff Outreach",
+    "createdAt": "2026-09-18T00:00:00.000Z",
+    "updatedAt": "2026-11-21T09:30:00.000Z",
+    "assignmentScope": {
+      "scopeType": "ALL_STAFF",
+      "targetCode": null,
+      "targetName": "All Constituencies & Staff"
+    },
+    "rules": {
+      "duplicateScope": "Same Day Only",
+      "allowExtraSubmissions": true,
+      "requireProof": false
+    },
+    "duplicateScope": "Same Day Only",
+    "allowExtraSubmissions": true,
+    "requireProof": false
   }
 ]

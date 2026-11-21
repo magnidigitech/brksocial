@@ -75,10 +75,32 @@ if (!fs.existsSync(TASKS_FILE)) {
       targetUrl: 'https://www.instagram.com/ramakrishnabhashyam/',
       urlSlug: 'instagram',
       dailyTarget: 10,
+      weeklyTarget: 10,
       targetPerStaff: 10,
-      frequency: 'Daily',
+      frequency: 'Weekly',
+      cycleDays: 7,
+      startDate: '2026-09-17',
+      weekStartDate: '2026-09-17',
+      endDate: null,
       status: 'Active',
-      createdDate: '2026-09-17'
+      createdDate: '2026-09-17',
+      targetDate: '2026-09-17',
+      campaignName: 'Individual Staff Outreach',
+      createdAt: '2026-09-17T00:00:00.000Z',
+      updatedAt: '2026-11-21T09:30:00.000Z',
+      assignmentScope: {
+        scopeType: 'ALL_STAFF',
+        targetCode: null,
+        targetName: 'All Constituencies & Staff'
+      },
+      rules: {
+        duplicateScope: 'Entire Campaign',
+        allowExtraSubmissions: true,
+        requireProof: false
+      },
+      duplicateScope: 'Entire Campaign',
+      allowExtraSubmissions: true,
+      requireProof: false
     },
     {
       id: 'TASK-WA-002',
@@ -90,10 +112,28 @@ if (!fs.existsSync(TASKS_FILE)) {
       targetUrl: 'https://chat.whatsapp.com/',
       urlSlug: 'whatsapp',
       dailyTarget: 15,
+      weeklyTarget: 15,
       targetPerStaff: 15,
       frequency: 'Daily',
-      status: 'Active',
-      createdDate: '2026-09-18'
+      status: 'Archived',
+      createdDate: '2026-09-18',
+      targetDate: '2026-09-18',
+      campaignName: 'Individual Staff Outreach',
+      createdAt: '2026-09-18T00:00:00.000Z',
+      updatedAt: '2026-11-21T09:30:00.000Z',
+      assignmentScope: {
+        scopeType: 'ALL_STAFF',
+        targetCode: null,
+        targetName: 'All Constituencies & Staff'
+      },
+      rules: {
+        duplicateScope: 'Same Day Only',
+        allowExtraSubmissions: true,
+        requireProof: false
+      },
+      duplicateScope: 'Same Day Only',
+      allowExtraSubmissions: true,
+      requireProof: false
     }
   ], null, 2), 'utf8');
 }
@@ -140,6 +180,24 @@ function getStoredTasks() {
     if (fs.existsSync(TASKS_FILE)) {
       const data = fs.readFileSync(TASKS_FILE, 'utf8');
       CACHED_TASKS = JSON.parse(data) || [];
+      let modified = false;
+      CACHED_TASKS.forEach(t => {
+        if (t.id === 'TASK-INSTA-001' && (t.frequency !== 'Weekly' || !t.weeklyTarget || !t.startDate)) {
+          t.frequency = 'Weekly';
+          t.weeklyTarget = t.weeklyTarget || t.dailyTarget || 10;
+          t.cycleDays = 7;
+          t.startDate = t.startDate || '2026-09-17';
+          t.weekStartDate = t.weekStartDate || '2026-09-17';
+          modified = true;
+        }
+        if (t.id === 'TASK-WA-002' && t.status === 'Active') {
+          t.status = 'Archived';
+          modified = true;
+        }
+      });
+      if (modified) {
+        saveStoredTasks(CACHED_TASKS);
+      }
       return CACHED_TASKS;
     }
   } catch (err) {
@@ -1251,6 +1309,15 @@ async function initDb() {
 
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_url TEXT DEFAULT 'https://www.instagram.com/ramakrishnabhashyam/';
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS url_slug VARCHAR(50) DEFAULT 'instagram';
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS frequency VARCHAR(50) DEFAULT 'Weekly';
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS weekly_target INT DEFAULT 10;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS week_start_date VARCHAR(50);
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS end_date VARCHAR(50);
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS cycle_days INT DEFAULT 7;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rules JSONB;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignment_scope JSONB;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
       CREATE TABLE IF NOT EXISTS user_credentials (
         id VARCHAR(255) PRIMARY KEY,
@@ -1579,13 +1646,50 @@ app.get('/api/tasks', async (req, res) => {
       try {
         const result = await pool.query('SELECT * FROM tasks ORDER BY created_at DESC');
         if (result.rows.length > 0) {
-          return res.json(result.rows);
+          const mapped = result.rows.map(r => ({
+            id: r.id,
+            name: r.title || r.name,
+            title: r.title || r.name,
+            description: r.description || '',
+            targetDate: r.target_date,
+            campaignName: r.campaign_name,
+            targetPerStaff: r.target_per_staff || r.daily_target || 10,
+            dailyTarget: r.daily_target || r.target_per_staff || 10,
+            weeklyTarget: r.weekly_target || (r.frequency === 'Weekly' ? (r.daily_target || r.target_per_staff || 10) : 10),
+            frequency: r.frequency || (r.id === 'TASK-INSTA-001' ? 'Weekly' : 'Daily'),
+            cycleDays: r.cycle_days || (r.frequency === 'Weekly' ? 7 : 1),
+            startDate: r.start_date || (r.id === 'TASK-INSTA-001' ? '2026-09-17' : null),
+            weekStartDate: r.week_start_date || (r.id === 'TASK-INSTA-001' ? '2026-09-17' : null),
+            endDate: r.end_date || null,
+            platform: r.platform || 'Instagram',
+            submissionType: r.submission_type || 'Instagram Handle',
+            targetUrl: r.target_url || 'https://www.instagram.com/ramakrishnabhashyam/',
+            urlSlug: r.url_slug || 'instagram',
+            status: r.status || 'Active',
+            rules: r.rules || { duplicateScope: 'Entire Campaign', allowExtraSubmissions: true, requireProof: false },
+            assignmentScope: r.assignment_scope || { scopeType: 'ALL_STAFF', targetCode: null, targetName: 'All Constituencies & Staff' },
+            createdAt: r.created_at,
+            updatedAt: r.updated_at
+          }));
+          return res.json(mapped);
         }
       } catch (dbErr) {
         console.warn('PostgreSQL tasks fetch error, using file fallback:', dbErr.message);
       }
     }
     const tasks = getStoredTasks();
+    tasks.forEach(t => {
+      if (t.id === 'TASK-INSTA-001') {
+        t.frequency = 'Weekly';
+        t.weeklyTarget = t.weeklyTarget || t.dailyTarget || 10;
+        t.cycleDays = 7;
+        t.startDate = t.startDate || '2026-09-17';
+        t.weekStartDate = t.weekStartDate || '2026-09-17';
+      }
+      if (t.id === 'TASK-WA-002' && t.status === 'Active') {
+        t.status = 'Archived';
+      }
+    });
     res.json(tasks);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1594,10 +1698,14 @@ app.get('/api/tasks', async (req, res) => {
 
 // POST Create or Update Task
 app.post('/api/tasks', async (req, res) => {
-  const { id, title, name, description, targetDate, campaignName, targetPerStaff, dailyTarget, platform, submissionType, targetUrl, urlSlug, frequency, startDate, weekStartDate, endDate, cycleDays, weeklyTarget, status } = req.body;
+  const { id, title, name, description, targetDate, campaignName, targetPerStaff, dailyTarget, platform, submissionType, targetUrl, urlSlug, frequency, startDate, weekStartDate, endDate, cycleDays, weeklyTarget, status, rules, assignmentScope } = req.body;
   const taskId = id || `TSK_${Date.now()}`;
   const effectiveName = name || title || 'New Task';
   const effectiveTarget = Number(dailyTarget || targetPerStaff) || 10;
+  const effectiveFrequency = frequency || (taskId === 'TASK-INSTA-001' ? 'Weekly' : 'Daily');
+  const effectiveStartDate = startDate || weekStartDate || (taskId === 'TASK-INSTA-001' ? '2026-09-17' : null);
+  const effectiveCycleDays = cycleDays || (effectiveFrequency === 'Weekly' ? 7 : 1);
+  const effectiveWeeklyTarget = weeklyTarget || (effectiveFrequency === 'Weekly' ? effectiveTarget : null);
   
   const newTask = {
     ...req.body,
@@ -1609,17 +1717,20 @@ app.post('/api/tasks', async (req, res) => {
     campaignName: campaignName || 'Individual Staff Outreach',
     targetPerStaff: effectiveTarget,
     dailyTarget: effectiveTarget,
+    weeklyTarget: effectiveWeeklyTarget,
     platform: platform || 'Instagram',
     submissionType: submissionType || 'Instagram Handle',
     targetUrl: targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
     urlSlug: urlSlug || 'instagram',
     status: status || 'Active',
-    frequency: frequency || 'Daily',
-    startDate: startDate || weekStartDate || null,
-    weekStartDate: weekStartDate || startDate || null,
+    frequency: effectiveFrequency,
+    startDate: effectiveStartDate,
+    weekStartDate: effectiveStartDate,
     endDate: endDate || null,
-    cycleDays: cycleDays || (frequency === 'Weekly' ? 7 : 1),
-    weeklyTarget: weeklyTarget || (frequency === 'Weekly' ? effectiveTarget : null),
+    cycleDays: effectiveCycleDays,
+    rules: rules || req.body.rules || { duplicateScope: 'Entire Campaign', allowExtraSubmissions: true, requireProof: false },
+    assignmentScope: assignmentScope || req.body.assignmentScope || { scopeType: 'ALL_STAFF', targetCode: null, targetName: 'All Constituencies & Staff' },
+    updatedAt: new Date().toISOString(),
     createdAt: req.body.createdAt || new Date().toISOString()
   };
 
@@ -1636,11 +1747,12 @@ app.post('/api/tasks', async (req, res) => {
     if (isDbConnected) {
       try {
         await pool.query(
-          `INSERT INTO tasks (id, title, description, target_date, campaign_name, target_per_staff, target_url, url_slug)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO tasks (id, title, description, target_date, campaign_name, target_per_staff, target_url, url_slug, frequency, weekly_target, start_date, week_start_date, end_date, cycle_days, status, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)
            ON CONFLICT (id) DO UPDATE SET
-             title = $2, description = $3, target_date = $4, campaign_name = $5, target_per_staff = $6, target_url = $7, url_slug = $8`,
-          [taskId, effectiveName, description || '', newTask.targetDate, newTask.campaignName, effectiveTarget, newTask.targetUrl, newTask.urlSlug]
+             title = $2, description = $3, target_date = $4, campaign_name = $5, target_per_staff = $6, target_url = $7, url_slug = $8,
+             frequency = $9, weekly_target = $10, start_date = $11, week_start_date = $12, end_date = $13, cycle_days = $14, status = $15, updated_at = CURRENT_TIMESTAMP`,
+          [taskId, effectiveName, description || '', newTask.targetDate, newTask.campaignName, effectiveTarget, newTask.targetUrl, newTask.urlSlug, newTask.frequency, newTask.weeklyTarget, newTask.startDate, newTask.weekStartDate, newTask.endDate, newTask.cycleDays, newTask.status]
         );
       } catch (dbErr) {
         console.warn('PostgreSQL task insert error:', dbErr.message);
