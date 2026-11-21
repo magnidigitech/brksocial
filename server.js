@@ -477,6 +477,9 @@ function loadFollowersFromDisk() {
  * If submitted before or during the latest import and not found, updates status to 'Handle Not Found'.
  * If follower later appears in snapshot, updates status to 'Valid Submission'.
  */
+// Baseline lock cutoff: Submissions after this point cannot claim credit for existing baseline followers
+const BASELINE_LOCK_TIME = new Date('2026-11-21T06:30:00.000Z').getTime();
+
 function reconcilePendingSubmissionsWithDb(submissions) {
   if (!FOLLOWERS_MAP || FOLLOWERS_MAP.size === 0 || !Array.isArray(submissions) || !submissions.length) return false;
   const imports = getStoredImports();
@@ -492,16 +495,28 @@ function reconcilePendingSubmissionsWithDb(submissions) {
 
     const follower = resolveFollower(sub.username);
     if (follower && follower.status !== 'unfollowed') {
-      if (sub.status !== 'Valid Submission' || !sub.isValid) {
-        sub.status = 'Valid Submission';
-        sub.isValid = true;
-        sub.isFollower = true;
-        sub.verificationBadge = '✓ Follower Verified';
-        sub.verificationNote = `Verified genuine follower`;
-        if (follower.username && sub.username !== follower.username) {
-          sub.normalizedUsername = follower.username;
+      const isPostBaselineSubmission = subTime > BASELINE_LOCK_TIME;
+      if (isPostBaselineSubmission && follower.isBaseline) {
+        if (sub.status !== 'Already Followed' || sub.isValid) {
+          sub.status = 'Already Followed';
+          sub.isValid = false;
+          sub.isFollower = true;
+          sub.verificationBadge = 'Existing Follower';
+          sub.verificationNote = 'Account was already an existing follower prior to outreach';
+          changed = true;
         }
-        changed = true;
+      } else {
+        if (sub.status !== 'Valid Submission' || !sub.isValid) {
+          sub.status = 'Valid Submission';
+          sub.isValid = true;
+          sub.isFollower = true;
+          sub.verificationBadge = '✓ Follower Verified';
+          sub.verificationNote = `Verified genuine follower`;
+          if (follower.username && sub.username !== follower.username) {
+            sub.normalizedUsername = follower.username;
+          }
+          changed = true;
+        }
       }
     } else if (!follower) {
       // If submitted AFTER the latest import, it stays in Pending Submission (awaiting next sync)!
@@ -2435,7 +2450,17 @@ app.post('/api/submissions/revalidate', (req, res) => {
           updatedCount++;
         }
       } else {
-        if (sub.status !== 'Valid Submission' || !sub.isValid) {
+        const isPostBaselineSubmission = subTime > BASELINE_LOCK_TIME;
+        if (isPostBaselineSubmission && follower.isBaseline) {
+          if (sub.status !== 'Already Followed' || sub.isValid) {
+            sub.status = 'Already Followed';
+            sub.isValid = false;
+            sub.isFollower = true;
+            sub.verificationBadge = 'Existing Follower';
+            sub.verificationNote = 'Account was already an existing follower prior to outreach';
+            updatedCount++;
+          }
+        } else if (sub.status !== 'Valid Submission' || !sub.isValid) {
           sub.status = 'Valid Submission';
           sub.isValid = true;
           sub.isFollower = true;
@@ -3022,10 +3047,7 @@ app.get('/api/instagram/followers/check/:username', (req, res) => {
       const isActive = follower.status === 'active' || !follower.status;
       const formattedDate = follower.followedAtFormatted || formatFollowerTimestamp(follower.timestamp);
       const subTime = req.query.submittedAt ? new Date(req.query.submittedAt).getTime() : Date.now();
-      const followTime = Number(follower.timestamp) * 1000;
-      const WINDOW_MS = 24 * 60 * 60 * 1000;
-      const isPreExisting = followTime < (subTime - WINDOW_MS);
-      const isInsideWindow = followTime >= (subTime - WINDOW_MS) && followTime <= (subTime + WINDOW_MS);
+      const isPreExisting = !!(follower.isBaseline || follower.isPreExisting);
 
       return res.json({
         success: true,

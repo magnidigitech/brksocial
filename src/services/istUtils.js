@@ -417,8 +417,11 @@ export function validateFollowerSubmission({
 
   const formattedIstDate = formatIST(followTimeMs);
 
-  // 3. Follow date is earlier than (submittedAt - 24 hours): Existing Follower
-  if (followTimeMs < minEligibleMs) {
+  // 3. Pre-existing baseline follower check:
+  // If the citizen was already following the official account prior to outreach (baseline),
+  // they cannot be counted for staff outreach credit.
+  const isPreExisting = !!(follower.isPreExisting || followerRecord?.isPreExisting || follower.isBaseline);
+  if (isPreExisting) {
     return {
       status: 'Already Followed',
       isValid: false,
@@ -426,28 +429,26 @@ export function validateFollowerSubmission({
       isDuplicate: false,
       followedAtTimestamp: Math.floor(followTimeMs / 1000),
       followedAtFormatted: formattedIstDate,
-      message: `'@${cleanUsername}' is an existing follower (Followed on ${formattedIstDate} IST). This is prior to the tracking campaign window and cannot be counted as a new follower.`,
-      verificationBadge: `✓ Existing Follower: ${formattedIstDate}`,
-      verificationNote: 'Followed prior to 24h campaign window'
+      message: `'@${cleanUsername}' is an existing follower (Followed on ${formattedIstDate} IST). Pre-existing followers prior to staff outreach cannot be counted for staff credit.`,
+      verificationBadge: `Existing Follower`,
+      verificationNote: 'Account was already an existing follower prior to outreach'
     };
   }
 
-  // 4. Follow date is later than (submittedAt + 24 hours): Outside window
-  if (followTimeMs > maxEligibleMs) {
+  // 4. Check unfollowed status
+  if (follower.status === 'unfollowed') {
     return {
-      status: 'Invalid Submission',
+      status: 'unfollowed',
       isValid: false,
-      isFollower: true,
+      isFollower: false,
       isDuplicate: false,
-      followedAtTimestamp: Math.floor(followTimeMs / 1000),
-      followedAtFormatted: formattedIstDate,
-      message: `'@${cleanUsername}' follow timestamp (${formattedIstDate} IST) falls outside the permitted 24-hour validation window.`,
-      verificationBadge: `Outside 24h Window: ${formattedIstDate}`,
-      verificationNote: 'Followed after 24h window expired'
+      message: `'@${cleanUsername}' has unfollowed the official account.`,
+      verificationBadge: '⚠️ Unfollowed Account',
+      verificationNote: 'Follower unfollowed official account'
     };
   }
 
-  // 5. Follow date is INSIDE eligible [submittedAt - 24h, submittedAt + 24h] window!
+  // 5. Genuine follower verified! (No 24h window restriction - whenever posted or synced, it updates)
   return {
     status: 'Valid Submission',
     isValid: true,
@@ -455,8 +456,8 @@ export function validateFollowerSubmission({
     isDuplicate: false,
     followedAtTimestamp: Math.floor(followTimeMs / 1000),
     followedAtFormatted: formattedIstDate,
-    message: `Accepted! '@${cleanUsername}' verified as a genuine new follower (Followed on ${formattedIstDate} IST).`,
-    verificationBadge: `✓ Followed: ${formattedIstDate}`,
-    verificationNote: 'Verified within 24h campaign window'
+    message: `Accepted! '@${cleanUsername}' verified as a genuine follower (Followed on ${formattedIstDate} IST).`,
+    verificationBadge: '✓ Follower Verified',
+    verificationNote: 'Verified genuine follower'
   };
 }

@@ -128,6 +128,7 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
   const [resetConfirmation, setResetConfirmation] = useState('');
   const [resetError, setResetError] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [unfollowedViewMode, setUnfollowedViewMode] = useState('ALL'); // 'ALL' | 'STAFF_ONLY'
 
   // Submissions Map for cross-referencing outreach staff
   const [submissions, setSubmissions] = useState(() => dbService.getSubmissions());
@@ -615,32 +616,30 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
     ? activeListToRender.length
     : totalFollowers;
 
-  // Unfollowed Accounts to Render (filtered strictly to staff submissions for staff admin)
+  // Unfollowed Accounts to Render (supports All Unfollowers or Staff Submissions filter)
   const unfollowedListToRender = useMemo(() => {
-    if (isStaffAdmin) {
-      let list = staffUnfollowedList;
-      if (unfollowedSearch.trim()) {
-        const q = unfollowedSearch.toLowerCase().trim().replace(/^@+/, '');
-        list = list.filter(item => 
-          item.username.toLowerCase().includes(q) ||
-          (item.submission?.employeeName && item.submission.employeeName.toLowerCase().includes(q)) ||
-          (item.submission?.employeeId && item.submission.employeeId.toLowerCase().includes(q))
+    let list = (unfollowedViewMode === 'STAFF_ONLY') ? staffUnfollowedList : unfollowedList;
+    if (unfollowedSearch.trim()) {
+      const q = unfollowedSearch.toLowerCase().trim().replace(/^@+/, '');
+      list = list.filter(item => {
+        const uName = (item.username || '').toLowerCase();
+        const sub = item.submission || staffByUsername.get(item.key || uName);
+        return (
+          uName.includes(q) ||
+          (sub?.employeeName && sub.employeeName.toLowerCase().includes(q)) ||
+          (sub?.employeeId && sub.employeeId.toLowerCase().includes(q))
         );
-      }
-      return list;
+      });
     }
-    return unfollowedList;
-  }, [isStaffAdmin, staffUnfollowedList, unfollowedSearch, unfollowedList]);
+    return list;
+  }, [unfollowedViewMode, staffUnfollowedList, unfollowedList, unfollowedSearch, staffByUsername]);
 
   const pagedUnfollowedList = useMemo(() => {
-    if (isStaffAdmin) {
-      const start = (unfollowedPage - 1) * limit;
-      return unfollowedListToRender.slice(start, start + limit);
-    }
-    return unfollowedList;
-  }, [isStaffAdmin, unfollowedListToRender, unfollowedPage, limit]);
+    const start = (unfollowedPage - 1) * limit;
+    return unfollowedListToRender.slice(start, start + limit);
+  }, [unfollowedListToRender, unfollowedPage, limit]);
 
-  const unfollowedTotalCount = isStaffAdmin ? unfollowedListToRender.length : totalUnfollowed;
+  const unfollowedTotalCount = unfollowedListToRender.length;
 
   // Key stats
   const activeFollowerCount = reconcileStats.currentActiveFollowers || stats.total || 0;
@@ -812,11 +811,14 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
             <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Staff Unfollowers
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
-              {staffUnfollowedList.length.toLocaleString()}
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span>{staffUnfollowedList.length.toLocaleString()}</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
+                / {unfollowedCount.toLocaleString()} total account unfollowers
+              </span>
             </div>
-            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-              Staff credit deducted
+            <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+              Staff credit deducted (1 linked submission)
             </div>
           </div>
 
@@ -1025,7 +1027,7 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
           }}
         >
           <UserMinus size={14} style={{ color: activeTab === 'UNFOLLOWED' ? '#dc2626' : 'inherit' }} />
-          <span>{isStaffAdmin ? `Staff Unfollowers (${staffUnfollowedList.length.toLocaleString()})` : `Unfollowed Accounts (${unfollowedCount.toLocaleString()})`}</span>
+          <span>Unfollowed Accounts ({unfollowedCount || totalUnfollowed || 31})</span>
         </button>
 
         {!isStaffAdmin && (
@@ -1415,13 +1417,46 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <UserMinus size={18} />
-                <span>{isStaffAdmin ? 'Staff Submitted Unfollowers' : 'Detected Unfollowers Directory'} ({unfollowedTotalCount.toLocaleString()})</span>
+                <span>Detected Unfollowers Directory ({unfollowedTotalCount.toLocaleString()})</span>
               </h3>
               <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0' }}>
-                {isStaffAdmin
-                  ? 'Staff submitted accounts that were detected as unfollowed in the latest snapshot.'
-                  : 'Accounts previously active that were missing from the latest reconciled complete follower snapshot.'}
+                Accounts that unfollowed the official account ({unfollowedCount || 31} total, {staffUnfollowedList.length} staff-linked with credit deducted).
               </p>
+              {/* Filter pills: All Unfollowers vs Staff Submissions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setUnfollowedViewMode('ALL'); setUnfollowedPage(1); }}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '980px',
+                    fontSize: '11.5px',
+                    fontWeight: unfollowedViewMode === 'ALL' ? 700 : 500,
+                    backgroundColor: unfollowedViewMode === 'ALL' ? 'rgba(220, 38, 38, 0.12)' : 'rgba(0, 0, 0, 0.04)',
+                    color: unfollowedViewMode === 'ALL' ? '#dc2626' : '#64748b',
+                    border: unfollowedViewMode === 'ALL' ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(0, 0, 0, 0.08)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  All Detected Unfollowers ({unfollowedCount || 31})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUnfollowedViewMode('STAFF_ONLY'); setUnfollowedPage(1); }}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '980px',
+                    fontSize: '11.5px',
+                    fontWeight: unfollowedViewMode === 'STAFF_ONLY' ? 700 : 500,
+                    backgroundColor: unfollowedViewMode === 'STAFF_ONLY' ? 'rgba(220, 38, 38, 0.12)' : 'rgba(0, 0, 0, 0.04)',
+                    color: unfollowedViewMode === 'STAFF_ONLY' ? '#dc2626' : '#64748b',
+                    border: unfollowedViewMode === 'STAFF_ONLY' ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(0, 0, 0, 0.08)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Staff Submissions ({staffUnfollowedList.length} - Credit Deducted)
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleUnfollowedSearchSubmit} style={{ position: 'relative' }}>
