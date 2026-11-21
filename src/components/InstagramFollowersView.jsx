@@ -524,7 +524,7 @@ export function InstagramFollowersView() {
   const latestUnfollowers = reconcileStats.latestImport?.newUnfollowers ?? 0;
   const activeSubmissionsCount = reconcileStats.activeSubmissionsCount || submissions.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
   const unfollowedSubmissionsCount = reconcileStats.unfollowedSubmissionsCount || submissions.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
-  const notFoundSubmissionsCount = reconcileStats.notFoundSubmissionsCount ?? submissions.filter(s => s.status === 'Handle Not Found' || s.status === 'not_found').length;
+  const notFoundSubmissionsCount = reconcileStats.notFoundSubmissionsCount ?? submissions.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found').length;
   const pendingSubmissionsCount = reconcileStats.pendingSubmissionsCount ?? submissions.filter(s => s.status === 'Pending Submission' || s.status === 'pending_verification').length;
 
   return (
@@ -744,16 +744,16 @@ export function InstagramFollowersView() {
           </div>
         </div>
 
-        {/* 7. Handle Not Found Submissions */}
+        {/* 7. Not Following Submissions */}
         <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Handle Not Found
+            Not Following
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
             {notFoundSubmissionsCount.toLocaleString()}
           </div>
           <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Unmatched in latest snapshot
+            Not following official account
           </div>
         </div>
 

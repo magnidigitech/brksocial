@@ -335,7 +335,7 @@ export default function VerificationBottomSheet({ submission, onClose }) {
                 letterSpacing: '0.2px'
               }}
             >
-              {submission.status}
+              {submission.status === 'Handle Not Found' || submission.status === 'not_found' ? 'Not Following' : submission.status}
             </span>
           </div>
 

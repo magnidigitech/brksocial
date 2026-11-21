@@ -107,7 +107,15 @@ function getStoredSubmissions() {
   try {
     if (fs.existsSync(SUBMISSIONS_FILE)) {
       const data = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
-      CACHED_SUBMISSIONS = JSON.parse(data) || [];
+      const list = JSON.parse(data) || [];
+      // Normalize legacy 'Handle Not Found' to 'Not Following'
+      list.forEach(s => {
+        if (s.status === 'Handle Not Found' || s.status === 'not_found') {
+          s.status = 'Not Following';
+          if (s.verificationBadge === 'Handle Not Found') s.verificationBadge = 'Not Following';
+        }
+      });
+      CACHED_SUBMISSIONS = list;
       return CACHED_SUBMISSIONS;
     }
   } catch (err) {
@@ -388,10 +396,10 @@ function reconcilePendingSubmissionsWithDb(submissions) {
       }
     } else if (!follower) {
       if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
-        sub.status = 'Handle Not Found';
+        sub.status = 'Not Following';
         sub.isValid = false;
         sub.isFollower = false;
-        sub.verificationBadge = 'Handle Not Found';
+        sub.verificationBadge = 'Not Following';
         sub.verificationNote = `Not found in followers list (synced ${syncTimeFormatted})`;
         changed = true;
       }
@@ -641,11 +649,11 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
             submissionsUpdatedCount++;
           }
         } else {
-          if (sub.status !== 'Handle Not Found') {
-            sub.status = 'Handle Not Found';
+          if (sub.status !== 'Not Following') {
+            sub.status = 'Not Following';
             sub.isValid = false;
             sub.isFollower = false;
-            sub.verificationBadge = 'Handle Not Found';
+            sub.verificationBadge = 'Not Following';
             sub.verificationNote = `Not found in baseline followers snapshot (synced ${syncTimeFormatted})`;
             sub.lastReconciledAt = nowIso;
             submissionsUpdatedCount++;
@@ -666,8 +674,8 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
             submissionsUpdatedCount++;
           }
         } else if (newFollowerSet.has(cleanSub) || incomingSet.has(cleanSub)) {
-          // A follower returned or pending/not-found submission was matched
-          if (sub.status === 'unfollowed' || sub.status === 'Pending Submission' || sub.status === 'Handle Not Found' || sub.status === 'not_found') {
+          // A follower returned or pending/not-following submission was matched
+          if (sub.status === 'unfollowed' || sub.status === 'Pending Submission' || sub.status === 'Not Following' || sub.status === 'Handle Not Found' || sub.status === 'not_found') {
             const wasUnfollowed = sub.status === 'unfollowed';
             sub.status = 'Valid Submission';
             sub.isValid = true;
@@ -683,10 +691,10 @@ async function executeReconciliationCommit(payload, mode = 'RECONCILIATION', ope
         } else if (!incomingSet.has(cleanSub)) {
           // Not found in this follower snapshot
           if (sub.status === 'Pending Submission' || sub.status === 'pending_verification') {
-            sub.status = 'Handle Not Found';
+            sub.status = 'Not Following';
             sub.isValid = false;
             sub.isFollower = false;
-            sub.verificationBadge = 'Handle Not Found';
+            sub.verificationBadge = 'Not Following';
             sub.verificationNote = `Not found in followers list (synced ${syncTimeFormatted})`;
             sub.lastReconciledAt = nowIso;
             submissionsUpdatedCount++;
@@ -2187,12 +2195,12 @@ app.post('/api/submissions/revalidate', (req, res) => {
         const subTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : Date.now();
 
         const isAfterSync = dbSyncTime > subTime;
-        const targetStatus = isAfterSync ? 'Handle Not Found' : 'Pending Submission';
+        const targetStatus = isAfterSync ? 'Not Following' : 'Pending Submission';
         if (sub.status !== targetStatus) {
           sub.status = targetStatus;
           sub.isValid = false;
           sub.isFollower = false;
-          sub.verificationBadge = isAfterSync ? 'Handle Not Found' : 'Pending Follow Sync';
+          sub.verificationBadge = isAfterSync ? 'Not Following' : 'Pending Follow Sync';
           sub.verificationNote = isAfterSync ? `Not in followers list (synced ${formatFollowerTimestamp(Math.floor(dbSyncTime / 1000))})` : 'Awaiting next official follower JSON sync';
           updatedCount++;
         }
@@ -2613,7 +2621,7 @@ app.get('/api/instagram/followers/reconciliation/stats', (req, res) => {
 
     const activeSubs = submissions.filter(s => s.status === 'Valid Submission' || s.status === 'active' || s.isValid);
     const unfollowedSubs = submissions.filter(s => s.status === 'unfollowed' || s.status === 'Unfollowed');
-    const notFoundSubs = submissions.filter(s => s.status === 'Handle Not Found' || s.status === 'not_found');
+    const notFoundSubs = submissions.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found');
     const pendingSubs = submissions.filter(s => s.status === 'Pending Submission' || s.status === 'pending_verification');
 
     const statsObj = {
@@ -2876,7 +2884,7 @@ app.post('/api/instagram/followers/batch-check', (req, res) => {
           username: clean,
           exists: false,
           isFollower: false,
-          status: isAfterSync ? 'Handle Not Found' : 'Pending Submission',
+          status: isAfterSync ? 'Not Following' : 'Pending Submission',
           dbSyncTime
         };
       }

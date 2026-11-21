@@ -376,17 +376,17 @@ export function validateFollowerSubmission({
 
   if (!isFoundInDb) {
     // If the database has been synced AFTER this submission was made,
-    // and the handle is still missing, it is officially "Handle Not Found"!
+    // and the handle is still missing, it is officially "Not Following"!
     if (dbSyncTimeMs && Number(dbSyncTimeMs) > subTimeMs) {
       const syncDateFormatted = formatIST(dbSyncTimeMs);
       return {
-        status: 'Handle Not Found',
+        status: 'Not Following',
         isValid: false,
         isFollower: false,
         isDuplicate: false,
         message: `'@${cleanUsername}' was not found in the verified Instagram followers list (synced ${syncDateFormatted}). Please verify the handle spelling or confirm that the citizen actually followed.`,
-        verificationBadge: 'Handle Not Found',
-        verificationNote: `Not in followers list (synced ${syncDateFormatted})`,
+        verificationBadge: 'Not Following',
+        verificationNote: `Not following official account (synced ${syncDateFormatted})`,
         followedAtFormatted: null,
         followedAtTimestamp: null
       };

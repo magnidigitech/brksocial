@@ -154,7 +154,7 @@ export function EmployeePortal({ session, onLogout }) {
   const empActiveSubmissionsEver = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
   const empUnfollowedSubmissionsEver = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
   const empPendingSubmissionsEver = empAllSubs.filter(s => s.status === 'Pending Submission').length;
-  const empNotFoundSubmissionsEver = empAllSubs.filter(s => s.status === 'Handle Not Found').length;
+  const empNotFoundSubmissionsEver = empAllSubs.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found').length;
   const empRefollowedSubmissionsEver = empAllSubs.filter(s => !!s.re_followed_at).length;
   const empNetActiveSubmissionsEver = empActiveSubmissionsEver;
 
@@ -1427,7 +1427,7 @@ export function EmployeePortal({ session, onLogout }) {
                       </div>
 
                       <div style={{ padding: '8px 10px', borderRadius: '10px', backgroundColor: '#fff1f2', border: '1px solid #ffe4e6' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#e11d48', textTransform: 'uppercase' }}>Not Found</div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#e11d48', textTransform: 'uppercase' }}>Not Following</div>
                         <div style={{ fontSize: '17px', fontWeight: 800, color: '#be123c', marginTop: '2px' }}>{empNotFoundSubmissionsEver}</div>
                         <div style={{ fontSize: '9.5px', color: '#e11d48' }}>Unmatched</div>
                       </div>
@@ -1487,7 +1487,7 @@ export function EmployeePortal({ session, onLogout }) {
                       </button>
                     </div>
 
-                    {/* Status Filter Pills: All, Active, Unfollowed, Pending */}
+                    {/* Status Filter Pills: All, Active, Unfollowed, Pending, Not Following */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1501,7 +1501,7 @@ export function EmployeePortal({ session, onLogout }) {
                         { key: 'ACTIVE', label: 'Active / Verified' },
                         { key: 'UNFOLLOWED', label: 'Unfollowed' },
                         { key: 'PENDING', label: 'Pending' },
-                        { key: 'NOT_FOUND', label: 'Not Found' }
+                        { key: 'NOT_FOUND', label: 'Not Following' }
                       ].map(filter => {
                         const isSelected = subStatusFilter === filter.key;
                         return (
@@ -1533,7 +1533,7 @@ export function EmployeePortal({ session, onLogout }) {
                         if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
                         if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
                         if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
-                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Handle Not Found';
+                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found';
                         return true;
                       });
 
@@ -1544,7 +1544,7 @@ export function EmployeePortal({ session, onLogout }) {
                               {filteredList.map((sub, idx) => {
                                 const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
                                 const isStatusPending = sub.status === 'Pending Submission';
-                                const isStatusNotFound = sub.status === 'Handle Not Found';
+                                const isStatusNotFound = sub.status === 'Not Following' || sub.status === 'Handle Not Found' || sub.status === 'not_found';
                                 const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
 
                                 return (
@@ -1609,7 +1609,7 @@ export function EmployeePortal({ session, onLogout }) {
                                         color: '#ffffff',
                                         whiteSpace: 'nowrap'
                                       }}>
-                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Found' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Following' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
                                       </span>
 
                                       <button
@@ -1657,7 +1657,7 @@ export function EmployeePortal({ session, onLogout }) {
                         if (subStatusFilter === 'ACTIVE') return s.status === 'Valid Submission' || s.status === 'Valid';
                         if (subStatusFilter === 'UNFOLLOWED') return s.status === 'Unfollowed' || s.status === 'unfollowed';
                         if (subStatusFilter === 'PENDING') return s.status === 'Pending Submission';
-                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Handle Not Found';
+                        if (subStatusFilter === 'NOT_FOUND') return s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found';
                         return true;
                       });
 
@@ -1668,7 +1668,7 @@ export function EmployeePortal({ session, onLogout }) {
                               {filteredList.map((sub, idx) => {
                                 const isStatusValid = sub.status === 'Valid Submission' || sub.status === 'Valid';
                                 const isStatusPending = sub.status === 'Pending Submission';
-                                const isStatusNotFound = sub.status === 'Handle Not Found';
+                                const isStatusNotFound = sub.status === 'Not Following' || sub.status === 'Handle Not Found' || sub.status === 'not_found';
                                 const isStatusUnfollowed = sub.status === 'Unfollowed' || sub.status === 'unfollowed';
 
                                 return (
@@ -1732,7 +1732,7 @@ export function EmployeePortal({ session, onLogout }) {
                                         color: '#ffffff',
                                         whiteSpace: 'nowrap'
                                       }}>
-                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Found' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
+                                        {isStatusValid ? 'Active' : (isStatusPending ? 'Pending' : (isStatusNotFound ? 'Not Following' : (isStatusUnfollowed ? 'Unfollowed' : sub.status)))}
                                       </span>
 
                                       <button

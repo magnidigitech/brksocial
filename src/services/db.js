@@ -1212,7 +1212,7 @@ export const dbService = {
     // Only 'Valid Submission' (or legacy 'Valid') counts towards target
     const validSubs = subs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
     const pendingSubs = subs.filter(s => s.status === 'Pending Submission');
-    const notFoundSubs = subs.filter(s => s.status === 'Handle Not Found');
+    const notFoundSubs = subs.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found');
     const unfollowedSubs = subs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
     const alreadyFollowedSubs = subs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
     const invalidSubs = subs.filter(s => s.status === 'Invalid Submission');
