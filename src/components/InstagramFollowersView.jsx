@@ -3,7 +3,7 @@ import {
   Instagram, Search, Upload, Check, AlertCircle, RefreshCw, 
   ExternalLink, Calendar, Users, ShieldCheck, Download, Clock, Filter,
   RotateCcw, History, AlertTriangle, ArrowRight, X, ChevronRight, UserMinus, UserCheck, ShieldAlert,
-  CheckCircle2, FileText
+  CheckCircle2, FileText, Maximize2
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
 import { authService } from '../services/auth.js';
@@ -98,13 +98,16 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
 
-  // Single Profile Checker & Real-Time AJAX Search
+  // Single Profile Checker & Real-Time AJAX Search (Apple Finder Style)
   const [checkInput, setCheckInput] = useState('');
   const [checkResult, setCheckResult] = useState(null);
   const [isChecking, setIsChecking] = useState(false);
   const [liveSuggestions, setLiveSuggestions] = useState([]);
   const [isLiveSearching, setIsLiveSearching] = useState(false);
+  const [isFinderOpen, setIsFinderOpen] = useState(false);
+  const [selectedFinderIndex, setSelectedFinderIndex] = useState(0);
   const searchDebounceRef = useRef(null);
+  const finderInputRef = useRef(null);
 
   // Visual Progress Import Modal State
   const fileInputRef = useRef(null);
@@ -386,6 +389,56 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
       }
     };
   }, [checkInput, submissions, staffByUsername]);
+
+  // Auto-focus input when Finder opens
+  useEffect(() => {
+    if (isFinderOpen) {
+      const t = setTimeout(() => {
+        if (finderInputRef.current) {
+          finderInputRef.current.focus();
+        }
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [isFinderOpen]);
+
+  // Keep selected index valid
+  useEffect(() => {
+    if (selectedFinderIndex >= liveSuggestions.length) {
+      setSelectedFinderIndex(0);
+    }
+  }, [liveSuggestions, selectedFinderIndex]);
+
+  // Apple Finder Keyboard Navigation & Shortcuts (Escape, ArrowUp, ArrowDown, Enter, Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && activeTab === 'CHECKER') {
+        e.preventDefault();
+        setIsFinderOpen(prev => !prev);
+        return;
+      }
+
+      if (!isFinderOpen) return;
+
+      if (e.key === 'Escape') {
+        setIsFinderOpen(false);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedFinderIndex(prev => Math.min(prev + 1, Math.max(0, liveSuggestions.length - 1)));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedFinderIndex(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        if (liveSuggestions.length > 0 && liveSuggestions[selectedFinderIndex]) {
+          e.preventDefault();
+          handleSelectSuggestion(liveSuggestions[selectedFinderIndex]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFinderOpen, liveSuggestions, selectedFinderIndex, activeTab]);
 
   const handleSelectSuggestion = async (item) => {
     setCheckInput(item.username);
@@ -2043,6 +2096,29 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
             >
               {isChecking ? 'Inspecting...' : 'Inspect Handle'}
             </button>
+            <button
+              type="button"
+              onClick={() => setIsFinderOpen(true)}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '980px',
+                backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                color: '#0071e3',
+                border: '1px solid rgba(0, 113, 227, 0.25)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+              title="Open full-screen Apple Finder style search (⌘K)"
+            >
+              <Maximize2 size={13} />
+              <span>Finder Mode</span>
+              <kbd style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(0, 113, 227, 0.12)' }}>⌘K</kbd>
+            </button>
           </form>
 
           {/* Typing helper / Character count */}
@@ -2371,6 +2447,642 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* APPLE FINDER FULL-SCREEN SPOTLIGHT MODAL */}
+      {isFinderOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100000,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            padding: '40px 20px 24px 20px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsFinderOpen(false);
+            }
+          }}
+        >
+          <div 
+            style={{
+              width: '100%',
+              maxWidth: '880px',
+              maxHeight: '86vh',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: 'rgba(255, 255, 255, 0.98)',
+              backdropFilter: 'blur(40px)',
+              WebkitBackdropFilter: 'blur(40px)',
+              borderRadius: '20px',
+              boxShadow: '0 30px 90px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 1. macOS Titlebar with Traffic Lights */}
+            <div style={{
+              height: '42px',
+              padding: '0 16px',
+              backgroundColor: '#f6f6f7',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              userSelect: 'none'
+            }}>
+              {/* Traffic Lights */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFinderOpen(false)}
+                  title="Close (Esc)"
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ff5f56',
+                    border: '1px solid #e0443e',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                />
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ffbd2e',
+                  border: '1px solid #dea123'
+                }} />
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: '#27c93f',
+                  border: '1px solid #1aab29'
+                }} />
+              </div>
+
+              {/* Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Instagram size={14} style={{ color: '#e1306c' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f' }}>
+                  Profile Inspector — Apple Finder
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                  color: '#64748b'
+                }}>
+                  23,568 Followers
+                </span>
+              </div>
+
+              {/* Close shortcut hint */}
+              <button
+                type="button"
+                onClick={() => setIsFinderOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#86868b',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  padding: '4px 8px',
+                  borderRadius: '6px'
+                }}
+              >
+                <kbd style={{
+                  fontSize: '10.5px',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: '#e5e7eb',
+                  color: '#4b5563',
+                  border: '1px solid #d1d5db',
+                  fontFamily: 'monospace'
+                }}>ESC</kbd>
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* 2. Spotlight Big Search Input Bar */}
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: '#ffffff',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.07)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px'
+            }}>
+              <Search size={22} style={{ color: '#0071e3', flexShrink: 0 }} />
+              <input
+                ref={finderInputRef}
+                type="text"
+                placeholder="Search 23,568 followers by @handle or paste profile URL..."
+                value={checkInput}
+                onChange={(e) => setCheckInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '18px',
+                  fontWeight: 500,
+                  color: '#1d1d1f',
+                  backgroundColor: 'transparent',
+                  letterSpacing: '-0.01em'
+                }}
+              />
+
+              {isLiveSearching && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#0071e3', fontWeight: 600 }}>
+                  <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>Searching...</span>
+                </div>
+              )}
+
+              {checkInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckInput('');
+                    setLiveSuggestions([]);
+                    setCheckResult(null);
+                    finderInputRef.current?.focus();
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#86868b',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderRadius: '50%'
+                  }}
+                  title="Clear"
+                >
+                  <X size={18} />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleProfileCheck}
+                disabled={isChecking || !checkInput.trim()}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '980px',
+                  backgroundColor: '#0071e3',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {isChecking ? 'Inspecting...' : 'Inspect Handle'}
+                <span style={{ fontSize: '11px', opacity: 0.8 }}>↵</span>
+              </button>
+            </div>
+
+            {/* 3. Sub-bar Status Guide */}
+            <div style={{
+              padding: '8px 20px',
+              backgroundColor: '#fafafb',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: '#64748b'
+            }}>
+              <div>
+                {(() => {
+                  const clean = extractCleanHandle(checkInput);
+                  if (!clean) {
+                    return <span>⌨️ Enter at least 3 characters to search across 23,568 followers.</span>;
+                  }
+                  if (clean.length < 3) {
+                    return <span style={{ color: '#f59e0b', fontWeight: 600 }}>⌨️ Type {3 - clean.length} more character{3 - clean.length > 1 ? 's' : ''} to search ({clean.length}/3)...</span>;
+                  }
+                  if (isLiveSearching) {
+                    return <span style={{ color: '#0071e3', fontWeight: 600 }}>⚡ Searching database for "@{clean}"...</span>;
+                  }
+                  return (
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>
+                      ✓ Found {liveSuggestions.length} matching result{liveSuggestions.length === 1 ? '' : 's'} for "@{clean}"
+                    </span>
+                  );
+                })()}
+              </div>
+              {liveSuggestions.length > 0 && (
+                <div style={{ fontSize: '11px', color: '#86868b' }}>
+                  Showing top {liveSuggestions.length} items • Click or use ↑ ↓ to inspect
+                </div>
+              )}
+            </div>
+
+            {/* 4. Finder Main Body: Split View */}
+            <div style={{ flex: 1, display: 'flex', minHeight: '380px', maxHeight: '520px', overflow: 'hidden' }}>
+              {/* If less than 3 chars typed: Welcome / Spotlight helper */}
+              {extractCleanHandle(checkInput).length < 3 ? (
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '40px',
+                  textAlign: 'center',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '16px',
+                    backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                    color: '#0071e3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '16px'
+                  }}>
+                    <Search size={32} />
+                  </div>
+                  <h4 style={{ fontSize: '17px', fontWeight: 700, color: '#1d1d1f', margin: '0 0 6px 0' }}>
+                    Apple Finder Profile Inspector
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+                    Type at least 3 characters of any Instagram handle or paste an Instagram profile URL to instantly look up live follow status, timestamp, and employee attribution across 23,568 followers.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px', color: '#86868b' }}>Try typing:</span>
+                    {['kattari', 'ram', 'bhashyam', 'sesha', 'vani'].map(sample => (
+                      <button
+                        key={sample}
+                        type="button"
+                        onClick={() => {
+                          setCheckInput(sample);
+                          finderInputRef.current?.focus();
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '980px',
+                          backgroundColor: '#f1f5f9',
+                          border: '1px solid rgba(0,0,0,0.06)',
+                          color: '#0071e3',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        @{sample}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : liveSuggestions.length > 0 ? (
+                /* SPLIT VIEW: Left list (Finder view) + Right QuickLook Inspector */
+                <>
+                  {/* Left Column: Results List */}
+                  <div style={{
+                    width: '42%',
+                    borderRight: '1px solid rgba(0, 0, 0, 0.08)',
+                    backgroundColor: '#fafafa',
+                    overflowY: 'auto',
+                    padding: '8px'
+                  }}>
+                    {liveSuggestions.map((item, idx) => {
+                      const isSelected = selectedFinderIndex === idx || checkResult?.searchedHandle?.toLowerCase() === item.username.toLowerCase();
+                      return (
+                        <div
+                          key={item.key || idx}
+                          onClick={() => {
+                            setSelectedFinderIndex(idx);
+                            handleSelectSuggestion(item);
+                          }}
+                          onMouseEnter={() => setSelectedFinderIndex(idx)}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            marginBottom: '4px',
+                            backgroundColor: isSelected ? '#0071e3' : 'transparent',
+                            color: isSelected ? '#ffffff' : '#1d1d1f',
+                            transition: 'background-color 0.1s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <div style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.2)' : (item.status === 'active' || item.isFollower ? 'rgba(34, 197, 94, 0.12)' : (item.status === 'unfollowed' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)')),
+                              color: isSelected ? '#ffffff' : (item.status === 'active' || item.isFollower ? '#16a34a' : (item.status === 'unfollowed' ? '#dc2626' : '#64748b')),
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <Instagram size={14} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                              <span style={{
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                fontFamily: 'monospace',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                @{item.username}
+                              </span>
+                              <span style={{
+                                fontSize: '11px',
+                                opacity: isSelected ? 0.9 : 0.7,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {item.matchedSubmission ? `Staff: ${item.matchedSubmission.employeeName}` : (item.followedAtFormatted || (item.status === 'active' ? 'Active' : item.status))}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '980px',
+                              backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.25)' : (item.status === 'active' || item.isFollower ? '#dcfce7' : (item.status === 'unfollowed' ? '#fee2e2' : '#f1f5f9')),
+                              color: isSelected ? '#ffffff' : (item.status === 'active' || item.isFollower ? '#15803d' : (item.status === 'unfollowed' ? '#b91c1c' : '#475569'))
+                            }}>
+                              {item.status === 'active' || item.isFollower ? 'Active' : (item.status === 'unfollowed' ? 'Unfollowed' : (item.status === 'not_following' ? 'Not Following' : item.status))}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right Column: QuickLook Inspector Preview */}
+                  <div style={{
+                    width: '58%',
+                    backgroundColor: '#ffffff',
+                    padding: '24px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}>
+                    {(() => {
+                      const activeItem = liveSuggestions[selectedFinderIndex] || liveSuggestions[0];
+                      if (!activeItem) return null;
+                      const isItemFollower = activeItem.isFollower || activeItem.status === 'active';
+                      const isItemUnfollowed = activeItem.status === 'unfollowed';
+                      const sub = activeItem.matchedSubmission || staffByUsername.get(activeItem.key);
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {/* Header */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                              <div style={{
+                                width: '54px',
+                                height: '54px',
+                                borderRadius: '16px',
+                                background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                                color: '#ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 4px 14px rgba(225, 48, 108, 0.25)',
+                                flexShrink: 0
+                              }}>
+                                <Instagram size={28} />
+                              </div>
+                              <div>
+                                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1d1d1f', margin: '0 0 2px 0', fontFamily: 'monospace' }}>
+                                  @{activeItem.username}
+                                </h3>
+                                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                  Canonical Key: <code style={{ backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>{activeItem.key}</code>
+                                </div>
+                              </div>
+                            </div>
+
+                            <span style={{
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              padding: '4px 12px',
+                              borderRadius: '980px',
+                              backgroundColor: isItemFollower ? '#16a34a' : (isItemUnfollowed ? '#dc2626' : '#64748b'),
+                              color: '#ffffff'
+                            }}>
+                              {isItemFollower ? '✓ Active Follower' : (isItemUnfollowed ? '⚠ Detected Unfollower' : '✕ Not Following')}
+                            </span>
+                          </div>
+
+                          {/* Follow date */}
+                          {activeItem.followedAtFormatted && (
+                            <div style={{
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid rgba(0,0,0,0.06)',
+                              fontSize: '12.5px',
+                              color: '#334155',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}>
+                              <Clock size={15} style={{ color: '#0071e3' }} />
+                              <span>Followed Date: <strong style={{ color: '#0071e3', fontFamily: 'monospace' }}>{activeItem.followedAtFormatted}</strong></span>
+                            </div>
+                          )}
+
+                          {/* Staff Attribution Section */}
+                          {sub ? (
+                            <div style={{
+                              padding: '14px 16px',
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(0, 113, 227, 0.04)',
+                              border: '1px solid rgba(0, 113, 227, 0.15)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#0071e3' }}>
+                                <ShieldCheck size={16} />
+                                <span>Staff Outreach Attribution Verified</span>
+                              </div>
+                              <div style={{ fontSize: '12.5px', color: '#1e293b' }}>
+                                Submitted by: <strong>{sub.employeeName}</strong> <span style={{ color: '#64748b' }}>({sub.employeeId})</span>
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#475569' }}>
+                                Assembly: <strong>{sub.assemblyName || 'General Staff'}</strong> • Task: <strong>{sub.taskName || 'Instagram Outreach'}</strong>
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#475569' }}>
+                                Submission Date: <strong>{sub.date}</strong> • Status: <span style={{
+                                  fontWeight: 700,
+                                  color: sub.status === 'Valid Submission' || sub.status === 'Valid' ? '#16a34a' : (sub.status === 'Unfollowed' ? '#dc2626' : '#d97706')
+                                }}>{sub.status}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid rgba(0,0,0,0.05)',
+                              fontSize: '12px',
+                              color: '#64748b'
+                            }}>
+                              ℹ️ This follower account has not been attributed to any staff outreach submission yet.
+                            </div>
+                          )}
+
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                            <a
+                              href={activeItem.href || `https://www.instagram.com/${activeItem.username}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                flex: 1,
+                                padding: '10px 16px',
+                                borderRadius: '10px',
+                                backgroundColor: '#1d1d1f',
+                                color: '#ffffff',
+                                fontSize: '12.5px',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <span>Open Instagram Profile</span>
+                              <ExternalLink size={14} />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectSuggestion(activeItem);
+                                setIsFinderOpen(false);
+                              }}
+                              style={{
+                                padding: '10px 16px',
+                                borderRadius: '10px',
+                                backgroundColor: '#f1f5f9',
+                                color: '#0071e3',
+                                border: 'none',
+                                fontSize: '12.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Select in Dashboard
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </>
+              ) : (
+                /* Empty / No Matches State */
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '40px',
+                  textAlign: 'center',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <Search size={36} style={{ color: '#94a3b8', marginBottom: '12px' }} />
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', margin: '0 0 6px 0' }}>
+                    No Accounts Found for "@{extractCleanHandle(checkInput)}"
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '420px', margin: '0 0 16px 0' }}>
+                    This account does not appear in the authoritative 23,568 follower database or staff submissions.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleProfileCheck();
+                    }}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: '980px',
+                      backgroundColor: '#0071e3',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Inspect as Unverified Handle
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 5. Window Footer Bar */}
+            <div style={{
+              height: '34px',
+              padding: '0 16px',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11.5px',
+              color: '#64748b',
+              userSelect: 'none'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16a34a' }}></span>
+                <span>Authoritative Follower Engine (23,568 records)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span><kbd style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', backgroundColor: '#e2e8f0' }}>↑</kbd> <kbd style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', backgroundColor: '#e2e8f0' }}>↓</kbd> navigate</span>
+                <span><kbd style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', backgroundColor: '#e2e8f0' }}>↵</kbd> select</span>
+                <span><kbd style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', backgroundColor: '#e2e8f0' }}>esc</kbd> close</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
