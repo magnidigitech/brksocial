@@ -1550,12 +1550,13 @@ app.get('/api/tasks', async (req, res) => {
 
 // POST Create or Update Task
 app.post('/api/tasks', async (req, res) => {
-  const { id, title, name, description, targetDate, campaignName, targetPerStaff, dailyTarget, platform, submissionType, targetUrl, urlSlug } = req.body;
+  const { id, title, name, description, targetDate, campaignName, targetPerStaff, dailyTarget, platform, submissionType, targetUrl, urlSlug, frequency, startDate, weekStartDate, endDate, cycleDays, weeklyTarget, status } = req.body;
   const taskId = id || `TSK_${Date.now()}`;
   const effectiveName = name || title || 'New Task';
   const effectiveTarget = Number(dailyTarget || targetPerStaff) || 10;
   
   const newTask = {
+    ...req.body,
     id: taskId,
     name: effectiveName,
     title: effectiveName,
@@ -1568,8 +1569,14 @@ app.post('/api/tasks', async (req, res) => {
     submissionType: submissionType || 'Instagram Handle',
     targetUrl: targetUrl || 'https://www.instagram.com/ramakrishnabhashyam/',
     urlSlug: urlSlug || 'instagram',
-    status: 'Active',
-    createdAt: new Date().toISOString()
+    status: status || 'Active',
+    frequency: frequency || 'Daily',
+    startDate: startDate || weekStartDate || null,
+    weekStartDate: weekStartDate || startDate || null,
+    endDate: endDate || null,
+    cycleDays: cycleDays || (frequency === 'Weekly' ? 7 : 1),
+    weeklyTarget: weeklyTarget || (frequency === 'Weekly' ? effectiveTarget : null),
+    createdAt: req.body.createdAt || new Date().toISOString()
   };
 
   try {

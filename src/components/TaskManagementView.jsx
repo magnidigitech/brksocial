@@ -66,6 +66,9 @@ export function TaskManagementView() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [editingTaskEarliestSubDate, setEditingTaskEarliestSubDate] = useState(null);
+  const [editingTaskSubCount, setEditingTaskSubCount] = useState(0);
+  const [isWeekStartDateUnlocked, setIsWeekStartDateUnlocked] = useState(false);
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null);
   const [confirmTaskNameInput, setConfirmTaskNameInput] = useState('');
   const [statusModalTask, setStatusModalTask] = useState(null); // { task, nextStatus }
@@ -133,6 +136,9 @@ export function TaskManagementView() {
 
   const openCreateModal = () => {
     setEditingTask(null);
+    setEditingTaskEarliestSubDate(null);
+    setEditingTaskSubCount(0);
+    setIsWeekStartDateUnlocked(false);
     setSelectedParliaments(['APP13']);
     setSelectedAssemblies(['APP13A07']);
     setParliamentSearchText('');
@@ -146,7 +152,7 @@ export function TaskManagementView() {
       urlSlug: 'instagram',
       dailyTarget: 10,
       frequency: 'Daily',
-      startDate: getTodayISTDateString(),
+      startDate: getMondayOfCurrentWeekIST(),
       weekStartDate: getMondayOfCurrentWeekIST(),
       endDate: '',
       cycleDays: 10,
@@ -161,6 +167,26 @@ export function TaskManagementView() {
 
   const openEditModal = (task) => {
     setEditingTask(task);
+    setIsWeekStartDateUnlocked(false);
+
+    // Check existing submissions and determine earliest submission date
+    const subs = dbService.getSubmissions();
+    const taskSubs = subs.filter(s => s && s.taskId === task.id);
+    const subCount = taskSubs.length;
+    let earliest = null;
+    if (subCount > 0) {
+      for (const s of taskSubs) {
+        let d = null;
+        if (s.date && /^\d{4}-\d{2}-\d{2}$/.test(s.date)) d = s.date;
+        else if (s.submittedAt) d = s.submittedAt.slice(0, 10);
+        else if (s.createdAt) d = s.createdAt.slice(0, 10);
+        else if (s.timestamp) d = String(s.timestamp).slice(0, 10);
+        if (d && (!earliest || d < earliest)) earliest = d;
+      }
+    }
+    setEditingTaskEarliestSubDate(earliest);
+    setEditingTaskSubCount(subCount);
+
     const scope = task.assignmentScope || {};
     const existingCodes = scope.targetCodes || (scope.targetCode ? [scope.targetCode] : []);
 
@@ -182,6 +208,10 @@ export function TaskManagementView() {
       ? task.samplePatterns
       : getDefaultSamplePatterns(task.platform || 'Instagram', task.submissionType || 'Instagram Handle');
 
+    // For tasks with existing submissions, anchor start date to earliest submission date!
+    // For tasks with 0 submissions, use existing task.startDate or Monday of current week.
+    const resolvedStartDate = earliest || task.startDate || task.weekStartDate || (task.frequency === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+
     setFormData({
       name: task.name || '',
       description: task.description || '',
@@ -191,8 +221,8 @@ export function TaskManagementView() {
       urlSlug: task.urlSlug || (task.platform === 'Instagram' ? 'instagram' : 'go'),
       dailyTarget: task.dailyTarget || task.weeklyTarget || task.cycleTarget || task.campaignTarget || 10,
       frequency: task.frequency || 'Daily',
-      startDate: task.startDate || task.weekStartDate || getTodayISTDateString(),
-      weekStartDate: task.startDate || task.weekStartDate || getMondayOfCurrentWeekIST(),
+      startDate: resolvedStartDate,
+      weekStartDate: resolvedStartDate,
       endDate: task.endDate || '',
       cycleDays: task.cycleDays || 10,
       scopeType: scope.scopeType || 'ALL_STAFF',
@@ -366,6 +396,15 @@ export function TaskManagementView() {
       const normalizedScopeType = formData.scopeType === 'SPECIFIC_PARLIAMENT' ? 'SELECTED_PARLIAMENTS' : 
                                  (formData.scopeType === 'SPECIFIC_ASSEMBLY' ? 'SELECTED_ASSEMBLIES' : (formData.scopeType || 'ALL_STAFF'));
 
+      // For weekly tasks with existing submissions, strictly preserve earliest submission date unless explicitly unlocked
+      let effectiveStartDate = formData.startDate || formData.weekStartDate;
+      if (editingTaskEarliestSubDate && formData.frequency === 'Weekly' && !isWeekStartDateUnlocked) {
+        effectiveStartDate = editingTaskEarliestSubDate;
+      }
+      if (!effectiveStartDate) {
+        effectiveStartDate = formData.frequency === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString();
+      }
+
       const payload = {
         id: editingTask ? editingTask.id : `TASK-${Date.now()}`,
         name: formData.name.trim(),
@@ -376,8 +415,8 @@ export function TaskManagementView() {
         urlSlug: cleanSlug,
         dailyTarget: Number(formData.dailyTarget) || 10,
         frequency: formData.frequency || 'Daily',
-        startDate: formData.startDate || formData.weekStartDate || getTodayISTDateString(),
-        weekStartDate: formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST(),
+        startDate: effectiveStartDate,
+        weekStartDate: effectiveStartDate,
         endDate: formData.endDate ? formData.endDate : null,
         cycleDays: formData.frequency === 'Weekly' ? 7 : (formData.frequency === 'Custom' ? Math.max(1, Number(formData.cycleDays) || 10) : 1),
         weeklyTarget: formData.frequency === 'Weekly' ? (Number(formData.dailyTarget) || 10) : (editingTask?.weeklyTarget || null),
@@ -1432,11 +1471,24 @@ export function TaskManagementView() {
                     value={formData.frequency}
                     onChange={(e) => {
                       const newFreq = e.target.value;
+                      let newStart = formData.startDate;
+
+                      if (newFreq === 'Weekly') {
+                        if (editingTaskEarliestSubDate) {
+                          // Auto-anchor to first submission date for existing running campaign
+                          newStart = editingTaskEarliestSubDate;
+                        } else {
+                          newStart = formData.startDate || getMondayOfCurrentWeekIST();
+                        }
+                      } else if (newFreq === 'Custom') {
+                        newStart = editingTaskEarliestSubDate || formData.startDate || getTodayISTDateString();
+                      }
+
                       setFormData({
                         ...formData,
                         frequency: newFreq,
-                        startDate: formData.startDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
-                        weekStartDate: formData.weekStartDate || (newFreq === 'Weekly' ? getMondayOfCurrentWeekIST() : getTodayISTDateString()),
+                        startDate: newStart,
+                        weekStartDate: newStart,
                         cycleDays: newFreq === 'Weekly' ? 7 : (formData.cycleDays || 10)
                       });
                     }}
@@ -1461,11 +1513,17 @@ export function TaskManagementView() {
 
               {/* Conditional Configuration for Weekly */}
               {formData.frequency === 'Weekly' && (() => {
-                const start = formData.startDate || formData.weekStartDate || getMondayOfCurrentWeekIST();
+                const hasExistingSubmissions = Boolean(editingTaskEarliestSubDate);
+                const isLocked = hasExistingSubmissions && !isWeekStartDateUnlocked;
+                const start = formData.startDate || formData.weekStartDate || (hasExistingSubmissions ? editingTaskEarliestSubDate : getMondayOfCurrentWeekIST());
                 const week1End = addDaysToDateStr(start, 6);
                 const week2Start = addDaysToDateStr(start, 7);
                 const week2End = addDaysToDateStr(start, 13);
                 const week3Start = addDaysToDateStr(start, 14);
+
+                // Calculate current cycle info relative to today
+                const cycle = getTaskCycleInfo({ frequency: 'Weekly', startDate: start, cycleDays: 7 });
+
                 return (
                   <div style={{
                     backgroundColor: 'rgba(0, 113, 227, 0.05)',
@@ -1474,32 +1532,102 @@ export function TaskManagementView() {
                     padding: '14px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '10px'
+                    gap: '12px'
                   }}>
+                    {hasExistingSubmissions ? (
+                      /* Banner for Tasks with Existing Submissions */
+                      <div style={{
+                        padding: '10px 12px',
+                        backgroundColor: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '10px'
+                      }}>
+                        <ShieldCheck size={18} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#15803d' }}>
+                            Historical Submissions Detected ({editingTaskSubCount} Entries)
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#166534', marginTop: '2px', lineHeight: 1.45 }}>
+                            Week 1 Start Date is automatically set to the campaign's <strong>First Submission Date ({editingTaskEarliestSubDate})</strong>. 
+                            This guarantees that all past staff outreach entries align properly with Week 1, Week 2, up through today (<strong>{cycle.shortLabel}</strong>).
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Banner for Tasks with 0 Submissions */
+                      <div style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Calendar size={15} style={{ color: '#0071e3', flexShrink: 0 }} />
+                        <span style={{ fontSize: '11.5px', color: '#1e40af' }}>
+                          No submissions yet. Pick any start date from the calendar to begin Week 1.
+                        </span>
+                      </div>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <div>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                          📅 Week 1 Start Date
-                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            📅 Week 1 Start Date
+                          </label>
+                          {hasExistingSubmissions && (
+                            <button
+                              type="button"
+                              onClick={() => setIsWeekStartDateUnlocked(!isWeekStartDateUnlocked)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: isWeekStartDateUnlocked ? '#dc2626' : '#0071e3',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                padding: 0,
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              {isWeekStartDateUnlocked ? '🔒 Re-lock to First Submission' : '✏️ Change date'}
+                            </button>
+                          )}
+                        </div>
+
                         <input
                           type="date"
                           required
                           value={start}
+                          readOnly={isLocked}
                           onChange={(e) => setFormData({ ...formData, startDate: e.target.value, weekStartDate: e.target.value })}
                           style={{
                             width: '100%',
                             padding: '8px 10px',
                             borderRadius: '8px',
-                            border: '1px solid rgba(0, 113, 227, 0.3)',
+                            border: isLocked ? '1.5px solid #bbf7d0' : '1px solid rgba(0, 113, 227, 0.3)',
                             fontSize: '12.5px',
                             fontWeight: 600,
-                            color: '#1d1d1f',
-                            backgroundColor: '#ffffff',
+                            color: isLocked ? '#15803d' : '#1d1d1f',
+                            backgroundColor: isLocked ? '#f0fdf4' : '#ffffff',
+                            cursor: isLocked ? 'not-allowed' : 'auto',
                             outline: 'none',
                             boxSizing: 'border-box'
                           }}
                         />
+
+                        {isLocked && (
+                          <span style={{ display: 'block', fontSize: '10.5px', color: '#16a34a', fontWeight: 600, marginTop: '4px' }}>
+                            ✓ Locked to 1st submission date ({editingTaskEarliestSubDate})
+                          </span>
+                        )}
                       </div>
+
                       <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
                           🏁 Campaign End Date (Optional)
@@ -1524,23 +1652,32 @@ export function TaskManagementView() {
                       </div>
                     </div>
 
+                    {/* Cycle Sequence Preview */}
                     <div style={{
                       backgroundColor: '#ffffff',
                       borderRadius: '8px',
-                      padding: '8px 12px',
+                      padding: '10px 12px',
                       border: '1px solid rgba(0, 113, 227, 0.15)',
                       fontSize: '11.5px',
                       color: '#334155',
                       lineHeight: 1.5
                     }}>
-                      <div style={{ fontWeight: 700, color: '#0071e3', marginBottom: '3px' }}>
-                        ⚡ Automatic 7-Day Cycle Sequence:
+                      <div style={{ fontWeight: 700, color: '#0071e3', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>⚡ Automatic 7-Day Cycle Sequence:</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a', backgroundColor: 'rgba(52, 199, 89, 0.1)', padding: '2px 8px', borderRadius: '980px' }}>
+                          Current: {cycle.shortLabel}
+                        </span>
                       </div>
-                      <div>• <strong>Week 1:</strong> {start} → {week1End}</div>
-                      <div>• <strong>Week 2:</strong> {week2Start} → {week2End} (auto-starts after Week 1 ends)</div>
+                      <div>• <strong>Week 1:</strong> {start} → {week1End} {hasExistingSubmissions && start === editingTaskEarliestSubDate ? '(1st Staff Entry)' : ''}</div>
+                      <div>• <strong>Week 2:</strong> {week2Start} → {week2End}</div>
                       <div>• <strong>Week 3:</strong> {week3Start} → ...</div>
-                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '11px' }}>
-                        When Week 1 reaches its end date, the system seamlessly transitions to Week 2 and tracks new progress!
+                      {cycle.cycleNumber > 3 && (
+                        <div style={{ color: '#0071e3', fontWeight: 600, marginTop: '2px' }}>
+                          • <strong>{cycle.shortLabel} (Active Today):</strong> {cycle.startDate} → {cycle.endDate}
+                        </div>
+                      )}
+                      <div style={{ marginTop: '6px', color: '#64748b', fontSize: '11px' }}>
+                        When a week reaches its 7th day, the system seamlessly transitions to the next week and tracks progress automatically!
                       </div>
                     </div>
                   </div>

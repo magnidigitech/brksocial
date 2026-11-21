@@ -769,7 +769,20 @@ export const dbService = {
       const isCampaignTotal = freq === 'Campaign Total';
 
       const cycleDays = isWeekly ? 7 : (isCustom ? Math.max(1, Number(updatedTask.cycleDays || existing.cycleDays) || 10) : 1);
-      const startDate = updatedTask.startDate || updatedTask.weekStartDate || existing.startDate || existing.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
+
+      // Determine earliest submission date if task has existing entries
+      let earliestSubDate = null;
+      if (isWeekly || isCustom) {
+        const subs = this.getSubmissions().filter(s => s && s.taskId === updatedTask.id);
+        if (subs.length > 0) {
+          subs.forEach(s => {
+            const d = s.date || (s.submittedAt ? s.submittedAt.slice(0, 10) : null);
+            if (d && (!earliestSubDate || d < earliestSubDate)) earliestSubDate = d;
+          });
+        }
+      }
+
+      const startDate = updatedTask.startDate || updatedTask.weekStartDate || earliestSubDate || existing.startDate || existing.weekStartDate || (isWeekly ? getMondayOfCurrentWeekIST() : getTodayISTDateString());
       const endDate = updatedTask.endDate !== undefined ? updatedTask.endDate : (existing.endDate || null);
 
       const rawTarget = Number(updatedTask.dailyTarget || updatedTask.weeklyTarget || updatedTask.cycleTarget || updatedTask.campaignTarget || existing.dailyTarget) || 10;
