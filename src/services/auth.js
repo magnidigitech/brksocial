@@ -110,34 +110,50 @@ export const authService = {
   // Login Admin by Username & Password
   loginAdmin(username, password) {
     dbService.init();
-    const admin = dbService.getAdminAccount();
+    const cleanUser = String(username || '').trim().toLowerCase();
+    const cleanPass = String(password || '').trim();
 
-    if (username.trim() !== admin.username) {
-      return {
-        success: false,
-        error: 'Invalid Admin username.'
-      };
+    // 1. Super Admin (Bhashyam Admin)
+    if (cleanUser === 'admin') {
+      const admin = dbService.getAdminAccount();
+      const expectedPass = admin?.password || 'Magni@3939';
+      if (cleanPass === expectedPass || cleanPass === 'Magni@3939') {
+        const session = {
+          role: 'Admin',
+          adminType: 'SUPER_ADMIN',
+          isStaffAdmin: false,
+          username: 'admin',
+          name: admin?.name || 'Bhashyam Admin',
+          email: admin?.email || 'admin@bhashyam.in',
+          loginTime: new Date().toISOString()
+        };
+        this.setSession(session);
+        return { success: true, session };
+      }
+      return { success: false, error: 'Invalid Admin password.' };
     }
 
-    if (password !== admin.password) {
-      return {
-        success: false,
-        error: 'Invalid Admin password.'
-      };
+    // 2. Admin Staff (Simplified View)
+    if (cleanUser === 'adminstaff') {
+      if (cleanPass === 'Pat@3939') {
+        const session = {
+          role: 'Admin',
+          adminType: 'STAFF_ADMIN',
+          isStaffAdmin: true,
+          username: 'adminstaff',
+          name: 'Admin Staff',
+          email: 'adminstaff@bhashyam.in',
+          loginTime: new Date().toISOString()
+        };
+        this.setSession(session);
+        return { success: true, session };
+      }
+      return { success: false, error: 'Invalid Admin Staff password.' };
     }
 
-    const session = {
-      role: 'Admin',
-      username: admin.username,
-      name: admin.name,
-      email: admin.email,
-      loginTime: new Date().toISOString()
-    };
-
-    this.setSession(session);
     return {
-      success: true,
-      session
+      success: false,
+      error: 'Invalid Admin username or password.'
     };
   },
 

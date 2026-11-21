@@ -33,6 +33,7 @@ import {
   FolderArchive
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
+import { authService } from '../services/auth.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getDefaultSamplePatterns, patternsToString, stringToPatterns } from '../services/normalization.js';
 import { getMondayOfCurrentWeekIST, getTodayISTDateString, getTaskCycleInfo, addDaysToDateStr } from '../services/istUtils.js';
@@ -57,7 +58,10 @@ const PLATFORM_COLORS = {
   'Custom': { bg: '#faf5ff', text: '#9333ea', border: '#e9d5ff' }
 };
 
-export function TaskManagementView() {
+export function TaskManagementView({ isStaffAdmin: propIsStaffAdmin }) {
+  const activeSession = authService.getSession();
+  const isStaffAdmin = propIsStaffAdmin ?? (activeSession?.adminType === 'STAFF_ADMIN' || activeSession?.username?.toLowerCase() === 'adminstaff' || Boolean(activeSession?.isStaffAdmin));
+
   const [tasks, setTasks] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'Active', 'Completed', 'Archived', 'Paused'
@@ -463,6 +467,12 @@ export function TaskManagementView() {
                           t.platform?.toLowerCase().includes(q);
 
     const taskStatus = t.status || 'Active';
+
+    // Staff admin only sees currently active running campaigns
+    if (isStaffAdmin) {
+      return matchesSearch && taskStatus === 'Active';
+    }
+
     let matchesTab = true;
     if (activeTab === 'Active') {
       matchesTab = taskStatus === 'Active' || taskStatus === 'Paused';
@@ -538,117 +548,122 @@ export function TaskManagementView() {
             />
           </div>
 
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '980px',
-              border: '1px solid rgba(0, 0, 0, 0.08)',
-              backgroundColor: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: '#1d1d1f',
-              outline: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
-            }}
-          >
-            <option value="ALL">All Status</option>
-            <option value="Active">Active Only</option>
-            <option value="Paused">Paused Only</option>
-          </select>
+          {/* Status Filter & Create Task (Super Admin Only) */}
+          {!isStaffAdmin && (
+            <>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '980px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  backgroundColor: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: '#1d1d1f',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                }}
+              >
+                <option value="ALL">All Status</option>
+                <option value="Active">Active Only</option>
+                <option value="Paused">Paused Only</option>
+              </select>
 
-          {/* Create Task Button */}
-          <button
-            onClick={openCreateModal}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 16px',
-              borderRadius: '980px',
-              backgroundColor: '#0071e3',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(0, 113, 227, 0.25)',
-              transition: 'all 0.15s ease',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            <Plus size={14} />
-            <span>Create Task</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Task Management Category Tabs */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        padding: '8px 12px',
-        backgroundColor: '#ffffff',
-        borderRadius: '16px',
-        border: '1px solid rgba(0, 0, 0, 0.06)',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'ALL', label: 'All Campaigns', count: tabCounts.all, icon: Sliders },
-            { id: 'Active', label: 'Active Tasks', count: tabCounts.active, icon: CheckCircle2, color: '#34c759' },
-            { id: 'Completed', label: 'Completed Tasks', count: tabCounts.completed, icon: CheckCircle, color: '#0071e3' },
-            { id: 'Archived', label: 'Archived Tasks', count: tabCounts.archived, icon: Archive, color: '#f59e0b' }
-          ].map(tab => {
-            const isActive = activeTab === tab.id;
-            const TabIcon = tab.icon;
-            return (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={openCreateModal}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '6px 14px',
+                  padding: '7px 16px',
                   borderRadius: '980px',
-                  border: isActive ? '1px solid rgba(0, 113, 227, 0.2)' : '1px solid transparent',
-                  backgroundColor: isActive ? 'rgba(0, 113, 227, 0.08)' : 'transparent',
-                  color: isActive ? '#0071e3' : '#64748b',
+                  backgroundColor: '#0071e3',
+                  color: '#ffffff',
                   fontSize: '12px',
-                  fontWeight: isActive ? 700 : 500,
+                  fontWeight: 600,
+                  border: 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease'
+                  boxShadow: '0 2px 6px rgba(0, 113, 227, 0.25)',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <TabIcon size={13} style={{ color: isActive ? (tab.color || '#0071e3') : '#86868b' }} />
-                <span>{tab.label}</span>
-                <span style={{
-                  fontSize: '10.5px',
-                  fontWeight: 700,
-                  padding: '1px 6px',
-                  borderRadius: '980px',
-                  backgroundColor: isActive ? '#0071e3' : 'rgba(100, 116, 139, 0.12)',
-                  color: isActive ? '#ffffff' : '#64748b'
-                }}>
-                  {tab.count}
-                </span>
+                <Plus size={14} />
+                <span>Create Task</span>
               </button>
-            );
-          })}
-        </div>
-
-        <div style={{ fontSize: '11px', color: '#86868b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <ShieldCheck size={13} style={{ color: '#16a34a' }} />
-          <span>Submissions Protected: Tasks with entries cannot be deleted</span>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Task Management Category Tabs (Super Admin Only) */}
+      {!isStaffAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '8px 12px',
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid rgba(0, 0, 0, 0.06)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'ALL', label: 'All Campaigns', count: tabCounts.all, icon: Sliders },
+              { id: 'Active', label: 'Active Tasks', count: tabCounts.active, icon: CheckCircle2, color: '#34c759' },
+              { id: 'Completed', label: 'Completed Tasks', count: tabCounts.completed, icon: CheckCircle, color: '#0071e3' },
+              { id: 'Archived', label: 'Archived Tasks', count: tabCounts.archived, icon: Archive, color: '#f59e0b' }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '980px',
+                    border: isActive ? '1px solid rgba(0, 113, 227, 0.2)' : '1px solid transparent',
+                    backgroundColor: isActive ? 'rgba(0, 113, 227, 0.08)' : 'transparent',
+                    color: isActive ? '#0071e3' : '#64748b',
+                    fontSize: '12px',
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <TabIcon size={13} style={{ color: isActive ? (tab.color || '#0071e3') : '#86868b' }} />
+                  <span>{tab.label}</span>
+                  <span style={{
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '980px',
+                    backgroundColor: isActive ? '#0071e3' : 'rgba(100, 116, 139, 0.12)',
+                    color: isActive ? '#ffffff' : '#64748b'
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: '11px', color: '#86868b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ShieldCheck size={13} style={{ color: '#16a34a' }} />
+            <span>Submissions Protected: Tasks with entries cannot be deleted</span>
+          </div>
+        </div>
+      )}
 
       {/* Task Cards Grid - 3 per row on Desktop */}
       <div className="tasks-grid-layout">
@@ -717,7 +732,7 @@ export function TaskManagementView() {
                       {taskStatus}
                     </span>
 
-                    {(taskStatus === 'Active' || taskStatus === 'Paused') && (
+                    {!isStaffAdmin && (taskStatus === 'Active' || taskStatus === 'Paused') && (
                       <button
                         onClick={() => handleToggleStatus(task.id)}
                         title={isTaskActive ? 'Pause Task' : 'Activate Task'}
@@ -883,140 +898,142 @@ export function TaskManagementView() {
                 </div>
               </div>
 
-              {/* Card Footer Actions */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '14px',
-                paddingTop: '10px',
-                borderTop: '1px solid rgba(0, 0, 0, 0.05)',
-                flexWrap: 'wrap'
-              }}>
-                <button
-                  onClick={() => openEditModal(task)}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '5px',
-                    padding: '5px 12px',
-                    borderRadius: '980px',
-                    backgroundColor: 'rgba(0, 113, 227, 0.08)',
-                    color: '#0071e3',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    border: '1px solid rgba(0, 113, 227, 0.15)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Edit3 size={11} />
-                  <span>Edit Rules</span>
-                </button>
-
-                {hasEntries ? (
-                  // For tasks with entries: NEVER allow deletion! Provide Complete / Archive / Reactivate
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {taskStatus !== 'Completed' && (
-                      <button
-                        onClick={() => setStatusModalTask({ task, nextStatus: 'Completed' })}
-                        title="Mark task completed and lock submissions"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '5px 10px',
-                          borderRadius: '980px',
-                          backgroundColor: 'rgba(0, 113, 227, 0.08)',
-                          color: '#0071e3',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          border: '1px solid rgba(0, 113, 227, 0.18)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <CheckCircle size={11} />
-                        <span>Complete</span>
-                      </button>
-                    )}
-
-                    {taskStatus !== 'Archived' && (
-                      <button
-                        onClick={() => setStatusModalTask({ task, nextStatus: 'Archived' })}
-                        title="Archive task while preserving 100% of submission data"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '5px 10px',
-                          borderRadius: '980px',
-                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                          color: '#d97706',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          border: '1px solid rgba(245, 158, 11, 0.2)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <Archive size={11} />
-                        <span>Archive</span>
-                      </button>
-                    )}
-
-                    {(taskStatus === 'Completed' || taskStatus === 'Archived') && (
-                      <button
-                        onClick={() => setStatusModalTask({ task, nextStatus: 'Active' })}
-                        title="Restore task to Active status"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '5px 10px',
-                          borderRadius: '980px',
-                          backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                          color: '#16a34a',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          border: '1px solid rgba(52, 199, 89, 0.2)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <RotateCcw size={11} />
-                        <span>Reactivate</span>
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  // For 0-submission tasks: Allow permanent deletion with typed task name confirmation
+              {/* Card Footer Actions (Super Admin Only: Staff Admin has no option to edit or delete) */}
+              {!isStaffAdmin && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '14px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid rgba(0, 0, 0, 0.05)',
+                  flexWrap: 'wrap'
+                }}>
                   <button
-                    onClick={() => handlePromptDeleteTask(task)}
-                    title="Permanently delete this 0-submission task"
+                    onClick={() => openEditModal(task)}
                     style={{
+                      flex: 1,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px',
-                      padding: '5px 10px',
+                      gap: '5px',
+                      padding: '5px 12px',
                       borderRadius: '980px',
-                      backgroundColor: 'rgba(255, 59, 48, 0.08)',
-                      color: '#ff3b30',
+                      backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                      color: '#0071e3',
                       fontSize: '11px',
                       fontWeight: 600,
-                      border: '1px solid rgba(255, 59, 48, 0.15)',
+                      border: '1px solid rgba(0, 113, 227, 0.15)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <Trash2 size={11} />
-                    <span>Delete</span>
+                    <Edit3 size={11} />
+                    <span>Edit Rules</span>
                   </button>
-                )}
-              </div>
+
+                  {hasEntries ? (
+                    // For tasks with entries: NEVER allow deletion! Provide Complete / Archive / Reactivate
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {taskStatus !== 'Completed' && (
+                        <button
+                          onClick={() => setStatusModalTask({ task, nextStatus: 'Completed' })}
+                          title="Mark task completed and lock submissions"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            borderRadius: '980px',
+                            backgroundColor: 'rgba(0, 113, 227, 0.08)',
+                            color: '#0071e3',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            border: '1px solid rgba(0, 113, 227, 0.18)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <CheckCircle size={11} />
+                          <span>Complete</span>
+                        </button>
+                      )}
+
+                      {taskStatus !== 'Archived' && (
+                        <button
+                          onClick={() => setStatusModalTask({ task, nextStatus: 'Archived' })}
+                          title="Archive task while preserving 100% of submission data"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            borderRadius: '980px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            color: '#d97706',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Archive size={11} />
+                          <span>Archive</span>
+                        </button>
+                      )}
+
+                      {(taskStatus === 'Completed' || taskStatus === 'Archived') && (
+                        <button
+                          onClick={() => setStatusModalTask({ task, nextStatus: 'Active' })}
+                          title="Restore task to Active status"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            borderRadius: '980px',
+                            backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                            color: '#16a34a',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            border: '1px solid rgba(52, 199, 89, 0.2)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <RotateCcw size={11} />
+                          <span>Reactivate</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    // For 0-submission tasks: Allow permanent deletion with typed task name confirmation
+                    <button
+                      onClick={() => handlePromptDeleteTask(task)}
+                      title="Permanently delete this 0-submission task"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        padding: '5px 10px',
+                        borderRadius: '980px',
+                        backgroundColor: 'rgba(255, 59, 48, 0.08)',
+                        color: '#ff3b30',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        border: '1px solid rgba(255, 59, 48, 0.15)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Trash2 size={11} />
+                      <span>Delete</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -24,11 +24,15 @@ import {
   Award
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
+import { authService } from '../services/auth.js';
 import { AP_CONSTITUENCIES } from '../services/constituencyData.js';
 import { getTodayISTDateString, getISTDateOffset } from '../services/istUtils.js';
 import { DateRangePicker } from './DateRangePicker.jsx';
 
-export function LinkAnalyticsView() {
+export function LinkAnalyticsView({ isStaffAdmin: propIsStaffAdmin }) {
+  const activeSession = authService.getSession();
+  const isStaffAdmin = propIsStaffAdmin ?? (activeSession?.adminType === 'STAFF_ADMIN' || activeSession?.username?.toLowerCase() === 'adminstaff' || Boolean(activeSession?.isStaffAdmin));
+
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState('ALL');
   const [dateRange, setDateRange] = useState({
@@ -43,7 +47,7 @@ export function LinkAnalyticsView() {
   const [selectedParliaments, setSelectedParliaments] = useState([]);
   const [selectedAssembly, setSelectedAssembly] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState('validClicks'); // 'validClicks', 'totalClicks', 'name'
+  const [sortField, setSortField] = useState(isStaffAdmin ? 'uniqueIps' : 'validClicks'); // 'uniqueIps', 'validClicks', 'totalClicks', 'name'
   const [sortAsc, setSortAsc] = useState(false);
 
   // Modal inspection
@@ -376,65 +380,69 @@ export function LinkAnalyticsView() {
         </div>
       </div>
 
-      {/* TOP 3 MINIMALIST APPLE KPI CARDS */}
+      {/* TOP 3 MINIMALIST APPLE KPI CARDS (Filtered to only Unique Link Visits for Staff Admin) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gridTemplateColumns: isStaffAdmin ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: '14px'
       }}>
-        {/* Total Clicks */}
-        <div className="dashboard-metric-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Link Hits
-            </span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(255, 149, 0, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9500' }}>
-              <MousePointerClick size={15} />
+        {!isStaffAdmin && (
+          <>
+            {/* Total Clicks */}
+            <div className="dashboard-metric-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Total Link Hits
+                </span>
+                <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(255, 149, 0, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff9500' }}>
+                  <MousePointerClick size={15} />
+                </div>
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {analyticsData.totalClicks.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
+                Raw traffic across all shared staff links
+              </div>
             </div>
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
-            {analyticsData.totalClicks.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
-            Raw traffic across all shared staff links
-          </div>
-        </div>
 
-        {/* Valid Human Clicks */}
-        <div className="dashboard-metric-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#248a3d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Verified Human Clicks
-            </span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
-              <CheckCircle2 size={15} />
+            {/* Valid Human Clicks */}
+            <div className="dashboard-metric-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#248a3d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Verified Human Clicks
+                </span>
+                <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
+                  <CheckCircle2 size={15} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                  {analyticsData.validClicks.toLocaleString()}
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(52, 199, 89, 0.12)',
+                  color: '#248a3d'
+                }}>
+                  {validRate}% Valid
+                </span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#248a3d', marginTop: '6px', fontWeight: 500 }}>
+                Counted towards staff outreach completion
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <div style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em', lineHeight: 1 }}>
-              {analyticsData.validClicks.toLocaleString()}
-            </div>
-            <span style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: '980px',
-              backgroundColor: 'rgba(52, 199, 89, 0.12)',
-              color: '#248a3d'
-            }}>
-              {validRate}% Valid
-            </span>
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#248a3d', marginTop: '6px', fontWeight: 500 }}>
-            Counted towards staff outreach completion
-          </div>
-        </div>
+          </>
+        )}
 
-        {/* Unique Citizens Reached */}
-        <div className="dashboard-metric-card">
+        {/* Unique Citizens Reached / Unique Link Visits */}
+        <div className="dashboard-metric-card" style={isStaffAdmin ? { maxWidth: '420px' } : {}}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#0071e3', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Unique Visitors
+              Unique Link Visits
             </span>
             <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(0, 113, 227, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0071e3' }}>
               <Users size={15} />
@@ -444,7 +452,7 @@ export function LinkAnalyticsView() {
             {analyticsData.uniqueVisitors.toLocaleString()}
           </div>
           <div style={{ fontSize: '11.5px', color: '#86868b', marginTop: '6px', fontWeight: 400 }}>
-            Distinct citizen IP addresses engaged
+            Distinct citizen IP addresses engaged across staff outreach links
           </div>
         </div>
       </div>
@@ -737,53 +745,81 @@ export function LinkAnalyticsView() {
               borderRadius: '8px',
               backgroundColor: 'rgba(118, 118, 128, 0.08)'
             }}>
-              <button
-                onClick={() => {
-                  if (sortField === 'validClicks') setSortAsc(!sortAsc);
-                  else { setSortField('validClicks'); setSortAsc(false); }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  backgroundColor: sortField === 'validClicks' ? '#ffffff' : 'transparent',
-                  color: sortField === 'validClicks' ? '#1d1d1f' : '#86868b',
-                  boxShadow: sortField === 'validClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <span>Verified Clicks</span>
-                <ArrowUpDown size={11} />
-              </button>
+              {isStaffAdmin ? (
+                <button
+                  onClick={() => {
+                    if (sortField === 'uniqueIps') setSortAsc(!sortAsc);
+                    else { setSortField('uniqueIps'); setSortAsc(false); }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: sortField === 'uniqueIps' ? '#ffffff' : 'transparent',
+                    color: sortField === 'uniqueIps' ? '#0071e3' : '#86868b',
+                    boxShadow: sortField === 'uniqueIps' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>Unique Visits</span>
+                  <ArrowUpDown size={11} />
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      if (sortField === 'validClicks') setSortAsc(!sortAsc);
+                      else { setSortField('validClicks'); setSortAsc(false); }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      backgroundColor: sortField === 'validClicks' ? '#ffffff' : 'transparent',
+                      color: sortField === 'validClicks' ? '#1d1d1f' : '#86868b',
+                      boxShadow: sortField === 'validClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>Verified Clicks</span>
+                    <ArrowUpDown size={11} />
+                  </button>
 
-              <button
-                onClick={() => {
-                  if (sortField === 'totalClicks') setSortAsc(!sortAsc);
-                  else { setSortField('totalClicks'); setSortAsc(false); }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  backgroundColor: sortField === 'totalClicks' ? '#ffffff' : 'transparent',
-                  color: sortField === 'totalClicks' ? '#1d1d1f' : '#86868b',
-                  boxShadow: sortField === 'totalClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <span>Total Hits</span>
-                <ArrowUpDown size={11} />
-              </button>
+                  <button
+                    onClick={() => {
+                      if (sortField === 'totalClicks') setSortAsc(!sortAsc);
+                      else { setSortField('totalClicks'); setSortAsc(false); }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      backgroundColor: sortField === 'totalClicks' ? '#ffffff' : 'transparent',
+                      color: sortField === 'totalClicks' ? '#1d1d1f' : '#86868b',
+                      boxShadow: sortField === 'totalClicks' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>Total Hits</span>
+                    <ArrowUpDown size={11} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -800,9 +836,13 @@ export function LinkAnalyticsView() {
                   <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', width: '50px' }}>Rank</th>
                   <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Staff Member</th>
                   <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Constituency</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Verified Clicks</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Unique Citizens</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Screened Bots</th>
+                  {!isStaffAdmin && (
+                    <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Verified Clicks</th>
+                  )}
+                  <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Unique Link Visits</th>
+                  {!isStaffAdmin && (
+                    <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Screened Bots</th>
+                  )}
                   <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Staff Tracking Link</th>
                   <th style={{ padding: '10px 14px', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -913,35 +953,39 @@ export function LinkAnalyticsView() {
                         </div>
                       </td>
 
-                      {/* Verified Clicks */}
-                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                        <span style={{
-                          fontFamily: 'monospace',
-                          fontSize: '13px',
-                          fontWeight: 700,
-                          color: item.validClicks > 0 ? '#248a3d' : '#86868b',
-                          backgroundColor: item.validClicks > 0 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(118, 118, 128, 0.06)',
-                          padding: '3px 10px',
-                          borderRadius: '980px',
-                          border: item.validClicks > 0 ? '1px solid rgba(52, 199, 89, 0.2)' : 'none'
-                        }}>
-                          {item.validClicks}
-                        </span>
-                      </td>
+                      {/* Verified Clicks (Super Admin Only) */}
+                      {!isStaffAdmin && (
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: item.validClicks > 0 ? '#248a3d' : '#86868b',
+                            backgroundColor: item.validClicks > 0 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(118, 118, 128, 0.06)',
+                            padding: '3px 10px',
+                            borderRadius: '980px',
+                            border: item.validClicks > 0 ? '1px solid rgba(52, 199, 89, 0.2)' : 'none'
+                          }}>
+                            {item.validClicks}
+                          </span>
+                        </td>
+                      )}
 
-                      {/* Unique Citizens */}
+                      {/* Unique Citizens / Visits */}
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: item.uniqueIps > 0 ? '#0071e3' : '#86868b' }}>
                           {item.uniqueIps}
                         </span>
                       </td>
 
-                      {/* Screened Bots */}
-                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 500, color: item.botClicks > 0 ? '#ff9500' : '#86868b' }}>
-                          {item.botClicks}
-                        </span>
-                      </td>
+                      {/* Screened Bots (Super Admin Only) */}
+                      {!isStaffAdmin && (
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 500, color: item.botClicks > 0 ? '#ff9500' : '#86868b' }}>
+                            {item.botClicks}
+                          </span>
+                        </td>
+                      )}
 
                       {/* Copy Staff Link */}
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
@@ -1149,31 +1193,35 @@ export function LinkAnalyticsView() {
             {/* Quick Stats Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: isStaffAdmin ? '1fr' : 'repeat(3, 1fr)',
               gap: '10px',
               marginBottom: '20px',
               backgroundColor: '#f8fafc',
               padding: '14px',
               borderRadius: '12px'
             }}>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks</span>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#047857' }}>
-                  {inspectStaff.validClicks}
+              {!isStaffAdmin && (
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Verified Clicks</span>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#047857' }}>
+                    {inspectStaff.validClicks}
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique IPs</span>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Unique Link Visits</span>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#0284c7' }}>
                   {inspectStaff.uniqueIps}
                 </div>
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Screened Bots</span>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#475569' }}>
-                  {inspectStaff.botClicks}
+              {!isStaffAdmin && (
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Screened Bots</span>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#475569' }}>
+                    {inspectStaff.botClicks}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Tracking Link Preview */}

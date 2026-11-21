@@ -254,13 +254,23 @@ export const dbService = {
     if (!localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
       localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.ADMIN_USER)) {
+    const storedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_USER);
+    if (!storedAdmin) {
       localStorage.setItem(STORAGE_KEYS.ADMIN_USER, JSON.stringify({
         username: 'admin',
-        password: 'admin123',
+        password: 'Magni@3939',
         name: 'Bhashyam Admin',
         email: 'admin@bhashyam.in'
       }));
+    } else {
+      try {
+        const parsed = JSON.parse(storedAdmin);
+        if (parsed.username === 'admin' && (parsed.password === 'admin123' || !parsed.password)) {
+          parsed.password = 'Magni@3939';
+          parsed.name = 'Bhashyam Admin';
+          localStorage.setItem(STORAGE_KEYS.ADMIN_USER, JSON.stringify(parsed));
+        }
+      } catch (e) {}
     }
     if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({

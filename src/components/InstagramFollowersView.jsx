@@ -6,10 +6,16 @@ import {
   CheckCircle2, FileText
 } from 'lucide-react';
 import { dbService } from '../services/db.js';
+import { authService } from '../services/auth.js';
 import { followerStorage, extractItemsFromParsedJson, formatFollowerTimestamp } from '../services/followerStorage.js';
 
-export function InstagramFollowersView() {
-  const validSubtabs = ['ACTIVE', 'UNFOLLOWED', 'HISTORY', 'AUDIT', 'CHECKER'];
+export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
+  const activeSession = authService.getSession();
+  const isStaffAdmin = propIsStaffAdmin ?? (activeSession?.adminType === 'STAFF_ADMIN' || activeSession?.username?.toLowerCase() === 'adminstaff' || Boolean(activeSession?.isStaffAdmin));
+  const validSubtabs = isStaffAdmin
+    ? ['ACTIVE', 'UNFOLLOWED', 'CHECKER']
+    : ['ACTIVE', 'UNFOLLOWED', 'HISTORY', 'AUDIT', 'CHECKER'];
+
   const getInitialSubtab = () => {
     if (typeof window !== 'undefined') {
       const param = new URLSearchParams(window.location.search).get('subtab')?.toUpperCase();
@@ -20,8 +26,15 @@ export function InstagramFollowersView() {
     return 'ACTIVE';
   };
 
-  // Navigation Tabs: 'ACTIVE' | 'UNFOLLOWED' | 'HISTORY' | 'AUDIT' | 'CHECKER'
+  // Navigation Tabs: 'ACTIVE' | 'UNFOLLOWED' | 'CHECKER' (+ 'HISTORY' | 'AUDIT' for Super Admin)
   const [activeTab, setActiveTab] = useState(getInitialSubtab);
+
+  // Guard against invalid tab for staff admin
+  useEffect(() => {
+    if (isStaffAdmin && (activeTab === 'HISTORY' || activeTab === 'AUDIT')) {
+      setActiveTab('ACTIVE');
+    }
+  }, [isStaffAdmin, activeTab]);
 
   useEffect(() => {
     try {
@@ -517,6 +530,118 @@ export function InstagramFollowersView() {
     return followersList;
   }, [followersList, filterType, staffByUsername]);
 
+  // Full Staff Outreach Matches derived directly from staff submissions
+  const staffMatchesList = useMemo(() => {
+    const validSubs = submissions.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const map = new Map();
+    validSubs.forEach(s => {
+      const k = (s.username || '').toLowerCase().trim().replace(/^@+/, '');
+      if (k && !map.has(k)) {
+        map.set(k, s);
+      }
+    });
+    return Array.from(map.values()).map(s => {
+      const k = (s.username || '').toLowerCase().trim().replace(/^@+/, '');
+      return {
+        key: k,
+        username: (s.username || '').replace(/^@+/, ''),
+        status: 'active',
+        followedAtFormatted: s.date || 'Verified Follower',
+        submission: s
+      };
+    });
+  }, [submissions]);
+
+  // Staff Submitted Accounts that are currently Unfollowed
+  const staffUnfollowedList = useMemo(() => {
+    const unfollowedSubs = submissions.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
+    const map = new Map();
+    unfollowedSubs.forEach(s => {
+      const k = (s.username || '').toLowerCase().trim().replace(/^@+/, '');
+      if (k && !map.has(k)) {
+        map.set(k, {
+          username: s.username,
+          lastUnfollowedAt: s.date,
+          submission: s
+        });
+      }
+    });
+    unfollowedList.forEach(u => {
+      const k = (u.key || u.username || '').toLowerCase().trim().replace(/^@+/, '');
+      const sub = staffByUsername.get(k);
+      if (sub && !map.has(k)) {
+        map.set(k, {
+          username: u.username,
+          lastUnfollowedAt: u.lastUnfollowedAt || u.last_unfollowed_at,
+          submission: sub
+        });
+      }
+    });
+    return Array.from(map.values()).map(item => ({
+      key: (item.username || '').toLowerCase().trim().replace(/^@+/, ''),
+      username: (item.username || '').replace(/^@+/, ''),
+      status: 'unfollowed',
+      lastUnfollowedAt: item.lastUnfollowedAt || item.date || item.last_unfollowed_at,
+      submission: item.submission || item
+    }));
+  }, [submissions, unfollowedList, staffByUsername]);
+
+  // Active Followers List to Render (handles both staff admin and general admin)
+  const activeListToRender = useMemo(() => {
+    if (isStaffAdmin || filterType === 'STAFF_MATCHES') {
+      let list = staffMatchesList;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim().replace(/^@+/, '');
+        list = list.filter(item => 
+          item.username.toLowerCase().includes(q) ||
+          (item.submission?.employeeName && item.submission.employeeName.toLowerCase().includes(q)) ||
+          (item.submission?.employeeId && item.submission.employeeId.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    }
+    return displayedFollowers;
+  }, [isStaffAdmin, filterType, staffMatchesList, searchQuery, displayedFollowers]);
+
+  const pagedActiveList = useMemo(() => {
+    if (isStaffAdmin || filterType === 'STAFF_MATCHES') {
+      const start = (page - 1) * limit;
+      return activeListToRender.slice(start, start + limit);
+    }
+    return activeListToRender;
+  }, [isStaffAdmin, filterType, activeListToRender, page, limit]);
+
+  const activeTotalCount = (isStaffAdmin || filterType === 'STAFF_MATCHES')
+    ? activeListToRender.length
+    : totalFollowers;
+
+  // Unfollowed Accounts to Render (filtered strictly to staff submissions for staff admin)
+  const unfollowedListToRender = useMemo(() => {
+    if (isStaffAdmin) {
+      let list = staffUnfollowedList;
+      if (unfollowedSearch.trim()) {
+        const q = unfollowedSearch.toLowerCase().trim().replace(/^@+/, '');
+        list = list.filter(item => 
+          item.username.toLowerCase().includes(q) ||
+          (item.submission?.employeeName && item.submission.employeeName.toLowerCase().includes(q)) ||
+          (item.submission?.employeeId && item.submission.employeeId.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    }
+    return unfollowedList;
+  }, [isStaffAdmin, staffUnfollowedList, unfollowedSearch, unfollowedList]);
+
+  const pagedUnfollowedList = useMemo(() => {
+    if (isStaffAdmin) {
+      const start = (unfollowedPage - 1) * limit;
+      return unfollowedListToRender.slice(start, start + limit);
+    }
+    return unfollowedList;
+  }, [isStaffAdmin, unfollowedListToRender, unfollowedPage, limit]);
+
+  const unfollowedTotalCount = isStaffAdmin ? unfollowedListToRender.length : totalUnfollowed;
+
   // Key stats
   const activeFollowerCount = reconcileStats.currentActiveFollowers || stats.total || 0;
   const unfollowedCount = reconcileStats.unfollowedFollowers || 0;
@@ -601,188 +726,250 @@ export function InstagramFollowersView() {
           </div>
         </div>
 
-        {/* Action Buttons: Unified Import Followers + Reset Baseline */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Single Unified Import Button (Auto Baseline / Reconciliation, Multiple Files) */}
-          <button
-            type="button"
-            onClick={triggerImportPicker}
-            disabled={isUploading}
-            title="Import Instagram followers JSON export (select one or multiple files: followers_1.json, followers_2.json...)"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 20px',
-              borderRadius: '980px',
-              backgroundColor: '#0071e3',
-              border: 'none',
-              color: '#ffffff',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: isUploading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 10px rgba(0, 113, 227, 0.35)',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            {isUploading ? <RefreshCw size={15} className="spin" /> : <Upload size={15} />}
-            <span>Import Followers</span>
-          </button>
+        {/* Action Buttons: Unified Import Followers + Reset Baseline (Super Admin Only) */}
+        {!isStaffAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Single Unified Import Button (Auto Baseline / Reconciliation, Multiple Files) */}
+            <button
+              type="button"
+              onClick={triggerImportPicker}
+              disabled={isUploading}
+              title="Import Instagram followers JSON export (select one or multiple files: followers_1.json, followers_2.json...)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 20px',
+                borderRadius: '980px',
+                backgroundColor: '#0071e3',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: isUploading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 10px rgba(0, 113, 227, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {isUploading ? <RefreshCw size={15} className="spin" /> : <Upload size={15} />}
+              <span>Import Followers</span>
+            </button>
 
-          {/* Protected Reset Baseline Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setResetError('');
-              setResetPassword('');
-              setResetConfirmation('');
-              setShowResetModal(true);
-            }}
-            title="Admin-only: Reset follower database & obsolete snapshots to start fresh baseline"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: '980px',
-              backgroundColor: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#dc2626',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <RotateCcw size={13} />
-            <span>Reset Baseline</span>
-          </button>
-        </div>
+            {/* Protected Reset Baseline Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setResetError('');
+                setResetPassword('');
+                setResetConfirmation('');
+                setShowResetModal(true);
+              }}
+              title="Admin-only: Reset follower database & obsolete snapshots to start fresh baseline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '980px',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#dc2626',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>Reset Baseline</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 8 RECONCILIATION STATS CARDS */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px'
-      }}>
-        {/* 1. Current Active Followers */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Current Active Followers
+      {/* KPI STATS CARDS: Simplified 4 Staff-Centric Cards for Staff Admin, 9 Detailed Cards for Super Admin */}
+      {isStaffAdmin ? (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '12px'
+        }}>
+          {/* 1. Active Staff Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px', borderLeft: '4px solid #16a34a' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Active Staff Submissions
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#16a34a', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {activeSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Verified & currently following
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#1d1d1f', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {activeFollowerCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-            Authoritative Canonical Set
-          </div>
-        </div>
 
-        {/* 2. Unfollowed Followers */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Detected Unfollowers
+          {/* 2. Staff Unfollowers */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px', borderLeft: '4px solid #dc2626' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Staff Unfollowers
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {staffUnfollowedList.length.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Staff credit deducted
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {unfollowedCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Omitted from latest snapshot
-          </div>
-        </div>
 
-        {/* 3. Latest Import New Followers */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Latest Import New
+          {/* 3. Pending Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px', borderLeft: '4px solid #ea580c' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Pending Submissions
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#ea580c', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {pendingSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Awaiting next follower sync
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#0071e3', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            +{latestNewFollowers.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Newly detected followers
-          </div>
-        </div>
 
-        {/* 4. Latest Import Newly Unfollowed */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Latest Import Unfollowed
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            -{latestUnfollowers.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Missing from snapshot
+          {/* 4. Not Following */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px', borderLeft: '4px solid #64748b' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Not Following
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {notFoundSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Not following official account
+            </div>
           </div>
         </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '12px'
+        }}>
+          {/* 1. Current Active Followers */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Current Active Followers
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#1d1d1f', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {activeFollowerCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Authoritative Canonical Set
+            </div>
+          </div>
 
-        {/* 5. Total Active Staff Submissions */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Active Staff Submissions
+          {/* 2. Unfollowed Followers */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Detected Unfollowers
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {unfollowedCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Omitted from latest snapshot
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#16a34a', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {activeSubmissionsCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Verified & currently following
-          </div>
-        </div>
 
-        {/* 6. Total Unfollowed Submissions */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Unfollowed Submissions
+          {/* 3. Latest Import New Followers */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Latest Import New
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#0071e3', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              +{latestNewFollowers.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Newly detected followers
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#64748b', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {unfollowedSubmissionsCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Staff credit deducted
-          </div>
-        </div>
 
-        {/* 7. Not Following Submissions */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Not Following
+          {/* 4. Latest Import Newly Unfollowed */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Latest Import Unfollowed
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              -{latestUnfollowers.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Missing from snapshot
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {notFoundSubmissionsCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Not following official account
-          </div>
-        </div>
 
-        {/* 8. Pending Staff Submissions */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Pending Submissions
+          {/* 5. Total Active Staff Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Active Staff Submissions
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#16a34a', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {activeSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Verified & currently following
+            </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c', marginTop: '4px', letterSpacing: '-0.02em' }}>
-            {pendingSubmissionsCount.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
-            Awaiting next follower sync
-          </div>
-        </div>
 
-        {/* 9. Last Reconciliation Time */}
-        <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Last Reconciliation
+          {/* 6. Total Unfollowed Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Unfollowed Submissions
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#64748b', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {unfollowedSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Staff credit deducted
+            </div>
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 800, color: '#1d1d1f', marginTop: '8px', fontFamily: 'monospace' }}>
-            {reconcileStats.lastReconciliationTime ? formatFollowerTimestamp(new Date(reconcileStats.lastReconciliationTime).getTime()) : (stats.lastUpdated ? formatFollowerTimestamp(new Date(stats.lastUpdated).getTime()) : 'Ready')}
+
+          {/* 7. Not Following Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Not Following
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {notFoundSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Not following official account
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '4px' }}>
-            {reconcileStats.latestImport?.mode ? `Mode: ${reconcileStats.latestImport.mode}` : 'Baseline Ready'}
+
+          {/* 8. Pending Staff Submissions */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Pending Submissions
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c', marginTop: '4px', letterSpacing: '-0.02em' }}>
+              {pendingSubmissionsCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '2px' }}>
+              Awaiting next follower sync
+            </div>
+          </div>
+
+          {/* 9. Last Reconciliation Time */}
+          <div className="dashboard-section-card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Last Reconciliation
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: '#1d1d1f', marginTop: '8px', fontFamily: 'monospace' }}>
+              {reconcileStats.lastReconciliationTime ? formatFollowerTimestamp(new Date(reconcileStats.lastReconciliationTime).getTime()) : (stats.lastUpdated ? formatFollowerTimestamp(new Date(stats.lastUpdated).getTime()) : 'Ready')}
+            </div>
+            <div style={{ fontSize: '11px', color: '#86868b', fontWeight: 500, marginTop: '4px' }}>
+              {reconcileStats.latestImport?.mode ? `Mode: ${reconcileStats.latestImport.mode}` : 'Baseline Ready'}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* NAVIGATION TABS BAR */}
       <div style={{
@@ -815,7 +1002,7 @@ export function InstagramFollowersView() {
           }}
         >
           <Users size={14} style={{ color: activeTab === 'ACTIVE' ? '#0071e3' : 'inherit' }} />
-          <span>Active Followers ({activeFollowerCount.toLocaleString()})</span>
+          <span>{isStaffAdmin ? `Staff Outreach Matches (${activeSubmissionsCount.toLocaleString()})` : `Active Followers (${activeFollowerCount.toLocaleString()})`}</span>
         </button>
 
         <button
@@ -838,54 +1025,58 @@ export function InstagramFollowersView() {
           }}
         >
           <UserMinus size={14} style={{ color: activeTab === 'UNFOLLOWED' ? '#dc2626' : 'inherit' }} />
-          <span>Unfollowed Accounts ({unfollowedCount.toLocaleString()})</span>
+          <span>{isStaffAdmin ? `Staff Unfollowers (${staffUnfollowedList.length.toLocaleString()})` : `Unfollowed Accounts (${unfollowedCount.toLocaleString()})`}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('HISTORY')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '9px',
-            fontSize: '12.5px',
-            fontWeight: activeTab === 'HISTORY' ? 700 : 500,
-            backgroundColor: activeTab === 'HISTORY' ? '#ffffff' : 'transparent',
-            color: activeTab === 'HISTORY' ? '#0f172a' : '#64748b',
-            border: 'none',
-            boxShadow: activeTab === 'HISTORY' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <History size={14} style={{ color: activeTab === 'HISTORY' ? '#0284c7' : 'inherit' }} />
-          <span>Reconciliation History</span>
-        </button>
+        {!isStaffAdmin && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab('HISTORY')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '9px',
+                fontSize: '12.5px',
+                fontWeight: activeTab === 'HISTORY' ? 700 : 500,
+                backgroundColor: activeTab === 'HISTORY' ? '#ffffff' : 'transparent',
+                color: activeTab === 'HISTORY' ? '#0f172a' : '#64748b',
+                border: 'none',
+                boxShadow: activeTab === 'HISTORY' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <History size={14} style={{ color: activeTab === 'HISTORY' ? '#0284c7' : 'inherit' }} />
+              <span>Reconciliation History</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('AUDIT')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '9px',
-            fontSize: '12.5px',
-            fontWeight: activeTab === 'AUDIT' ? 700 : 500,
-            backgroundColor: activeTab === 'AUDIT' ? '#ffffff' : 'transparent',
-            color: activeTab === 'AUDIT' ? '#0f172a' : '#64748b',
-            border: 'none',
-            boxShadow: activeTab === 'AUDIT' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <ShieldAlert size={14} style={{ color: activeTab === 'AUDIT' ? '#e11d48' : 'inherit' }} />
-          <span>Admin Audit Trail</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('AUDIT')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '9px',
+                fontSize: '12.5px',
+                fontWeight: activeTab === 'AUDIT' ? 700 : 500,
+                backgroundColor: activeTab === 'AUDIT' ? '#ffffff' : 'transparent',
+                color: activeTab === 'AUDIT' ? '#0f172a' : '#64748b',
+                border: 'none',
+                boxShadow: activeTab === 'AUDIT' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <ShieldAlert size={14} style={{ color: activeTab === 'AUDIT' ? '#e11d48' : 'inherit' }} />
+              <span>Admin Audit Trail</span>
+            </button>
+          </>
+        )}
 
         <button
           type="button"
@@ -911,7 +1102,7 @@ export function InstagramFollowersView() {
         </button>
       </div>
 
-      {/* TAB CONTENT 1: ACTIVE FOLLOWERS DIRECTORY */}
+      {/* TAB CONTENT 1: ACTIVE FOLLOWERS DIRECTORY / STAFF OUTREACH MATCHES */}
       {activeTab === 'ACTIVE' && (
         <div className="dashboard-section-card" style={{ padding: '20px' }}>
           {/* Table Toolbar */}
@@ -925,64 +1116,68 @@ export function InstagramFollowersView() {
           }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.02em' }}>
-                Active Followers Directory ({totalFollowers.toLocaleString()})
+                {isStaffAdmin ? 'Staff Outreach Matches' : 'Active Followers Directory'} ({activeTotalCount.toLocaleString()})
               </h3>
               <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0' }}>
-                Verified active accounts present in the latest reconciled snapshot.
+                {isStaffAdmin 
+                  ? 'Verified active accounts submitted by staff members that are currently following.' 
+                  : 'Verified active accounts present in the latest reconciled snapshot.'}
               </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              {/* Filter Toggle Pills */}
-              <div style={{
-                display: 'inline-flex',
-                padding: '2px',
-                borderRadius: '980px',
-                backgroundColor: 'rgba(118, 118, 128, 0.12)',
-                gap: '2px'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setFilterType('ALL')}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '980px',
-                    border: 'none',
-                    backgroundColor: filterType === 'ALL' ? '#ffffff' : 'transparent',
-                    color: filterType === 'ALL' ? '#1d1d1f' : '#64748b',
-                    fontSize: '11.5px',
-                    fontWeight: filterType === 'ALL' ? 700 : 500,
-                    cursor: 'pointer',
-                    boxShadow: filterType === 'ALL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                  }}
-                >
-                  All Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterType('STAFF_MATCHES')}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '980px',
-                    border: 'none',
-                    backgroundColor: filterType === 'STAFF_MATCHES' ? '#34c759' : 'transparent',
-                    color: filterType === 'STAFF_MATCHES' ? '#ffffff' : '#15803d',
-                    fontSize: '11.5px',
-                    fontWeight: filterType === 'STAFF_MATCHES' ? 700 : 600,
-                    cursor: 'pointer',
-                    boxShadow: filterType === 'STAFF_MATCHES' ? '0 1px 3px rgba(52, 199, 89, 0.3)' : 'none'
-                  }}
-                >
-                  ✓ Staff Outreach Matches ({activeSubmissionsCount})
-                </button>
-              </div>
+              {/* Filter Toggle Pills (Super Admin Only) */}
+              {!isStaffAdmin && (
+                <div style={{
+                  display: 'inline-flex',
+                  padding: '2px',
+                  borderRadius: '980px',
+                  backgroundColor: 'rgba(118, 118, 128, 0.12)',
+                  gap: '2px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setFilterType('ALL')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '980px',
+                      border: 'none',
+                      backgroundColor: filterType === 'ALL' ? '#ffffff' : 'transparent',
+                      color: filterType === 'ALL' ? '#1d1d1f' : '#64748b',
+                      fontSize: '11.5px',
+                      fontWeight: filterType === 'ALL' ? 700 : 500,
+                      cursor: 'pointer',
+                      boxShadow: filterType === 'ALL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    All Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterType('STAFF_MATCHES')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '980px',
+                      border: 'none',
+                      backgroundColor: filterType === 'STAFF_MATCHES' ? '#34c759' : 'transparent',
+                      color: filterType === 'STAFF_MATCHES' ? '#ffffff' : '#15803d',
+                      fontSize: '11.5px',
+                      fontWeight: filterType === 'STAFF_MATCHES' ? 700 : 600,
+                      cursor: 'pointer',
+                      boxShadow: filterType === 'STAFF_MATCHES' ? '0 1px 3px rgba(52, 199, 89, 0.3)' : 'none'
+                    }}
+                  >
+                    ✓ Staff Outreach Matches ({activeSubmissionsCount})
+                  </button>
+                </div>
+              )}
 
               {/* Search Input */}
               <form onSubmit={handleSearchSubmit} style={{ position: 'relative' }}>
                 <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#86868b' }} />
                 <input
                   type="text"
-                  placeholder="Search username..."
+                  placeholder={isStaffAdmin ? "Search handle or staff..." : "Search username..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
@@ -1035,8 +1230,8 @@ export function InstagramFollowersView() {
                 </tr>
               </thead>
               <tbody>
-                {displayedFollowers.map((f, idx) => {
-                  const sub = staffByUsername.get(f.key || f.username?.toLowerCase());
+                {pagedActiveList.map((f, idx) => {
+                  const sub = f.submission || staffByUsername.get(f.key || f.username?.toLowerCase());
                   return (
                     <tr key={f.key || idx} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
                       <td style={{ padding: '10px 12px' }}>
@@ -1135,7 +1330,7 @@ export function InstagramFollowersView() {
               </tbody>
             </table>
 
-            {followersList.length === 0 && !isLoadingList && (
+            {pagedActiveList.length === 0 && !isLoadingList && (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#86868b' }}>
                 No active followers found matching "{searchQuery}".
               </div>
@@ -1159,10 +1354,16 @@ export function InstagramFollowersView() {
             fontSize: '12px',
             color: '#86868b'
           }}>
-            <span>Showing page {page} of {Math.ceil(totalFollowers / limit) || 1}</span>
+            <span>Showing page {page} of {Math.ceil(activeTotalCount / limit) || 1}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => fetchFollowers(page - 1, searchQuery)}
+                onClick={() => {
+                  if (isStaffAdmin || filterType === 'STAFF_MATCHES') {
+                    setPage(p => Math.max(1, p - 1));
+                  } else {
+                    fetchFollowers(page - 1, searchQuery);
+                  }
+                }}
                 disabled={page <= 1}
                 style={{
                   padding: '5px 12px',
@@ -1176,15 +1377,21 @@ export function InstagramFollowersView() {
                 Previous
               </button>
               <button
-                onClick={() => fetchFollowers(page + 1, searchQuery)}
-                disabled={page >= Math.ceil(totalFollowers / limit)}
+                onClick={() => {
+                  if (isStaffAdmin || filterType === 'STAFF_MATCHES') {
+                    setPage(p => p + 1);
+                  } else {
+                    fetchFollowers(page + 1, searchQuery);
+                  }
+                }}
+                disabled={page >= Math.ceil(activeTotalCount / limit)}
                 style={{
                   padding: '5px 12px',
                   borderRadius: '8px',
                   border: '1px solid rgba(0, 0, 0, 0.08)',
-                  backgroundColor: page >= Math.ceil(totalFollowers / limit) ? 'rgba(0,0,0,0.02)' : '#ffffff',
-                  color: page >= Math.ceil(totalFollowers / limit) ? '#86868b' : '#1d1d1f',
-                  cursor: page >= Math.ceil(totalFollowers / limit) ? 'not-allowed' : 'pointer'
+                  backgroundColor: page >= Math.ceil(activeTotalCount / limit) ? 'rgba(0,0,0,0.02)' : '#ffffff',
+                  color: page >= Math.ceil(activeTotalCount / limit) ? '#86868b' : '#1d1d1f',
+                  cursor: page >= Math.ceil(activeTotalCount / limit) ? 'not-allowed' : 'pointer'
                 }}
               >
                 Next
@@ -1194,7 +1401,7 @@ export function InstagramFollowersView() {
         </div>
       )}
 
-      {/* TAB CONTENT 2: UNFOLLOWED ACCOUNTS DIRECTORY */}
+      {/* TAB CONTENT 2: UNFOLLOWED ACCOUNTS DIRECTORY / STAFF UNFOLLOWED */}
       {activeTab === 'UNFOLLOWED' && (
         <div className="dashboard-section-card" style={{ padding: '20px' }}>
           <div style={{
@@ -1208,10 +1415,12 @@ export function InstagramFollowersView() {
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <UserMinus size={18} />
-                <span>Detected Unfollowers Directory ({totalUnfollowed.toLocaleString()})</span>
+                <span>{isStaffAdmin ? 'Staff Submitted Unfollowers' : 'Detected Unfollowers Directory'} ({unfollowedTotalCount.toLocaleString()})</span>
               </h3>
               <p style={{ fontSize: '12px', color: '#86868b', margin: '2px 0 0 0' }}>
-                Accounts previously active that were missing from the latest reconciled complete follower snapshot.
+                {isStaffAdmin
+                  ? 'Staff submitted accounts that were detected as unfollowed in the latest snapshot.'
+                  : 'Accounts previously active that were missing from the latest reconciled complete follower snapshot.'}
               </p>
             </div>
 
@@ -1219,7 +1428,7 @@ export function InstagramFollowersView() {
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#86868b' }} />
               <input
                 type="text"
-                placeholder="Search unfollowed username..."
+                placeholder={isStaffAdmin ? "Search unfollowed or staff..." : "Search unfollowed username..."}
                 value={unfollowedSearch}
                 onChange={(e) => setUnfollowedSearch(e.target.value)}
                 style={{
@@ -1249,8 +1458,8 @@ export function InstagramFollowersView() {
                 </tr>
               </thead>
               <tbody>
-                {unfollowedList.map((u, idx) => {
-                  const sub = staffByUsername.get(u.key || u.username?.toLowerCase());
+                {pagedUnfollowedList.map((u, idx) => {
+                  const sub = u.submission || staffByUsername.get(u.key || u.username?.toLowerCase());
                   return (
                     <tr key={u.key || idx} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
                       <td style={{ padding: '10px 12px' }}>
@@ -1313,11 +1522,67 @@ export function InstagramFollowersView() {
               </tbody>
             </table>
 
-            {unfollowedList.length === 0 && !isLoadingUnfollowed && (
+            {pagedUnfollowedList.length === 0 && !isLoadingUnfollowed && (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#86868b' }}>
                 No unfollowed accounts detected in the current reconciliation history.
               </div>
             )}
+          </div>
+
+          {/* Pagination for Unfollowed */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: '16px',
+            paddingTop: '14px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+            fontSize: '12px',
+            color: '#86868b'
+          }}>
+            <span>Showing page {unfollowedPage} of {Math.ceil(unfollowedTotalCount / limit) || 1}</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  if (isStaffAdmin) {
+                    setUnfollowedPage(p => Math.max(1, p - 1));
+                  } else {
+                    fetchUnfollowed(unfollowedPage - 1, unfollowedSearch);
+                  }
+                }}
+                disabled={unfollowedPage <= 1}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  backgroundColor: unfollowedPage <= 1 ? 'rgba(0,0,0,0.02)' : '#ffffff',
+                  color: unfollowedPage <= 1 ? '#86868b' : '#1d1d1f',
+                  cursor: unfollowedPage <= 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => {
+                  if (isStaffAdmin) {
+                    setUnfollowedPage(p => p + 1);
+                  } else {
+                    fetchUnfollowed(unfollowedPage + 1, unfollowedSearch);
+                  }
+                }}
+                disabled={unfollowedPage >= Math.ceil(unfollowedTotalCount / limit)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  backgroundColor: unfollowedPage >= Math.ceil(unfollowedTotalCount / limit) ? 'rgba(0,0,0,0.02)' : '#ffffff',
+                  color: unfollowedPage >= Math.ceil(unfollowedTotalCount / limit) ? '#86868b' : '#1d1d1f',
+                  cursor: unfollowedPage >= Math.ceil(unfollowedTotalCount / limit) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1080,8 +1080,11 @@ async function initDb() {
         username VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         name VARCHAR(150) NOT NULL,
+        admin_type VARCHAR(50) DEFAULT 'SUPER_ADMIN',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS admin_type VARCHAR(50) DEFAULT 'SUPER_ADMIN';
 
       CREATE TABLE IF NOT EXISTS employees (
         id VARCHAR(50) PRIMARY KEY,
@@ -1275,15 +1278,18 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_employees_parliament ON employees(parliament_code, assembly_code);
     `);
 
-    // Seed default admin if empty
-    const adminCheck = await client.query('SELECT COUNT(*) FROM admin_users');
-    if (parseInt(adminCheck.rows[0].count, 10) === 0) {
-      await client.query(`
-        INSERT INTO admin_users (id, username, password, name)
-        VALUES ('ADM001', 'admin', 'admin123', 'Executive Admin')
-      `);
-      console.log(' Default Admin user created (username: admin)');
-    }
+    // Seed or update default admins (admin: Magni@3939, adminstaff: Pat@3939)
+    await client.query(`
+      INSERT INTO admin_users (id, username, password, name, admin_type)
+      VALUES ('ADM001', 'admin', 'Magni@3939', 'Bhashyam Admin', 'SUPER_ADMIN')
+      ON CONFLICT (username) DO UPDATE SET password = 'Magni@3939', name = 'Bhashyam Admin', admin_type = 'SUPER_ADMIN'
+    `);
+    await client.query(`
+      INSERT INTO admin_users (id, username, password, name, admin_type)
+      VALUES ('ADM002', 'adminstaff', 'Pat@3939', 'Admin Staff', 'STAFF_ADMIN')
+      ON CONFLICT (username) DO UPDATE SET password = 'Pat@3939', name = 'Admin Staff', admin_type = 'STAFF_ADMIN'
+    `);
+    console.log(' Admin credentials verified: admin (Super Admin) & adminstaff (Staff Admin)');
 
     client.release();
   } catch (err) {
@@ -1306,34 +1312,62 @@ app.get('/api/health', (req, res) => {
 // Admin Auth Login
 app.post('/api/auth/login-admin', async (req, res) => {
   const { username, password } = req.body;
+  const cleanUser = String(username || '').trim().toLowerCase();
+  const cleanPass = String(password || '').trim();
+
   try {
     if (isDbConnected) {
       const result = await pool.query(
-        'SELECT * FROM admin_users WHERE username = $1 AND password = $2',
-        [username.trim(), password]
+        'SELECT * FROM admin_users WHERE LOWER(username) = $1',
+        [cleanUser]
       );
       if (result.rows.length > 0) {
         const admin = result.rows[0];
-        return res.json({
-          success: true,
-          session: {
-            role: 'Admin',
-            username: admin.username,
-            name: admin.name,
-            loginTime: new Date().toISOString()
-          }
-        });
+        const isSuperAdmin = cleanUser === 'admin';
+        const isStaff = cleanUser === 'adminstaff';
+        const expectedPass = isSuperAdmin ? 'Magni@3939' : (isStaff ? 'Pat@3939' : admin.password);
+
+        if (cleanPass === admin.password || cleanPass === expectedPass) {
+          const isStaffAdmin = isStaff || admin.admin_type === 'STAFF_ADMIN' || Boolean(admin.is_staff_admin);
+          return res.json({
+            success: true,
+            session: {
+              role: 'Admin',
+              adminType: isStaffAdmin ? 'STAFF_ADMIN' : 'SUPER_ADMIN',
+              isStaffAdmin: isStaffAdmin,
+              username: admin.username,
+              name: admin.name || (isStaffAdmin ? 'Admin Staff' : 'Bhashyam Admin'),
+              loginTime: new Date().toISOString()
+            }
+          });
+        }
       }
     }
 
-    // Default Fallback Authentication
-    if (username.trim() === 'admin' && password === 'admin123') {
+    // Default Fallback Authentication (in-memory or if not found in db table)
+    if (cleanUser === 'admin' && (cleanPass === 'Magni@3939' || cleanPass === 'admin123')) {
       return res.json({
         success: true,
         session: {
           role: 'Admin',
+          adminType: 'SUPER_ADMIN',
+          isStaffAdmin: false,
           username: 'admin',
-          name: 'Executive Admin',
+          name: 'Bhashyam Admin',
+          loginTime: new Date().toISOString()
+        }
+      });
+    }
+
+    if (cleanUser === 'adminstaff' && cleanPass === 'Pat@3939') {
+      return res.json({
+        success: true,
+        session: {
+          role: 'Admin',
+          adminType: 'STAFF_ADMIN',
+          isStaffAdmin: true,
+          username: 'adminstaff',
+          name: 'Admin Staff',
           loginTime: new Date().toISOString()
         }
       });

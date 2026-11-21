@@ -22,27 +22,38 @@ const ADMIN_TABS = [
 const VALID_TAB_IDS = ADMIN_TABS.map(t => t.id);
 
 export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) {
+  const isStaffAdmin = session?.adminType === 'STAFF_ADMIN' || session?.username?.toLowerCase() === 'adminstaff' || Boolean(session?.isStaffAdmin);
+  const tabs = isStaffAdmin ? ADMIN_TABS.filter(t => t.id !== 'audit') : ADMIN_TABS;
+  const validTabIds = tabs.map(t => t.id);
+
   const getResolvedTab = () => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const queryTab = params.get('tab');
-      if (queryTab && VALID_TAB_IDS.includes(queryTab)) return queryTab;
+      if (queryTab && validTabIds.includes(queryTab)) return queryTab;
 
       const path = window.location.pathname;
       if (path === '/admin/link-analytics' || path === '/admin/links') return 'links';
       if (path === '/admin/followers' || path === '/admin/instagram') return 'followers';
       if (path === '/admin/staff' || path === '/admin/employees') return 'staff';
       if (path === '/admin/rules' || path === '/admin/tasks') return 'rules';
-      if (path === '/admin/audit') return 'audit';
+      if (!isStaffAdmin && path === '/admin/audit') return 'audit';
       if (path === '/admin/reports') return 'reports';
 
       const savedTab = localStorage.getItem('brk_active_admin_tab');
-      if (savedTab && VALID_TAB_IDS.includes(savedTab)) return savedTab;
+      if (savedTab && validTabIds.includes(savedTab)) return savedTab;
     }
-    return initialTab && VALID_TAB_IDS.includes(initialTab) ? initialTab : 'dashboard';
+    return initialTab && validTabIds.includes(initialTab) ? initialTab : 'dashboard';
   };
 
   const [activeTab, setActiveTab] = useState(getResolvedTab);
+
+  // If staff admin lands on audit tab, gracefully redirect to dashboard
+  useEffect(() => {
+    if (isStaffAdmin && activeTab === 'audit') {
+      setActiveTab('dashboard');
+    }
+  }, [isStaffAdmin, activeTab]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -88,8 +99,6 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const tabs = ADMIN_TABS;
-
   return (
     <div className="dashboard-page-wrapper">
       {/* Main Container Frame */}
@@ -133,12 +142,12 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
                 fontWeight: 600,
                 padding: '3px 10px',
                 borderRadius: '980px',
-                backgroundColor: 'rgba(0, 113, 227, 0.08)',
-                color: '#0071e3',
-                border: '1px solid rgba(0, 113, 227, 0.15)',
+                backgroundColor: isStaffAdmin ? 'rgba(52, 199, 89, 0.08)' : 'rgba(0, 113, 227, 0.08)',
+                color: isStaffAdmin ? '#15803d' : '#0071e3',
+                border: isStaffAdmin ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(0, 113, 227, 0.15)',
                 whiteSpace: 'nowrap'
               }}>
-                Executive Portal
+                {isStaffAdmin ? 'Staff Operations Portal' : 'Executive Portal'}
               </span>
             </div>
 
@@ -158,7 +167,7 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
               }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759', display: 'inline-block' }} />
                 <span style={{ fontWeight: 600, color: '#1d1d1f' }}>
-                  {session?.name || session?.username || 'Admin'}
+                  {session?.name || session?.username || (isStaffAdmin ? 'Admin Staff' : 'Admin')}
                 </span>
               </div>
 
@@ -239,23 +248,23 @@ export function AdminDashboard({ session, onLogout, initialTab = 'dashboard' }) 
         {/* Tab Content Display Card */}
         <div style={{ marginTop: '12px' }}>
           {activeTab === 'dashboard' && (
-            <AdminMetricsDashboardView />
+            <AdminMetricsDashboardView isStaffAdmin={isStaffAdmin} />
           )}
 
           {activeTab === 'links' && (
-            <LinkAnalyticsView />
+            <LinkAnalyticsView isStaffAdmin={isStaffAdmin} />
           )}
 
           {activeTab === 'followers' && (
-            <InstagramFollowersView />
+            <InstagramFollowersView isStaffAdmin={isStaffAdmin} />
           )}
 
           {activeTab === 'staff' && (
-            <StaffDirectoryView />
+            <StaffDirectoryView isStaffAdmin={isStaffAdmin} />
           )}
 
           {activeTab === 'rules' && (
-            <TaskManagementView />
+            <TaskManagementView isStaffAdmin={isStaffAdmin} />
           )}
 
           {activeTab === 'audit' && (
