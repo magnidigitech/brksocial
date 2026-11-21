@@ -1325,9 +1325,11 @@ app.post('/api/auth/login-admin', async (req, res) => {
         const admin = result.rows[0];
         const isSuperAdmin = cleanUser === 'admin';
         const isStaff = cleanUser === 'adminstaff';
-        const expectedPass = isSuperAdmin ? 'Magni@3939' : (isStaff ? 'Pat@3939' : admin.password);
+        const isPassValid = isSuperAdmin 
+          ? (cleanPass === 'Magni@3939') 
+          : (isStaff ? cleanPass === 'Pat@3939' : cleanPass === admin.password);
 
-        if (cleanPass === admin.password || cleanPass === expectedPass) {
+        if (isPassValid) {
           const isStaffAdmin = isStaff || admin.admin_type === 'STAFF_ADMIN' || Boolean(admin.is_staff_admin);
           return res.json({
             success: true,
@@ -1344,8 +1346,8 @@ app.post('/api/auth/login-admin', async (req, res) => {
       }
     }
 
-    // Default Fallback Authentication (in-memory or if not found in db table)
-    if (cleanUser === 'admin' && (cleanPass === 'Magni@3939' || cleanPass === 'admin123')) {
+    // Default Fallback Authentication (strictly enforces Magni@3939 & Pat@3939)
+    if (cleanUser === 'admin' && cleanPass === 'Magni@3939') {
       return res.json({
         success: true,
         session: {

@@ -115,9 +115,8 @@ export const authService = {
 
     // 1. Super Admin (Bhashyam Admin)
     if (cleanUser === 'admin') {
-      const admin = dbService.getAdminAccount();
-      const expectedPass = admin?.password || 'Magni@3939';
-      if (cleanPass === expectedPass || cleanPass === 'Magni@3939') {
+      if (cleanPass === 'Magni@3939') {
+        const admin = dbService.getAdminAccount();
         const session = {
           role: 'Admin',
           adminType: 'SUPER_ADMIN',
