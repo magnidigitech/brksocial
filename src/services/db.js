@@ -1385,6 +1385,10 @@ export const dbService = {
     let rangeStart = null;
     let rangeEnd = null;
 
+    if (targetCycleIndex === 'ALL') {
+      isAllTime = true;
+    }
+
     if (typeof dateFilter === 'object' && dateFilter !== null) {
       if (dateFilter.preset === 'ALL' || (!dateFilter.startDate && !dateFilter.endDate && !dateFilter.date)) {
         isAllTime = true;
@@ -1399,12 +1403,36 @@ export const dbService = {
         }
       }
     } else if (typeof dateFilter === 'string') {
-      dateStr = dateFilter;
+      if (dateFilter === 'ALL') {
+        isAllTime = true;
+      } else {
+        dateStr = dateFilter;
+      }
     }
 
     const cycleInfo = getTaskCycleInfo(targetTask, dateStr);
     const allCycles = getAllTaskCycles(targetTask, dateStr);
-    const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
+    
+    // Explicit numeric targetCycleIndex selects that specific cycle
+    let activeCycle = cycleInfo;
+    if (typeof targetCycleIndex === 'number' && allCycles[targetCycleIndex]) {
+      activeCycle = allCycles[targetCycleIndex];
+      isAllTime = false;
+    } else if (targetCycleIndex === 'ALL' || isAllTime) {
+      isAllTime = true;
+      activeCycle = {
+        ...cycleInfo,
+        cycleNumber: 'ALL',
+        shortLabel: 'All Cycles',
+        cycleLabel: 'All Cycles (Entire Campaign)',
+        label: 'All Cycles (Entire Campaign)',
+        startDate: allCycles[0]?.startDate || targetTask?.startDate || '2026-09-17',
+        endDate: getTodayISTDateString(),
+        isAllTime: true
+      };
+    } else if (targetCycleIndex === 'current' || targetCycleIndex === null) {
+      activeCycle = cycleInfo;
+    }
 
     let periodSubs = [];
     if (isAllTime) {
@@ -1432,7 +1460,9 @@ export const dbService = {
       });
     }
 
+    const totalPeriodSubs = periodSubs.length;
     const validSubs = periodSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid');
+    const notFollowingSubs = periodSubs.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'Not Found');
     const pendingSubs = periodSubs.filter(s => s.status === 'Pending Submission');
     const unfollowedSubs = periodSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed');
     const alreadyFollowedSubs = periodSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated');
@@ -1458,7 +1488,9 @@ export const dbService = {
 
     const empProgressList = activeEmployees.map(emp => {
       const empSubs = periodSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === emp.id.toUpperCase());
+      const empTotal = empSubs.length;
       const empValid = empSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
+      const empNotFollowing = empSubs.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'Not Found').length;
       const empPending = empSubs.filter(s => s.status === 'Pending Submission').length;
       const empUnfollowed = empSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
       const empAlready = empSubs.filter(s => s.status === 'Already Followed' || s.status === 'Duplicate' || s.status === 'Repeated').length;
@@ -1470,7 +1502,7 @@ export const dbService = {
       if (empValid >= target) {
         empStatus = 'Completed';
         completedEmpCount++;
-      } else if (empValid > 0) {
+      } else if (empValid > 0 || empTotal > 0) {
         empStatus = 'In Progress';
         inProgressEmpCount++;
       } else {
@@ -1480,7 +1512,10 @@ export const dbService = {
       return {
         ...emp,
         target,
+        total: empTotal,
+        totalSubmissions: empTotal,
         valid: empValid,
+        notFollowing: empNotFollowing,
         pending: empPending,
         unfollowed: empUnfollowed,
         alreadyFollowed: empAlready,
@@ -1494,23 +1529,27 @@ export const dbService = {
     return {
       date: dateStr,
       selectedTask: targetTask,
+      isAllTime,
       isWeekly: activeCycle.isWeekly,
       isCustom: activeCycle.isCustom,
-      isCampaignTotal: activeCycle.isCampaignTotal,
+      isCampaignTotal: activeCycle.isCampaignTotal || isAllTime,
       isDaily: activeCycle.isDaily,
       cycleInfo: activeCycle,
       allCyclesList: allCycles,
       frequency: targetTask?.frequency || 'Daily',
       weekStartDate: activeCycle.startDate,
       cycleStartDate: activeCycle.startDate,
-      cycleEndDate: activeCycle.endDate,
-      periodLabel: isAllTime ? 'All Time' : (isExplicitRange ? `${rangeStart} → ${rangeEnd}` : (activeCycle.cycleLabel || activeCycle.label)),
+      cycleEndDate: isAllTime ? 'Today' : activeCycle.endDate,
+      periodLabel: isAllTime ? 'All Time (Entire Campaign)' : (isExplicitRange ? `${rangeStart} → ${rangeEnd}` : (activeCycle.cycleLabel || activeCycle.label)),
       totalEmployees: employees.length,
       activeEmployees: activeEmployees.length,
       tasksToday: tasks.length,
       totalTarget,
       targetSubmissions: totalTarget,
+      totalSubmissions: totalPeriodSubs,
+      totalSubmissionsCount: totalPeriodSubs,
       validSubmissions: validCount,
+      notFollowingCount: notFollowingSubs.length,
       pendingSubmissions: pendingSubs.length,
       unfollowedSubmissions: unfollowedSubs.length,
       alreadyFollowed: alreadyFollowedSubs.length,

@@ -41,7 +41,7 @@ const PARLIAMENT_MAP_COORDS = {
 };
 
 export function AdminMetricsDashboardView() {
-  const [dateRange, setDateRange] = useState(() => getPresetDateRange('TODAY'));
+  const [dateRange, setDateRange] = useState(() => getPresetDateRange('ALL'));
   const selectedDate = dateRange.startDate || dateRange.endDate || getTodayISTDateString();
   
   // Real-Time Live AJAX Refresh Trigger (must be initialized before useMemo dependencies)
@@ -83,7 +83,7 @@ export function AdminMetricsDashboardView() {
 
   // Selected Task Campaign Filter State
   const [selectedTaskId, setSelectedTaskId] = useState('');
-  const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState('ALL');
   const [copiedStaffToken, setCopiedStaffToken] = useState(null);
 
   const staffClickMap = useMemo(() => {
@@ -273,7 +273,10 @@ export function AdminMetricsDashboardView() {
         ...rawStats,
         activeEmployees: 0,
         targetSubmissions: 0,
+        totalSubmissions: 0,
+        totalSubmissionsCount: 0,
         validSubmissions: 0,
+        notFollowingCount: 0,
         duplicates: 0,
         remaining: 0,
         completedEmpCount: 0,
@@ -292,7 +295,9 @@ export function AdminMetricsDashboardView() {
     const activeEmployees = filteredStaff.length;
     const taskTarget = rawStats.cycleInfo?.target || rawStats.selectedTask?.dailyTarget || 10;
     const targetSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.target || taskTarget), 0);
+    const totalSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.total || curr.valid || 0), 0);
     const validSubmissions = filteredStaff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
+    const notFollowingCount = filteredStaff.reduce((acc, curr) => acc + (curr.notFollowing || 0), 0);
     const duplicates = filteredStaff.reduce((acc, curr) => acc + (curr.duplicate || 0), 0);
     const remaining = Math.max(0, targetSubmissions - validSubmissions);
 
@@ -304,7 +309,10 @@ export function AdminMetricsDashboardView() {
       ...rawStats,
       activeEmployees,
       targetSubmissions,
+      totalSubmissions,
+      totalSubmissionsCount: totalSubmissions,
       validSubmissions,
+      notFollowingCount,
       duplicates,
       remaining,
       completedEmpCount,
@@ -330,6 +338,7 @@ export function AdminMetricsDashboardView() {
       const inProgressStaff = pStaff.filter(e => e.status === 'In Progress').length;
       const notStartedStaff = pStaff.filter(e => e.status === 'Not Started').length;
       const totalValid = pStaff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
+      const totalSubmissions = pStaff.reduce((acc, curr) => acc + (curr.total || curr.valid || 0), 0);
       const totalDuplicates = pStaff.reduce((acc, curr) => acc + (curr.duplicate || 0), 0);
       const totalTarget = pStaff.reduce((acc, curr) => acc + (curr.target || 10), 0);
       const completionRate = totalTarget > 0 ? Math.min(100, Math.round((totalValid / totalTarget) * 100)) : 0;
@@ -342,6 +351,7 @@ export function AdminMetricsDashboardView() {
         inProgressStaff,
         notStartedStaff,
         totalValid,
+        totalSubmissions,
         totalDuplicates,
         totalTarget,
         completionRate
@@ -462,6 +472,7 @@ export function AdminMetricsDashboardView() {
       });
 
       const totalValid = group.staff.reduce((acc, curr) => acc + (curr.valid || 0), 0);
+      const totalSubmissions = group.staff.reduce((acc, curr) => acc + (curr.total || curr.valid || 0), 0);
       const totalTarget = group.staff.reduce((acc, curr) => acc + (curr.target || 10), 0);
       const completedCount = group.staff.filter(e => e.status === 'Completed').length;
       const inProgressCount = group.staff.filter(e => e.status === 'In Progress').length;
@@ -472,6 +483,7 @@ export function AdminMetricsDashboardView() {
         ...group,
         staff: sortedStaff,
         totalValid,
+        totalSubmissions,
         totalTarget,
         completedCount,
         inProgressCount,
@@ -564,7 +576,16 @@ export function AdminMetricsDashboardView() {
             value={dateRange}
             onChange={(newRange) => {
               setDateRange(newRange);
-              setSelectedCycleIndex(null);
+              if (newRange.preset === 'ALL' || (!newRange.startDate && !newRange.endDate)) {
+                setSelectedCycleIndex('ALL');
+              } else {
+                const matchIdx = stats.allCyclesList?.findIndex(c => c.startDate === newRange.startDate && c.endDate === newRange.endDate);
+                if (matchIdx !== undefined && matchIdx >= 0) {
+                  setSelectedCycleIndex(matchIdx);
+                } else {
+                  setSelectedCycleIndex('CUSTOM');
+                }
+              }
             }}
             align="left"
           />
@@ -586,8 +607,37 @@ export function AdminMetricsDashboardView() {
             }}>
               <span>Cycle:</span>
               <select
-                value={selectedCycleIndex === null ? 'current' : selectedCycleIndex}
-                onChange={(e) => setSelectedCycleIndex(e.target.value === 'current' ? null : Number(e.target.value))}
+                value={selectedCycleIndex === 'ALL' || dateRange.preset === 'ALL' ? 'ALL' : (selectedCycleIndex === null || selectedCycleIndex === 'current' ? 'current' : selectedCycleIndex)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'ALL') {
+                    setSelectedCycleIndex('ALL');
+                    setDateRange(getPresetDateRange('ALL'));
+                  } else if (val === 'current') {
+                    setSelectedCycleIndex('current');
+                    const currentCycle = stats.allCyclesList?.find(c => c.isCurrent) || stats.allCyclesList?.[stats.allCyclesList.length - 1];
+                    if (currentCycle) {
+                      setDateRange({
+                        startDate: currentCycle.startDate,
+                        endDate: currentCycle.endDate,
+                        preset: 'CUSTOM',
+                        label: `${currentCycle.shortLabel || currentCycle.label} (${currentCycle.startDate} → ${currentCycle.endDate})`
+                      });
+                    }
+                  } else {
+                    const idx = Number(val);
+                    setSelectedCycleIndex(idx);
+                    const chosen = stats.allCyclesList?.[idx];
+                    if (chosen) {
+                      setDateRange({
+                        startDate: chosen.startDate,
+                        endDate: chosen.endDate,
+                        preset: 'CUSTOM',
+                        label: `${chosen.shortLabel || chosen.label} (${chosen.startDate} → ${chosen.endDate})`
+                      });
+                    }
+                  }
+                }}
                 style={{
                   border: 'none',
                   backgroundColor: 'transparent',
@@ -598,13 +648,32 @@ export function AdminMetricsDashboardView() {
                   cursor: 'pointer'
                 }}
               >
-                <option value="current">Current Cycle ({stats.cycleInfo?.shortLabel})</option>
+                <option value="ALL">All Cycles (Entire Campaign)</option>
+                <option value="current">Current Cycle ({stats.cycleInfo?.shortLabel || 'Active'})</option>
                 {stats.allCyclesList.map((c, idx) => (
                   <option key={c.cycleNumber} value={idx}>
                     {c.label} {c.isCurrent ? '★ (Active)' : ''}
                   </option>
                 ))}
+                {selectedCycleIndex === 'CUSTOM' && (
+                  <option value="CUSTOM" disabled>Custom Calendar Selection</option>
+                )}
               </select>
+            </div>
+          ) : (selectedCycleIndex === 'ALL' || dateRange.preset === 'ALL') ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: '980px',
+              padding: '5px 12px',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              color: '#059669'
+            }}>
+              <span>Entire Campaign (All Cycles)</span>
             </div>
           ) : (stats.isWeekly || stats.isCustom) ? (
             <div style={{
@@ -1141,7 +1210,7 @@ export function AdminMetricsDashboardView() {
         gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
         gap: '12px'
       }}>
-        {/* Card 1: Verified Submissions & Daily Target */}
+        {/* Card 1: Submissions & Target Achievement */}
         <div style={{
           backgroundColor: '#ffffff',
           borderRadius: '18px',
@@ -1152,24 +1221,51 @@ export function AdminMetricsDashboardView() {
           overflow: 'hidden'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: '#86868b' }}>
-              {stats.cycleInfo?.shortLabel 
-                ? `Verified (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
-                : (stats.isCampaignTotal 
-                    ? `Verified (${stats.cycleStartDate} → Today)`
-                    : 'Verified Submissions')}
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#86868b' }}>
+              {(dateRange.preset === 'ALL' || selectedCycleIndex === 'ALL' || stats.isAllTime)
+                ? 'All-Time Submissions (Entire Campaign)'
+                : (stats.cycleInfo?.shortLabel 
+                    ? `Submissions (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                    : (stats.isCampaignTotal 
+                        ? `Submissions (${stats.cycleStartDate} → Today)`
+                        : 'Submissions'))}
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: 'rgba(52, 199, 89, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34c759' }}>
               <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '32px', fontWeight: 700, color: '#1d1d1f', letterSpacing: '-0.03em' }}>
-              {stats.validSubmissions.toLocaleString()}
+              {(stats.totalSubmissions || stats.validSubmissions).toLocaleString()}
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a' }}>
+              {stats.validSubmissions.toLocaleString()} Verified Following
             </span>
             <span style={{ fontSize: '12px', fontWeight: 400, color: '#86868b' }}>
               / {stats.targetSubmissions.toLocaleString()} Target
             </span>
+          </div>
+
+          {/* Sub-status breakdown pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px', fontSize: '10.5px' }}>
+            <span style={{ padding: '2px 7px', borderRadius: '6px', backgroundColor: 'rgba(52, 199, 89, 0.1)', color: '#15803d', fontWeight: 600 }}>
+              {stats.validSubmissions.toLocaleString()} Verified
+            </span>
+            {(stats.notFollowingCount || 0) > 0 && (
+              <span style={{ padding: '2px 7px', borderRadius: '6px', backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#dc2626', fontWeight: 600 }}>
+                {(stats.notFollowingCount || 0).toLocaleString()} Not Following
+              </span>
+            )}
+            {(stats.pendingSubmissions || 0) > 0 && (
+              <span style={{ padding: '2px 7px', borderRadius: '6px', backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#b45309', fontWeight: 600 }}>
+                {(stats.pendingSubmissions || 0).toLocaleString()} Pending
+              </span>
+            )}
+            {(stats.duplicates || 0) > 0 && (
+              <span style={{ padding: '2px 7px', borderRadius: '6px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#b45309', fontWeight: 600 }}>
+                {(stats.duplicates || 0).toLocaleString()} Duplicates
+              </span>
+            )}
           </div>
 
           {/* Progress Bar */}
@@ -1291,13 +1387,15 @@ export function AdminMetricsDashboardView() {
               {activeTask?.platform || 'Instagram'}
             </span>
             <span style={{ fontSize: '11.5px', fontWeight: 500, color: '#86868b' }}>
-              {stats.cycleInfo?.isWeekly 
-                ? `Weekly Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
-                : stats.cycleInfo?.isCustom
-                  ? `Cycle Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
-                  : stats.cycleInfo?.isCampaignTotal
-                    ? `Campaign Total: ${stats.cycleInfo.target} / Staff (From ${stats.cycleStartDate} to Today)`
-                    : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
+              {(dateRange.preset === 'ALL' || selectedCycleIndex === 'ALL' || stats.isAllTime)
+                ? `Weekly Target: ${stats.cycleInfo?.target || 10} / Staff / Week (All Cycles: ${stats.cycleStartDate} → Today)`
+                : stats.cycleInfo?.isWeekly 
+                  ? `Weekly Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                  : stats.cycleInfo?.isCustom
+                    ? `Cycle Target: ${stats.cycleInfo.target} / Staff (${stats.cycleInfo.shortLabel}: ${stats.cycleStartDate} → ${stats.cycleEndDate})`
+                    : stats.cycleInfo?.isCampaignTotal
+                      ? `Campaign Total: ${stats.cycleInfo.target} / Staff (From ${stats.cycleStartDate} to Today)`
+                      : `Target: ${activeTask?.dailyTarget || 10} / Staff / Day`}
             </span>
           </div>
         </div>
@@ -1971,7 +2069,7 @@ export function AdminMetricsDashboardView() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid rgba(0, 0, 0, 0.04)' }}>
                       {/* Submissions count */}
                       <div style={{ fontSize: '12px', fontWeight: 600, color: '#1d1d1f' }}>
-                        {group.totalValid} / {group.totalTarget} Submissions
+                        {group.totalSubmissions || group.totalValid} Total Submissions • <span style={{ color: '#34c759' }}>{group.totalValid} Verified</span>
                       </div>
 
                       {/* Status Breakdown Pills */}
@@ -2117,12 +2215,17 @@ export function AdminMetricsDashboardView() {
                                     </span>
                                   </td>
 
-                                  {/* Valid Count */}
+                                  {/* Submissions & Valid Count */}
                                   <td style={{ padding: '10px 14px' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#1d1d1f' }}>
-                                      {emp.valid || 0}
-                                    </span>
-                                    <span style={{ fontSize: '11px', color: '#86868b', fontWeight: 400 }}> / {emp.target || 10}</span>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#1d1d1f' }}>
+                                        {emp.total || emp.valid || 0}
+                                      </span>
+                                      <span style={{ fontSize: '10.5px', color: '#86868b', fontWeight: 400 }}>total</span>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                                      {emp.valid || 0} / {emp.target || 10} verified
+                                    </div>
                                   </td>
 
                                   {/* Progress Bar */}
@@ -2305,7 +2408,7 @@ export function AdminMetricsDashboardView() {
                                 {/* Bottom: Submissions & Progress */}
                                 <div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#86868b', marginBottom: '3px' }}>
-                                    <span><strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{emp.valid || 0}</strong> / {emp.target || 10} Submissions</span>
+                                    <span><strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{emp.total || emp.valid || 0}</strong> Submissions (<span style={{ color: '#16a34a', fontWeight: 600 }}>{emp.valid || 0}</span> / {emp.target || 10} verified)</span>
                                     <span style={{ fontWeight: 600, color: percent >= 100 ? '#34c759' : '#ff9500' }}>{percent}%</span>
                                   </div>
                                   <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
@@ -2599,7 +2702,7 @@ export function AdminMetricsDashboardView() {
                 {/* Progress bar & Submissions */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#86868b', marginBottom: '3px' }}>
-                    <span>Submissions: <strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{p.totalValid}</strong></span>
+                    <span>Submissions: <strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{p.totalSubmissions || p.totalValid}</strong> <span style={{ color: '#16a34a', fontWeight: 600 }}>({p.totalValid} verified)</span></span>
                     <span>Target: <strong style={{ color: '#1d1d1f', fontWeight: 600 }}>{p.totalTarget}</strong></span>
                   </div>
                   <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '980px', overflow: 'hidden' }}>
