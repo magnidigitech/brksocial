@@ -535,8 +535,8 @@ export const followerStorage = {
 
     // Fallback: If memory cache is somehow empty, try backend API if available
     try {
-      const res = await fetch(`/api/instagram/followers/check/${encodeURIComponent(clean)}`, {
-        signal: getTimeoutSignal(2000)
+      const res = await fetch(getBackendUrl(`/api/instagram/followers/check/${encodeURIComponent(clean)}`), {
+        signal: getTimeoutSignal(6000)
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
@@ -612,7 +612,7 @@ export const followerStorage = {
     // Try backend first if it is available and responding with JSON
     try {
       const params = new URLSearchParams({ search, page, limit });
-      const res = await fetch(`/api/instagram/followers?${params.toString()}`, { signal: getTimeoutSignal(2000) });
+      const res = await fetch(getBackendUrl(`/api/instagram/followers?${params.toString()}`), { signal: getTimeoutSignal(10000) });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
         const data = await res.json();

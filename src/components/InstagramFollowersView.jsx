@@ -167,7 +167,11 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
 
   // Fetch data on tab change
   useEffect(() => {
-    if (activeTab === 'UNFOLLOWED') {
+    if (activeTab === 'ACTIVE') {
+      if (followersList.length === 0) {
+        fetchFollowers(1, searchQuery);
+      }
+    } else if (activeTab === 'UNFOLLOWED') {
       fetchUnfollowed(1, unfollowedSearch);
     } else if (activeTab === 'HISTORY') {
       fetchHistory();
@@ -1139,7 +1143,13 @@ export function InstagramFollowersView({ isStaffAdmin: propIsStaffAdmin }) {
                 }}>
                   <button
                     type="button"
-                    onClick={() => setFilterType('ALL')}
+                    onClick={() => {
+                      setFilterType('ALL');
+                      setPage(1);
+                      if (followersList.length === 0) {
+                        fetchFollowers(1, searchQuery);
+                      }
+                    }}
                     style={{
                       padding: '5px 12px',
                       borderRadius: '980px',
