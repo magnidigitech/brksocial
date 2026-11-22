@@ -2652,14 +2652,132 @@ async function handleTrackingRedirect(req, res) {
 </html>`);
   }
 
-  // Instant HTTP 302 Redirect
-  return res.redirect(302, targetUrl);
+  // Extract Instagram username for app deep-linking
+  let igUsername = 'ramakrishnabhashyam';
+  const igMatch = targetUrl.match(/(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i);
+  if (igMatch && igMatch[1]) {
+    igUsername = igMatch[1];
+  }
+
+  const appScheme = `instagram://user?username=${igUsername}`;
+  const androidIntent = `intent://instagram.com/_u/${igUsername}/#Intent;package=com.instagram.android;scheme=https;end`;
+
+  // Desktop user: Direct 302 Redirect
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
+  if (!isMobile) {
+    return res.redirect(302, targetUrl);
+  }
+
+  // Mobile User: Serve Smart Deep-Linking Trampoline Page
+  return res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Follow Sri Bhashyam Ramakrishna on Instagram</title>
+  <meta property="og:title" content="Follow Sri Bhashyam Ramakrishna on Instagram" />
+  <meta property="og:description" content="Official citizen outreach initiative for Andhra Pradesh. Tap to open directly in the native Instagram app." />
+  <meta property="og:image" content="https://social.bhashyamramakrishna.in/images/KutamiLOGO.jpg" />
+  <meta property="og:url" content="${targetUrl}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; padding: 20px; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 18%, #1e293b 0%, #090d16 100%);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+      max-width: 400px; width: 100%;
+      background: rgba(30, 41, 59, 0.78);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 28px;
+      padding: 34px 24px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+    }
+    .logo-ring {
+      width: 78px; height: 78px; border-radius: 50%; margin: 0 auto 16px;
+      padding: 3.5px;
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      box-shadow: 0 8px 24px rgba(225, 48, 108, 0.35);
+    }
+    .logo-img {
+      width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+      background: #ffffff;
+    }
+    .title { font-size: 20px; font-weight: 800; margin: 0 0 3px; letter-spacing: -0.02em; color: #f8fafc; }
+    .handle { font-size: 13px; color: #38bdf8; font-family: monospace; font-weight: 700; margin: 0 0 12px; }
+    .badge {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px;
+      border-radius: 9999px; background: rgba(52, 199, 89, 0.15); color: #34d399;
+      border: 1px solid rgba(52, 199, 89, 0.3); margin-bottom: 18px;
+    }
+    .btn-app {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 15px 20px; border-radius: 980px;
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      color: #ffffff; font-size: 15px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 6px 20px rgba(225, 48, 108, 0.45);
+      margin-bottom: 12px;
+    }
+    .btn-web {
+      display: block; font-size: 13px; color: #94a3b8; text-decoration: none; padding: 8px;
+    }
+    .btn-web:hover { color: #f8fafc; text-decoration: underline; }
+    .subtext { font-size: 11px; color: #64748b; margin-top: 14px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-ring">
+      <img src="https://social.bhashyamramakrishna.in/images/KutamiLOGO.jpg" alt="Sri Bhashyam Ramakrishna" class="logo-img" onerror="this.src='https://api.bhashyamramakrishna.in/images/KutamiLOGO.jpg'" />
+    </div>
+    <h1 class="title">Sri Bhashyam Ramakrishna</h1>
+    <div class="handle">@${igUsername}</div>
+    <div class="badge">✓ Verified Citizen Outreach</div>
+    <a id="btn-launch" href="${appScheme}" class="btn-app">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+      <span>Open in Instagram App</span>
+    </a>
+    <a href="${targetUrl}" class="btn-web">Continue in Web Browser &rarr;</a>
+    <div class="subtext">⚡ 1-Tap App Deep-Link: Bypasses in-app browser login so you can follow directly without typing passwords.</div>
+  </div>
+  <script>
+    (function() {
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      var appScheme = "${appScheme}";
+      var androidIntent = "${androidIntent}";
+      var targetUrl = "${targetUrl}";
+
+      var btn = document.getElementById('btn-launch');
+      if (isAndroid) {
+        btn.href = androidIntent;
+        window.location.replace(androidIntent);
+        setTimeout(function() {
+          try { window.location.href = appScheme; } catch (e) {}
+        }, 500);
+      } else if (isIOS) {
+        btn.href = appScheme;
+        window.location.href = appScheme;
+      }
+    })();
+  </script>
+</body>
+</html>`);
 }
 
-app.get('/go/:token', handleTrackingRedirect);
-app.get('/instagram/:token', handleTrackingRedirect);
-app.get('/whatsapp/:token', handleTrackingRedirect);
-app.get('/track/:slug/:token', handleTrackingRedirect);
+app.get('/go/:token?', handleTrackingRedirect);
+app.get('/ig/:token?', handleTrackingRedirect);
+app.get('/follow/:token?', handleTrackingRedirect);
+app.get('/instagram/:token?', handleTrackingRedirect);
+app.get('/whatsapp/:token?', handleTrackingRedirect);
+app.get('/track/:slug/:token?', handleTrackingRedirect);
 
 // API: Record Client-Side Click (Beacon / AJAX)
 app.post('/api/links/click', async (req, res) => {
