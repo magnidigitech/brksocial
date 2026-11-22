@@ -2772,12 +2772,17 @@ async function handleTrackingRedirect(req, res) {
 </html>`);
 }
 
-app.get('/go/:token?', handleTrackingRedirect);
-app.get('/ig/:token?', handleTrackingRedirect);
-app.get('/follow/:token?', handleTrackingRedirect);
-app.get('/instagram/:token?', handleTrackingRedirect);
-app.get('/whatsapp/:token?', handleTrackingRedirect);
-app.get('/track/:slug/:token?', handleTrackingRedirect);
+app.get('/go', handleTrackingRedirect);
+app.get('/go/:token', handleTrackingRedirect);
+app.get('/ig', handleTrackingRedirect);
+app.get('/ig/:token', handleTrackingRedirect);
+app.get('/follow', handleTrackingRedirect);
+app.get('/follow/:token', handleTrackingRedirect);
+app.get('/instagram', handleTrackingRedirect);
+app.get('/instagram/:token', handleTrackingRedirect);
+app.get('/whatsapp', handleTrackingRedirect);
+app.get('/whatsapp/:token', handleTrackingRedirect);
+app.get('/track/:slug/:token', handleTrackingRedirect);
 
 // API: Record Client-Side Click (Beacon / AJAX)
 app.post('/api/links/click', async (req, res) => {
