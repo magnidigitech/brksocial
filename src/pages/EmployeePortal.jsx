@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   UserCheck,
   LogOut,
@@ -142,7 +142,18 @@ export function EmployeePortal({ session, onLogout }) {
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
   const [showPatternHelp, setShowPatternHelp] = useState(false);
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
+  const selectedCycleIndexRef = useRef(null);
+  const activeTaskRef = useRef(activeTask);
   const [subSyncTrigger, setSubSyncTrigger] = useState(0);
+
+  const setCycleIndex = (idx) => {
+    selectedCycleIndexRef.current = idx;
+    setSelectedCycleIndex(idx);
+  };
+
+  useEffect(() => {
+    activeTaskRef.current = activeTask;
+  }, [activeTask]);
 
   // All-time historical metrics for this employee
   const empAllSubs = useMemo(() => {
@@ -201,9 +212,11 @@ export function EmployeePortal({ session, onLogout }) {
       await dbService.syncSubmissionsWithServer();
       const empId = employee?.id || session?.employeeId || session?.id || session?.supportCode || 'APP13';
       const res = await dbService.revalidateSubmissionsWithFollowers(empId);
-      const taskId = activeTask?.id || 'TASK-INSTA-001';
+      const currentTask = activeTaskRef.current || activeTask;
+      const taskId = currentTask?.id || 'TASK-INSTA-001';
       const today = getTodayISTDateString();
-      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, selectedCycleIndex);
+      const currentCycle = selectedCycleIndexRef.current;
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, currentCycle);
       setTaskStats(stats);
       setSubSyncTrigger(prev => prev + 1);
       setFeedback({
@@ -230,12 +243,14 @@ export function EmployeePortal({ session, onLogout }) {
       const refreshedTasks = dbService.getTasksForEmployee(empId);
       setAssignedTasks(refreshedTasks);
 
-      if (!activeTask) {
+      const currentTask = activeTaskRef.current || activeTask;
+      if (!currentTask) {
         return;
       }
-      const taskId = activeTask.id;
+      const taskId = currentTask.id;
       const today = getTodayISTDateString();
-      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, selectedCycleIndex);
+      const currentCycle = selectedCycleIndexRef.current;
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, currentCycle);
       setTaskStats(stats);
       setSubSyncTrigger(prev => prev + 1);
       const link = dbService.getTrackingLinkForEmployee(taskId, empId);
@@ -375,9 +390,10 @@ export function EmployeePortal({ session, onLogout }) {
     }
   };
 
-  const updateStats = (empId, taskId, cycleIdx = selectedCycleIndex) => {
+  const updateStats = (empId, taskId, cycleIdx = undefined) => {
+    const currentCycle = cycleIdx !== undefined ? cycleIdx : selectedCycleIndexRef.current;
     const today = getTodayISTDateString();
-    const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, cycleIdx);
+    const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, currentCycle);
     setTaskStats(stats);
 
     // Fetch employee tracking link & live clicks
@@ -398,7 +414,7 @@ export function EmployeePortal({ session, onLogout }) {
     setInputVal('');
     setFeedback(null);
     setShowPatternHelp(false);
-    setSelectedCycleIndex(null);
+    setCycleIndex(null);
     const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
     updateStats(empId, task.id, null);
     if (typeof window !== 'undefined') {
@@ -411,6 +427,7 @@ export function EmployeePortal({ session, onLogout }) {
     setInputVal('');
     setFeedback(null);
     setShowPatternHelp(false);
+    setCycleIndex(null);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -544,6 +561,12 @@ export function EmployeePortal({ session, onLogout }) {
       return subDate !== todayStr;
     });
   }, [employee, session, activeTask, todayStr, subSyncTrigger, taskStats]);
+
+  // Latest week first: Week 10 (Active), Week 9, Week 8...
+  const displayCycles = useMemo(() => {
+    if (!taskStats?.allCycles || !Array.isArray(taskStats.allCycles)) return [];
+    return [...taskStats.allCycles].reverse();
+  }, [taskStats?.allCycles]);
 
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
@@ -765,7 +788,9 @@ export function EmployeePortal({ session, onLogout }) {
                       border: '1px solid #d1d5db',
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#334155'
+                      color: '#334155',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                     }}>
                       Target: <strong>{taskStats?.target || activeTask.dailyTarget}</strong> {activeTask.submissionType || 'entries'}
                       {taskStats?.isWeekly 
@@ -778,42 +803,43 @@ export function EmployeePortal({ session, onLogout }) {
                     </div>
                   </div>
 
-                  {/* Multi-Cycle Tabs if more than 1 cycle exists */}
-                  {taskStats?.allCycles && taskStats.allCycles.length > 1 && (
+                  {/* Multi-Cycle Tabs if more than 1 cycle exists - Latest Week First */}
+                  {displayCycles && displayCycles.length > 1 && (
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
                       overflowX: 'auto',
-                      padding: '8px 0 2px 0',
+                      padding: '8px 0 4px 0',
                       borderTop: '1px solid #f1f5f9',
                       marginTop: '10px'
                     }}>
                       <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
                         Cycle View:
                       </span>
-                      {taskStats.allCycles.map((c, cIdx) => {
-                        const isSelected = (selectedCycleIndex === null && c.isCurrent) || selectedCycleIndex === cIdx;
+                      {displayCycles.map((c) => {
+                        const isSelected = (selectedCycleIndex === null && c.isCurrent) || selectedCycleIndex === c.cycleIndex;
                         return (
                           <button
                             key={c.cycleNumber}
                             type="button"
                             onClick={() => {
-                              setSelectedCycleIndex(cIdx);
+                              setCycleIndex(c.cycleIndex);
                               const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
-                              updateStats(empId, activeTask.id, cIdx);
+                              updateStats(empId, activeTask.id, c.cycleIndex);
                             }}
                             style={{
-                              padding: '4px 10px',
+                              padding: '5px 12px',
                               borderRadius: '980px',
                               fontSize: '11px',
-                              fontWeight: isSelected ? 700 : 500,
+                              fontWeight: 600,
                               backgroundColor: isSelected ? '#0071e3' : '#f1f5f9',
                               color: isSelected ? '#ffffff' : '#475569',
                               border: isSelected ? '1px solid #0071e3' : '1px solid #e2e8f0',
                               cursor: 'pointer',
                               whiteSpace: 'nowrap',
-                              transition: 'all 0.15s ease'
+                              boxShadow: isSelected ? '0 2px 6px rgba(0, 113, 227, 0.25)' : 'none',
+                              transition: 'background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease'
                             }}
                           >
                             {c.shortLabel} {c.isCurrent ? '(Active)' : `(${c.startDate})`}
@@ -823,14 +849,24 @@ export function EmployeePortal({ session, onLogout }) {
                     </div>
                   )}
 
-                  {/* Progress Bar */}
+                  {/* Progress Bar with smooth transition */}
                   {taskStats && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155', flexWrap: 'wrap', gap: '4px' }}>
-                        <span>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      marginTop: '12px',
+                      minHeight: '44px',
+                      transition: 'opacity 0.2s ease'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', flexWrap: 'wrap', gap: '4px' }}>
+                        <span style={{ color: '#1e293b' }}>
                           {taskStats.periodLabel || 'Completion Progress'}
                         </span>
-                        <span style={{ color: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget) ? '#16a34a' : '#ea580c' }}>
+                        <span style={{
+                          color: taskStats.validCount >= (taskStats.target || activeTask.dailyTarget) ? '#16a34a' : '#ea580c',
+                          whiteSpace: 'nowrap'
+                        }}>
                           {taskStats.validCount} / {taskStats.target || activeTask.dailyTarget} Valid ({taskStats.progressPercent}%)
                         </span>
                       </div>
@@ -849,7 +885,7 @@ export function EmployeePortal({ session, onLogout }) {
                             ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
                             : 'linear-gradient(90deg, #ff4d00 0%, #ff1a40 100%)',
                           borderRadius: '9999px',
-                          transition: 'width 0.4s ease'
+                          transition: 'width 0.35s ease'
                         }} />
                       </div>
                     </div>
@@ -2066,19 +2102,50 @@ export function EmployeePortal({ session, onLogout }) {
 
                         <div>
                           {/* Progress Row */}
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '5px' }}>
-                              <span style={{ fontWeight: 600, color: '#64748b' }}>
-                                {cycleInfo?.shortLabel 
-                                  ? `${cycleInfo.shortLabel} (${cycleInfo.startDate} → ${cycleInfo.endDate}): ` 
-                                  : (task.frequency === 'Campaign Total' 
-                                      ? `Campaign (${task.startDate || 'Start'} → Today): `
-                                      : 'Daily Progress: ')}
-                                <strong style={{ color: isMet ? '#16a34a' : '#0f172a' }}>{valid} / {target}</strong>
-                              </span>
-                              <span style={{ fontWeight: 800, color: isMet ? '#16a34a' : '#ff4d00' }}>
-                                {pct}%
-                              </span>
+                          <div style={{ marginBottom: '10px' }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              gap: '8px',
+                              marginBottom: '6px'
+                            }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  color: '#1e293b',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  flexWrap: 'wrap'
+                                }}>
+                                  <span>{cycleInfo?.shortLabel || (task.frequency === 'Campaign Total' ? 'Campaign Total' : 'Daily Progress')}</span>
+                                  {cycleInfo?.startDate && (
+                                    <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748b' }}>
+                                      ({cycleInfo.startDate} → {cycleInfo.endDate})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{
+                                textAlign: 'right',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
+                              }}>
+                                <strong style={{ fontSize: '13px', fontWeight: 800, color: isMet ? '#16a34a' : '#0f172a' }}>
+                                  {valid}
+                                </strong>
+                                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}> / {target} Valid </span>
+                                <span style={{
+                                  fontSize: '12.5px',
+                                  fontWeight: 800,
+                                  color: isMet ? '#16a34a' : '#ff4d00',
+                                  marginLeft: '2px'
+                                }}>
+                                  ({pct}%)
+                                </span>
+                              </div>
                             </div>
                             <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '9999px', overflow: 'hidden' }}>
                               <div style={{
