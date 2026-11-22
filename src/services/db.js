@@ -126,6 +126,9 @@ const DEFAULT_TASKS = [
   }
 ];
 
+// In-memory high performance authoritative cache for submissions
+let IN_MEMORY_SUBMISSIONS = null;
+
 // Clean storage initialization - starts with 0 real data (no dummy submissions or fake clicks)
 export const dbService = {
   init() {
@@ -1036,11 +1039,33 @@ export const dbService = {
     return null;
   },
 
+  getCachedSubmissions() {
+    return IN_MEMORY_SUBMISSIONS;
+  },
+
+  setCachedSubmissions(subs) {
+    if (Array.isArray(subs)) {
+      IN_MEMORY_SUBMISSIONS = subs;
+    }
+  },
+
   getSubmissions(dateFilter = null, customSubs = null) {
     this.init();
-    let subs = Array.isArray(customSubs)
-      ? customSubs
-      : (JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || []);
+    let subs = null;
+    if (Array.isArray(customSubs)) {
+      subs = customSubs;
+    } else if (IN_MEMORY_SUBMISSIONS !== null && Array.isArray(IN_MEMORY_SUBMISSIONS) && IN_MEMORY_SUBMISSIONS.length > 0) {
+      subs = IN_MEMORY_SUBMISSIONS;
+    } else {
+      try {
+        subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+        if (subs.length > 0) {
+          IN_MEMORY_SUBMISSIONS = subs;
+        }
+      } catch (_) {
+        subs = [];
+      }
+    }
     if (dateFilter) {
       subs = subs.filter(s => s.date === dateFilter);
     }
@@ -1277,8 +1302,13 @@ export const dbService = {
     const allCycles = getAllTaskCycles(task, dateStr);
     const activeCycle = (targetCycleIndex !== null && allCycles[targetCycleIndex]) ? allCycles[targetCycleIndex] : cycleInfo;
 
+    const cleanEmpId = (employeeId || '').toUpperCase().trim();
+
     const subs = allSubs.filter(s => {
-      if (!s.employeeId || s.employeeId.toUpperCase() !== employeeId.toUpperCase()) return false;
+      const matchEmp = (s.employeeId && s.employeeId.toUpperCase().trim() === cleanEmpId) ||
+                       (s.supportCode && s.supportCode.toUpperCase().trim() === cleanEmpId) ||
+                       (s.employee_id && s.employee_id.toUpperCase().trim() === cleanEmpId);
+      if (!matchEmp) return false;
       if (task && s.taskId !== task.id) return false;
 
       const subDate = s.date || getISTDateFromISO(s.submittedAt);
@@ -1311,11 +1341,17 @@ export const dbService = {
     const progressPercent = Math.min(100, Math.round((validCount / target) * 100));
 
     // All-time historical metrics for this employee
-    const empAllSubs = allSubs.filter(s => s.employeeId && s.employeeId.toUpperCase() === employeeId.toUpperCase());
+    const empAllSubs = allSubs.filter(s => {
+      const matchEmp = (s.employeeId && s.employeeId.toUpperCase().trim() === cleanEmpId) ||
+                       (s.supportCode && s.supportCode.toUpperCase().trim() === cleanEmpId) ||
+                       (s.employee_id && s.employee_id.toUpperCase().trim() === cleanEmpId);
+      return matchEmp;
+    });
     const allTimeTotal = empAllSubs.length;
     const allTimeActive = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
     const allTimeUnfollowed = empAllSubs.filter(s => s.status === 'Unfollowed' || s.status === 'unfollowed').length;
     const allTimePending = empAllSubs.filter(s => s.status === 'Pending Submission').length;
+    const allTimeNotFound = empAllSubs.filter(s => s.status === 'Not Following' || s.status === 'Handle Not Found' || s.status === 'not_found').length;
     const allTimeRefollowed = empAllSubs.filter(s => !!s.re_followed_at).length;
 
     let status = 'Not Started';
@@ -1324,6 +1360,11 @@ export const dbService = {
     } else if (validCount > 0) {
       status = 'In Progress';
     }
+
+    const todayOnlySubs = subs.filter(s => {
+      const subDate = s.date || getISTDateFromISO(s.submittedAt);
+      return subDate === dateStr;
+    });
 
     return {
       task,
@@ -1340,6 +1381,7 @@ export const dbService = {
       allTimeActive,
       allTimeUnfollowed,
       allTimePending,
+      allTimeNotFound,
       allTimeRefollowed,
       allTimeNetActive: allTimeActive,
       remaining,
@@ -1356,7 +1398,7 @@ export const dbService = {
       cycleStartDate: activeCycle.startDate,
       cycleEndDate: activeCycle.endDate,
       periodLabel: activeCycle.cycleLabel || activeCycle.label,
-      todaySubmissions: subs,
+      todaySubmissions: todayOnlySubs,
       periodSubmissions: subs,
       validSubs,
       pendingSubs,
@@ -1371,11 +1413,12 @@ export const dbService = {
     const employees = this.getEmployees();
     const activeEmployees = employees.filter(e => e.status === 'Active');
     const tasks = this.getTasks();
-    const targetTask = selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask();
+    const isAllTasks = selectedTaskId === 'ALL';
+    const targetTask = isAllTasks ? null : (selectedTaskId ? (this.getTaskById(selectedTaskId) || this.getActiveTask()) : this.getActiveTask());
 
     let allSubs = this.getSubmissions(null, customSubs);
     let taskSubs = allSubs;
-    if (targetTask) {
+    if (targetTask && !isAllTasks) {
       taskSubs = taskSubs.filter(s => s.taskId === targetTask.id);
     }
 
@@ -1909,13 +1952,13 @@ export const dbService = {
 
   async syncSubmissionsWithServer() {
     if (typeof fetch === 'undefined') {
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+      return this.getSubmissions();
     }
     try {
       const res = await fetch(getBackendUrl('/api/submissions?_t=' + Date.now()), {
         method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
         }
       });
@@ -1923,10 +1966,21 @@ export const dbService = {
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
-          const serverSubs = await res.json();
-          if (Array.isArray(serverSubs)) {
-            // SAFE UNION: Never lose any submission existing in client's localStorage
-            const freshLocal = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+          const resJson = await res.json();
+          const serverSubs = Array.isArray(resJson)
+            ? resJson
+            : (resJson && Array.isArray(resJson.submissions) ? resJson.submissions : null);
+
+          if (Array.isArray(serverSubs) && serverSubs.length > 0) {
+            // SAFE UNION: Never lose any submission existing in client's local cache
+            let freshLocal = IN_MEMORY_SUBMISSIONS;
+            if (!freshLocal || freshLocal.length === 0) {
+              try {
+                freshLocal = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+              } catch (_) {
+                freshLocal = [];
+              }
+            }
             const serverIdMap = new Map();
             serverSubs.forEach(s => {
               if (s && s.id) serverIdMap.set(String(s.id), s);
@@ -1937,12 +1991,15 @@ export const dbService = {
             const fullMerged = [...serverSubs, ...unmergedLocal];
             fullMerged.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
 
-            const currentStr = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]';
-            const serverStr = JSON.stringify(fullMerged);
-            if (currentStr !== serverStr) {
-              localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, serverStr);
-              broadcastSyncEvent('brk_submission_event', { submissions: fullMerged });
+            IN_MEMORY_SUBMISSIONS = fullMerged;
+
+            try {
+              localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(fullMerged));
+            } catch (storageErr) {
+              console.warn('LocalStorage save failed, kept in memory cache:', storageErr.message);
             }
+
+            broadcastSyncEvent('brk_submission_event', { submissions: fullMerged, count: fullMerged.length });
 
             // If there are unmerged local submissions, sync only the pending items
             if (unmergedLocal.length > 0 && unmergedLocal.length < 50) {
@@ -1958,7 +2015,7 @@ export const dbService = {
     } catch (e) {
       // Offline / standalone mode - ignore
     }
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    return this.getSubmissions();
   },
 
   async syncClicksWithServer() {

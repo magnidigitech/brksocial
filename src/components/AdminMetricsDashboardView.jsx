@@ -247,6 +247,9 @@ export function AdminMetricsDashboardView() {
 
   // Effective selected task ID (defaults to active task or first task if unselected)
   const effectiveTaskId = useMemo(() => {
+    if (selectedTaskId === 'ALL') {
+      return 'ALL';
+    }
     if (selectedTaskId && allTasks.some(t => t.id === selectedTaskId)) {
       return selectedTaskId;
     }
@@ -724,7 +727,7 @@ export function AdminMetricsDashboardView() {
               value={effectiveTaskId}
               onChange={(e) => {
                 setSelectedTaskId(e.target.value);
-                setSelectedCycleIndex(null);
+                setSelectedCycleIndex('ALL');
               }}
               style={{
                 border: 'none',
@@ -738,6 +741,7 @@ export function AdminMetricsDashboardView() {
                 textOverflow: 'ellipsis'
               }}
             >
+              <option value="ALL">All Campaigns & Tasks Combined</option>
               {allTasks.map(t => (
                 <option key={t.id} value={t.id}>{t.name} ({t.platform})</option>
               ))}

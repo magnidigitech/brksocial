@@ -142,13 +142,17 @@ export function EmployeePortal({ session, onLogout }) {
   const [selectedSubForInfo, setSelectedSubForInfo] = useState(null);
   const [showPatternHelp, setShowPatternHelp] = useState(false);
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(null);
+  const [subSyncTrigger, setSubSyncTrigger] = useState(0);
 
   // All-time historical metrics for this employee
   const empAllSubs = useMemo(() => {
-    const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+    const empId = (employee?.id || session?.employeeId || session?.id || session?.supportCode || 'APP13').toUpperCase().trim();
     const all = dbService.getSubmissions();
-    return all.filter(s => s.employeeId && s.employeeId.toUpperCase() === empId.toUpperCase());
-  }, [employee, session, taskStats]);
+    return all.filter(s => {
+      const matchId = (s.employeeId || s.supportCode || s.employee_id || '').toUpperCase().trim();
+      return matchId === empId;
+    });
+  }, [employee, session, taskStats, subSyncTrigger]);
 
   const empTotalSubmissionsEver = empAllSubs.length;
   const empActiveSubmissionsEver = empAllSubs.filter(s => s.status === 'Valid Submission' || s.status === 'Valid').length;
@@ -195,11 +199,12 @@ export function EmployeePortal({ session, onLogout }) {
     try {
       await dbService.syncSubmissionsWithServer();
       const res = await dbService.revalidateSubmissionsWithFollowers();
-      const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+      const empId = employee?.id || session?.employeeId || session?.id || session?.supportCode || 'APP13';
       const taskId = activeTask?.id || 'TASK-INSTA-001';
       const today = getTodayISTDateString();
-      const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, selectedCycleIndex);
       setTaskStats(stats);
+      setSubSyncTrigger(prev => prev + 1);
       setFeedback({
         type: 'success',
         message: `Synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All data is currently up to date.'}`
@@ -219,7 +224,7 @@ export function EmployeePortal({ session, onLogout }) {
   // Real-time live update for clicks and submissions across devices
   useEffect(() => {
     const handleLiveRefresh = () => {
-      const empId = employee?.id || session?.employeeId || session?.id || 'APP13';
+      const empId = employee?.id || session?.employeeId || session?.id || session?.supportCode || 'APP13';
       const refreshedTasks = dbService.getTasksForEmployee(empId);
       setAssignedTasks(refreshedTasks);
 
@@ -228,8 +233,9 @@ export function EmployeePortal({ session, onLogout }) {
       }
       const taskId = activeTask.id;
       const today = getTodayISTDateString();
-      const stats = dbService.getEmployeeDailyStats(empId, today, taskId);
+      const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, selectedCycleIndex);
       setTaskStats(stats);
+      setSubSyncTrigger(prev => prev + 1);
       const link = dbService.getTrackingLinkForEmployee(taskId, empId);
       setTrackingLink(link);
       const clicks = dbService.getEmployeeTaskClicks(empId, taskId, today);
@@ -249,6 +255,7 @@ export function EmployeePortal({ session, onLogout }) {
     triggerSync();
 
     const handleSubmissionEvent = () => {
+      setSubSyncTrigger(prev => prev + 1);
       triggerSync();
     };
 
@@ -523,15 +530,18 @@ export function EmployeePortal({ session, onLogout }) {
   };
 
   const todayStr = getTodayISTDateString();
-  const allLocalSubs = dbService.getSubmissions();
-  const currentEmpId = employee?.id || session?.employeeId || session?.id || '';
-  const previousSubmissions = allLocalSubs.filter(s =>
-    s && s.employeeId &&
-    s.employeeId.toUpperCase() === currentEmpId.toUpperCase() &&
-    (!activeTask || s.taskId === activeTask.id) &&
-    s.date !== todayStr &&
-    getISTDateFromISO(s.submittedAt) !== todayStr
-  );
+  const currentEmpId = (employee?.id || session?.employeeId || session?.id || session?.supportCode || '').toUpperCase().trim();
+  const previousSubmissions = useMemo(() => {
+    const allLocalSubs = dbService.getSubmissions();
+    return allLocalSubs.filter(s => {
+      if (!s) return false;
+      const matchId = (s.employeeId || s.supportCode || s.employee_id || '').toUpperCase().trim();
+      if (matchId !== currentEmpId) return false;
+      if (activeTask && s.taskId !== activeTask.id) return false;
+      const subDate = s.date || getISTDateFromISO(s.submittedAt);
+      return subDate !== todayStr;
+    });
+  }, [employee, session, activeTask, todayStr, subSyncTrigger, taskStats]);
 
   const PlatformIcon = activeTask ? (PLATFORM_ICONS[activeTask.platform] || Share2) : Share2;
 
