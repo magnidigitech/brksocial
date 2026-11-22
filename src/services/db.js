@@ -2010,8 +2010,6 @@ export const dbService = {
               console.warn('LocalStorage save failed, kept in memory cache:', storageErr.message);
             }
 
-            broadcastSyncEvent('brk_submission_event', { submissions: fullMerged, count: fullMerged.length });
-
             // If there are unmerged local submissions, sync only the pending items
             if (unmergedLocal.length > 0 && unmergedLocal.length < 50) {
               for (const pending of unmergedLocal) {
@@ -2045,7 +2043,6 @@ export const dbService = {
         const data = await res.json();
         if (data.success && Array.isArray(data.clicks)) {
           localStorage.setItem(STORAGE_KEYS.LINK_CLICKS, JSON.stringify(data.clicks));
-          broadcastSyncEvent('brk_link_click_event', { clicks: data.clicks });
           return data.clicks;
         }
       }

@@ -80,10 +80,17 @@ export function LinkAnalyticsView({ isStaffAdmin: propIsStaffAdmin }) {
   useEffect(() => {
     fetchLiveClicks();
 
-    const handleUpdate = () => fetchLiveClicks();
-    window.addEventListener('brk_link_click_event', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-    window.addEventListener('focus', handleUpdate);
+    const updateLocalClicks = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('brk_link_clicks_v1')) || [];
+        if (Array.isArray(stored)) {
+          setServerClicks(stored);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('brk_link_click_event', updateLocalClicks);
+    window.addEventListener('storage', updateLocalClicks);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -92,15 +99,15 @@ export function LinkAnalyticsView({ isStaffAdmin: propIsStaffAdmin }) {
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
+    // Throttled background poll every 45s to avoid API overload
     const interval = setInterval(() => {
       if (document.hidden) return;
       fetchLiveClicks();
-    }, 20000);
+    }, 45000);
 
     return () => {
-      window.removeEventListener('brk_link_click_event', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-      window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('brk_link_click_event', updateLocalClicks);
+      window.removeEventListener('storage', updateLocalClicks);
       document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };

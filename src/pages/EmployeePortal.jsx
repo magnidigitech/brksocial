@@ -273,7 +273,7 @@ export function EmployeePortal({ session, onLogout }) {
 
     const handleSubmissionEvent = () => {
       setSubSyncTrigger(prev => prev + 1);
-      triggerSync();
+      handleLiveRefresh();
     };
 
     window.addEventListener('brk_link_click_event', handleLiveRefresh);
