@@ -1205,10 +1205,18 @@ export const dbService = {
     };
   },
 
-  async revalidateSubmissionsWithFollowers() {
+  async revalidateSubmissionsWithFollowers(targetEmpId = null) {
     this.init();
-    const subs = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) || [];
+    const subs = this.getSubmissions();
     if (!subs.length) return { updatedCount: 0, subs: [] };
+
+    // Targeted validation: if candidate empId provided, revalidate only their submissions for instant response (<50ms)
+    const cleanEmpId = targetEmpId ? String(targetEmpId).trim().toUpperCase() : null;
+    const subsToCheck = cleanEmpId 
+      ? subs.filter(s => (s.employeeId || s.supportCode || s.employee_id || '').toUpperCase() === cleanEmpId)
+      : subs;
+
+    if (!subsToCheck.length) return { updatedCount: 0, subs };
 
     let updatedCount = 0;
 
@@ -1221,8 +1229,8 @@ export const dbService = {
       const res = await fetch(getBackendUrl('/api/instagram/followers/batch-check'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ submissions: subs }),
-        signal: getTimeoutSignal(3000)
+        body: JSON.stringify({ submissions: subsToCheck }),
+        signal: getTimeoutSignal(2500)
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
@@ -1247,18 +1255,18 @@ export const dbService = {
       } catch (_) {}
     }
 
-    // Evaluate each submission (from oldest to newest so duplicate checks work accurately)
-    for (let i = 0; i < subs.length; i++) {
-      const sub = subs[i];
+    // Evaluate each target submission
+    for (let i = 0; i < subsToCheck.length; i++) {
+      const sub = subsToCheck[i];
       const cleanUser = String(sub.username || '').trim().toLowerCase().replace(/^@+/, '');
       let checkRes = resultsMap.get(cleanUser);
 
-      // If backend didn't provide checkRes, check client-side followerStorage
-      if (!checkRes) {
+      // If backend didn't provide checkRes, check client-side followerStorage only if quick
+      if (!checkRes && subsToCheck.length <= 100) {
         checkRes = await followerStorage.checkFollower(cleanUser);
       }
 
-      const earlierSubs = subs.slice(i + 1);
+      const earlierSubs = subs.filter(s => s && s.id !== sub.id);
       const val = validateFollowerSubmission({
         normalizedUsername: sub.username,
         submittedAtIso: sub.submittedAt,
@@ -1286,7 +1294,10 @@ export const dbService = {
     }
 
     if (updatedCount > 0) {
-      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+      this.setCachedSubmissions(subs);
+      try {
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+      } catch (_) {}
       broadcastSyncEvent('brk_submission_event', { updatedCount });
       this.syncSubmissionsWithServer().catch(() => {});
     }

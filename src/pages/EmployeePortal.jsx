@@ -194,12 +194,13 @@ export function EmployeePortal({ session, onLogout }) {
   }, [feedback]);
 
   const handleSyncFollowers = async () => {
+    if (isSyncingFollowers) return;
     setIsSyncingFollowers(true);
     const startMs = Date.now();
     try {
       await dbService.syncSubmissionsWithServer();
-      const res = await dbService.revalidateSubmissionsWithFollowers();
       const empId = employee?.id || session?.employeeId || session?.id || session?.supportCode || 'APP13';
+      const res = await dbService.revalidateSubmissionsWithFollowers(empId);
       const taskId = activeTask?.id || 'TASK-INSTA-001';
       const today = getTodayISTDateString();
       const stats = dbService.getEmployeeDailyStats(empId, today, taskId, null, selectedCycleIndex);
@@ -207,14 +208,15 @@ export function EmployeePortal({ session, onLogout }) {
       setSubSyncTrigger(prev => prev + 1);
       setFeedback({
         type: 'success',
-        message: `Synchronization complete! ${res.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All data is currently up to date.'}`
+        message: `Synchronization complete! ${res?.updatedCount > 0 ? `Updated ${res.updatedCount} submission statuses.` : 'All data is currently up to date.'}`
       });
-      setTimeout(() => setFeedback(null), 4000);
+      setTimeout(() => setFeedback(null), 3000);
     } catch (err) {
       console.warn('Sync followers error:', err);
     } finally {
       const elapsed = Date.now() - startMs;
-      const remainingDelay = Math.max(0, 1500 - elapsed);
+      const minDisplayMs = 350;
+      const remainingDelay = Math.max(0, minDisplayMs - elapsed);
       setTimeout(() => {
         setIsSyncingFollowers(false);
       }, remainingDelay);

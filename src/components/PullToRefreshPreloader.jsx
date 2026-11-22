@@ -2,52 +2,39 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * PullToRefreshPreloader
- * Circular spinner loader with MagniDigi (MD) logo in the center.
- * Features smooth swipe-down animation with 1.5 second refresh delay and orbital SVG ring spinner.
+ * Native iOS/Android style pull-to-refresh spinner with MagniDigi (MD) branding.
+ * - Smooth touch-based pull-down with elastic resistance
+ * - Snappy and glitch-free: dismisses immediately once refresh completes
+ * - Zero accidental desktop mouse or trackpad bounce triggers
  */
 export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
   const [pullY, setPullY] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
-  const [isRefreshingInternal, setIsRefreshingInternal] = useState(false);
 
   const startYRef = useRef(0);
   const isPullingRef = useRef(false);
   const pullYRef = useRef(0);
-  const wheelDeltaRef = useRef(0);
-  const wheelTimerRef = useRef(null);
-  const isMousePullingRef = useRef(false);
 
-  const THRESHOLD = 60; // px pull distance to trigger refresh
-  const MAX_PULL = 90;
+  const THRESHOLD = 55; // px pull distance to trigger refresh
+  const MAX_PULL = 85;
 
-  const activeRefreshing = isRefreshing || isRefreshingInternal;
-
-  const triggerRefreshWithDelay = () => {
-    setIsRefreshingInternal(true);
-    setPullY(THRESHOLD);
-
-    const startMs = Date.now();
-    const handleDone = () => {
-      const elapsed = Date.now() - startMs;
-      const remainingDelay = Math.max(0, 1500 - elapsed);
-      setTimeout(() => {
-        setIsRefreshingInternal(false);
-        setPullY(0);
-      }, remainingDelay);
-    };
-
-    if (onRefresh) {
-      Promise.resolve(onRefresh()).finally(handleDone);
-    } else {
-      handleDone();
+  const triggerRefresh = () => {
+    setIsPulling(false);
+    setPullY(0);
+    pullYRef.current = 0;
+    if (onRefresh && !isRefreshing) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(12); } catch (_) {}
+      }
+      onRefresh();
     }
   };
 
   useEffect(() => {
-    // TOUCH GESTURES (Mobile)
+    // Touch Gestures only (mobile & tablet)
     const handleTouchStart = (e) => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 5 && !activeRefreshing) {
+      if (scrollTop <= 2 && !isRefreshing) {
         startYRef.current = e.touches[0].clientY;
         isPullingRef.current = true;
       } else {
@@ -56,27 +43,37 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     };
 
     const handleTouchMove = (e) => {
-      if (!isPullingRef.current || activeRefreshing) return;
+      if (!isPullingRef.current || isRefreshing) return;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (scrollTop > 2) {
+        isPullingRef.current = false;
+        setPullY(0);
+        setIsPulling(false);
+        return;
+      }
+
       const currentY = e.touches[0].clientY;
       const rawDelta = currentY - startYRef.current;
 
       if (rawDelta > 0) {
-        const distance = Math.min(rawDelta * 0.55, MAX_PULL);
+        // Logarithmic / dampened elastic resistance
+        const distance = Math.min(rawDelta * 0.45, MAX_PULL);
         pullYRef.current = distance;
         setPullY(distance);
         setIsPulling(true);
 
-        if (e.cancelable && distance > 10) {
+        if (e.cancelable && distance > 12) {
           e.preventDefault();
         }
       } else {
         pullYRef.current = 0;
         setPullY(0);
+        setIsPulling(false);
       }
     };
 
     const handleTouchEnd = () => {
-      if (!isPullingRef.current || activeRefreshing) {
+      if (!isPullingRef.current || isRefreshing) {
         isPullingRef.current = false;
         return;
       }
@@ -84,73 +81,11 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       setIsPulling(false);
 
       if (pullYRef.current >= THRESHOLD) {
-        triggerRefreshWithDelay();
+        triggerRefresh();
       } else {
         setPullY(0);
       }
       pullYRef.current = 0;
-    };
-
-    // MOUSE DRAG GESTURES (Desktop / DevTools Simulator)
-    const handleMouseDown = (e) => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 5 && !activeRefreshing && e.button === 0 && e.clientY < 180) {
-        startYRef.current = e.clientY;
-        isMousePullingRef.current = true;
-      }
-    };
-
-    const handleMouseMove = (e) => {
-      if (!isMousePullingRef.current || activeRefreshing) return;
-      const rawDelta = e.clientY - startYRef.current;
-      if (rawDelta > 0) {
-        const distance = Math.min(rawDelta * 0.5, MAX_PULL);
-        pullYRef.current = distance;
-        setPullY(distance);
-        setIsPulling(true);
-      } else {
-        setPullY(0);
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (!isMousePullingRef.current || activeRefreshing) {
-        isMousePullingRef.current = false;
-        return;
-      }
-      isMousePullingRef.current = false;
-      setIsPulling(false);
-
-      if (pullYRef.current >= THRESHOLD) {
-        triggerRefreshWithDelay();
-      } else {
-        setPullY(0);
-      }
-      pullYRef.current = 0;
-    };
-
-    // TRACKPAD WHEEL PULL-DOWN AT TOP
-    const handleWheel = (e) => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      if (scrollTop <= 2 && e.deltaY < -8 && !activeRefreshing) {
-        wheelDeltaRef.current += Math.abs(e.deltaY) * 0.35;
-        const distance = Math.min(wheelDeltaRef.current, MAX_PULL);
-        pullYRef.current = distance;
-        setPullY(distance);
-        setIsPulling(true);
-
-        clearTimeout(wheelTimerRef.current);
-        if (distance >= THRESHOLD) {
-          wheelDeltaRef.current = 0;
-          triggerRefreshWithDelay();
-        } else {
-          wheelTimerRef.current = setTimeout(() => {
-            wheelDeltaRef.current = 0;
-            setPullY(0);
-            setIsPulling(false);
-          }, 350);
-        }
-      }
     };
 
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
@@ -158,45 +93,31 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('wheel', handleWheel, { passive: true });
-
     return () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
-
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('wheel', handleWheel);
-      clearTimeout(wheelTimerRef.current);
     };
-  }, [onRefresh, activeRefreshing]);
+  }, [onRefresh, isRefreshing]);
 
   // SVG circle circumference for r = 24 is 2 * PI * 24 ≈ 150.8
   const CIRCUMFERENCE = 150.8;
   const pullProgress = Math.min(pullY / THRESHOLD, 1);
 
   // Position calculation:
-  // Starts offscreen above viewport at -85px
-  // As user pulls down, smoothly glides down into center
-  // While refreshing, rests comfortably at +22px below safe area
-  const isVisible = pullY > 0 || activeRefreshing;
-  const targetY = activeRefreshing
-    ? 22
-    : (isPulling || pullY > 0
-      ? (-80 + Math.min(pullY * 1.5, 102))
-      : -95);
+  // Hidden above screen at -75px
+  // Glides down to +18px when pulled or refreshing
+  const isVisible = isRefreshing || pullY > 0;
+  const targetY = isRefreshing
+    ? 18
+    : (pullY > 0 ? (-70 + Math.min(pullY * 1.5, 88)) : -75);
 
   return (
     <div
       style={{
         position: 'fixed',
-        top: 'max(14px, env(safe-area-inset-top, 14px))',
+        top: 'max(10px, env(safe-area-inset-top, 10px))',
         left: 0,
         right: 0,
         display: 'flex',
@@ -204,8 +125,8 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
         alignItems: 'flex-start',
         zIndex: 9999,
         pointerEvents: 'none',
-        transform: `translateY(${targetY}px)`,
-        transition: isPulling ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
+        transform: `translate3d(0, ${targetY}px, 0)`,
+        transition: isPulling ? 'none' : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease',
         opacity: isVisible ? 1 : 0,
         willChange: 'transform, opacity'
       }}
@@ -214,26 +135,25 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
       <div
         style={{
           position: 'relative',
-          width: '52px',
-          height: '52px',
+          width: '48px',
+          height: '48px',
           borderRadius: '50%',
           backgroundColor: '#ffffff',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(255, 77, 0, 0.22)',
-          border: '1px solid rgba(0, 0, 0, 0.05)',
+          boxShadow: '0 8px 22px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(255, 77, 0, 0.2)',
+          border: '1px solid rgba(0, 0, 0, 0.06)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'auto'
+          justifyContent: 'center'
         }}
       >
         {/* Orbital SVG Circular Spinner Ring */}
         <svg
           style={{
             position: 'absolute',
-            inset: -4,
-            width: '60px',
-            height: '60px',
-            transform: activeRefreshing ? 'none' : `rotate(${pullY * 4.5 - 90}deg)`,
+            inset: -3,
+            width: '54px',
+            height: '54px',
+            transform: isRefreshing ? 'none' : `rotate(${pullY * 5 - 90}deg)`,
             transformOrigin: 'center center',
             pointerEvents: 'none'
           }}
@@ -245,7 +165,7 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
             cy="30"
             r="24"
             fill="none"
-            stroke="rgba(255, 77, 0, 0.15)"
+            stroke="rgba(255, 77, 0, 0.12)"
             strokeWidth="3"
           />
 
@@ -260,11 +180,11 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
             strokeLinecap="round"
             style={{
               transformOrigin: 'center center',
-              animation: activeRefreshing ? 'mdCircleSpinner 0.9s linear infinite' : 'none',
-              transition: isPulling ? 'none' : 'stroke-dashoffset 0.2s ease'
+              animation: isRefreshing ? 'mdCircleSpinner 0.75s linear infinite' : 'none',
+              transition: isPulling ? 'none' : 'stroke-dashoffset 0.15s ease'
             }}
-            strokeDasharray={activeRefreshing ? '95 55' : `${CIRCUMFERENCE}`}
-            strokeDashoffset={activeRefreshing ? '0' : `${CIRCUMFERENCE * (1 - pullProgress)}`}
+            strokeDasharray={isRefreshing ? '95 55' : `${CIRCUMFERENCE}`}
+            strokeDashoffset={isRefreshing ? '0' : `${CIRCUMFERENCE * (1 - pullProgress)}`}
           />
         </svg>
 
@@ -273,15 +193,15 @@ export default function PullToRefreshPreloader({ onRefresh, isRefreshing }) {
           src="/images/magnidigi-logo-mark.png"
           alt="MagniDigi"
           style={{
-            width: '32px',
-            height: '32px',
+            width: '28px',
+            height: '28px',
             borderRadius: '50%',
             objectFit: 'contain',
             display: 'block',
             position: 'relative',
             zIndex: 2,
-            transform: `scale(${activeRefreshing ? 1 : Math.min(0.8 + pullProgress * 0.2, 1)})`,
-            transition: 'transform 0.2s ease'
+            transform: `scale(${isRefreshing ? 1 : Math.min(0.85 + pullProgress * 0.15, 1)})`,
+            transition: 'transform 0.15s ease'
           }}
         />
       </div>
