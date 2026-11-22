@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brk-taskhub-pwa-v6';
+const CACHE_NAME = 'brk-taskhub-pwa-v7';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -141,5 +141,18 @@ self.addEventListener('message', (event) => {
   }
   if (event.data && event.data.type === 'CLEAR_CACHE') {
     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+  }
+});
+
+// Background Sync: Android/Chromium triggers this when device regains connectivity
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'brk-sync-submissions') {
+    event.waitUntil(
+      self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'FLUSH_OFFLINE_QUEUE' });
+        });
+      })
+    );
   }
 });

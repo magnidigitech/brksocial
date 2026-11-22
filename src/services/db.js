@@ -19,6 +19,7 @@ import {
 } from './istUtils.js';
 import { followerStorage, getTimeoutSignal } from './followerStorage.js';
 import { getBackendUrl } from './apiConfig.js';
+import { offlineQueue } from './offlineQueue.js';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'brk_employees_v3', // bumped to v3 for official PAT Staff Details October 2026 (Support Code, Staff ID, Personal & Office Mobile)
@@ -1169,8 +1170,14 @@ export const dbService = {
       followedAtTimestamp: validation.followedAtTimestamp || null,
       verificationBadge: validation.verificationBadge,
       verificationNote: validation.verificationNote,
-      timeFormattedIST: formatIST(submittedAtIso, { timeOnly: true })
+      timeFormattedIST: formatIST(submittedAtIso, { timeOnly: true }),
+      syncStatus: (typeof navigator !== 'undefined' && navigator.onLine) ? 'synced' : 'queued',
+      isOfflineQueued: (typeof navigator !== 'undefined' && !navigator.onLine)
     };
+
+    if (newSub.isOfflineQueued) {
+      offlineQueue.enqueue(newSub);
+    }
 
     allSubs.unshift(newSub);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(allSubs));
@@ -1937,6 +1944,16 @@ export const dbService = {
 
   async sendSubmissionToServer(sub) {
     if (typeof fetch === 'undefined' || !sub) return sub;
+
+    // Check offline status first
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      sub.syncStatus = 'queued';
+      sub.isOfflineQueued = true;
+      offlineQueue.enqueue(sub);
+      return sub;
+    }
+
     try {
       const res = await fetch(getBackendUrl('/api/submissions'), {
         method: 'POST',
@@ -1952,11 +1969,22 @@ export const dbService = {
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
           const data = await res.json();
+          sub.syncStatus = 'synced';
+          sub.isOfflineQueued = false;
+          offlineQueue.dequeue(sub.id);
           return data.submission || sub;
         }
+      } else {
+        // Temporary server failure -> queue for auto-retry
+        sub.syncStatus = 'queued';
+        sub.isOfflineQueued = true;
+        offlineQueue.enqueue(sub);
       }
     } catch (e) {
-      console.warn('Failed to send submission to server (stored locally):', e.message);
+      console.warn('Network unavailable, queued for auto-sync:', e.message);
+      sub.syncStatus = 'queued';
+      sub.isOfflineQueued = true;
+      offlineQueue.enqueue(sub);
     }
     return sub;
   },

@@ -1646,6 +1646,20 @@ export function EmployeePortal({ session, onLogout }) {
 
                                     {/* Color-Coded Status Badge */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      {sub.isOfflineQueued && (
+                                        <span style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '10.5px',
+                                          fontWeight: 700,
+                                          backgroundColor: '#fff7ed',
+                                          color: '#c2410c',
+                                          border: '1px solid #fed7aa',
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          ⏳ Queued Offline
+                                        </span>
+                                      )}
                                       <span style={{
                                         padding: '3px 10px',
                                         borderRadius: '9999px',
@@ -1769,6 +1783,20 @@ export function EmployeePortal({ session, onLogout }) {
 
                                     {/* Color-Coded Status Badge */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      {sub.isOfflineQueued && (
+                                        <span style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '10.5px',
+                                          fontWeight: 700,
+                                          backgroundColor: '#fff7ed',
+                                          color: '#c2410c',
+                                          border: '1px solid #fed7aa',
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          ⏳ Queued Offline
+                                        </span>
+                                      )}
                                       <span style={{
                                         padding: '3px 10px',
                                         borderRadius: '9999px',

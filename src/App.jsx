@@ -6,6 +6,8 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { authService } from './services/auth';
 import { dbService } from './services/db';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { OfflineStatusIndicator } from './components/OfflineStatusIndicator';
+import { offlineQueue } from './services/offlineQueue';
 
 // Smart Instagram App Deep-Linking Redirect Handler
 function TrackingRedirectHandler({ pathname }) {
@@ -345,9 +347,22 @@ export default function App() {
     setSession(null);
   };
 
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const handleMessage = (event) => {
+        if (event.data?.type === 'FLUSH_OFFLINE_QUEUE') {
+          offlineQueue.flushQueue();
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+    }
+  }, []);
+
   return (
     <>
       <PWAInstallPrompt />
+      <OfflineStatusIndicator />
       {!session ? (
         <LoginPage onLoginSuccess={handleLoginSuccess} />
       ) : session.role === 'Employee' ? (
